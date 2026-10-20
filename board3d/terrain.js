@@ -734,7 +734,10 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
         vTint = tint; vH = uv.y;
         // глубина дерева = глубина основания, сдвинутого к камере (~радиус кроны у земли):
         // всё, что стоит за стволом, остаётся за деревом
-        vec4 cb = projectionMatrix * viewMatrix * vec4(base + normalize(cameraPosition - base) * 0.45, 1.0);   // одинаково для всех деревьев
+        // глубина — как у настоящего вертикального дерева (верх кроны ближе к камере, чем основание):
+        // иначе стена уступа выше-сзади дерева оказывалась «ближе» основания и срезала крону
+        vec3 vert = base + upv * position.y * h * k;
+        vec4 cb = projectionMatrix * viewMatrix * vec4(vert + normalize(cameraPosition - base) * 0.45, 1.0);
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         gl_Position.z = (cb.z / cb.w) * gl_Position.w;
       }`,
@@ -1788,6 +1791,17 @@ ${gtex ? `{
     }
     // плоский режим: папоротники — картинками из атласа деревьев (группа fern), как деревья
     if (sprites && !treesGltf && sprites.frames.some(f => f.group === 'fern') && items.prop_fern) {
+      // не под кроной дерева: плоский папоротник не может быть «под ветками» — только перед или за деревом
+      const treeL = treeBillboard ? treeBillboard.list : [];
+      const grid = new Map(), gk = (x, z) => `${Math.floor(x / 2)},${Math.floor(z / 2)}`;
+      for (const t of treeL) if (t.h > 1.2) { const k = gk(t.x, t.z); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(t); }
+      const underCrown = (x, z) => {
+        for (let i = -1; i <= 1; i += 1) for (let j = -1; j <= 1; j += 1)
+          for (const t of grid.get(`${Math.floor(x / 2) + i},${Math.floor(z / 2) + j}`) ?? [])
+            if (Math.hypot(t.x - x, t.z - z) < 0.35 * t.h + 0.3) return true;
+        return false;
+      };
+      items.prop_fern = items.prop_fern.filter(([x, , z]) => !underCrown(x, z));
       const ferns = items.prop_fern.map(([x, y, z, k]) => ({ x, y, z, h: 0.55 * k, group: 'fern', pick: Math.floor(r() * 99),
         tint: [(r() - 0.5) * 0.04, 0.85 + r() * 0.25, 0.8 + r() * 0.3] }));
       // в ОДИН отсортированный список с деревьями — иначе две сетки сравниваются по глубине от камеры
