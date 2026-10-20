@@ -563,8 +563,9 @@ varying vec3 vCNrm;`)
 {
   vec3 n = normalize(vCNrm);
   vec2 uvX = vec2(vCPos.z, vCPos.y) * 0.17, uvZ = vec2(vCPos.x, vCPos.y) * 0.17;
-  float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
-  vec3 side = mix(texture2D(cliffSide, uvZ).rgb, texture2D(cliffSide, uvX).rgb, smoothstep(0.35, 0.65, wx));
+  // трёхплоскостная проекция с весами по нормали: на косых гранях нет растянутых полос
+  vec3 tw = pow(abs(n), vec3(4.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
+  vec3 side = texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z;
   side *= mix(0.78, 1.08, clamp(vCPos.y / 6.5, 0.0, 1.0));          // низ темнее, верх светлее
   // верх уступа — камень с мхом и лишайником (tex-rocktop), не газон; редкие пятна травы
   vec3 rtop = mix(texture2D(cliffGrass, vCPos.xz * 0.13).rgb,
@@ -974,7 +975,7 @@ ${gtex ? `{
   vec4 sb = texture2D(g_splatB, vMapUv);
   vec3 col = grass;
   if (sb.r > 0.01) col = mix(col, texture2D(g_meadow, tuv).rgb, sb.r);
-  if (sa.g > 0.01) col = mix(col, texture2D(g_forest, tuv).rgb, sa.g);
+  if (sa.g > 0.01) col = mix(col, texture2D(g_forest, tuv).rgb * vec3(0.6, 0.62, 0.55), sa.g);   // под кронами темно (не газон)
   if (sb.g > 0.01) col = mix(col, texture2D(g_dark, tuv).rgb, sb.g);
   if (sa.b > 0.01) col = mix(col, texture2D(g_beach, tuv).rgb * vec3(0.95, 0.9, 0.82), sa.b);
   // тропа без видимого повтора: две выборки в разном масштабе и под углом, смешаны шумовой маской
@@ -1012,7 +1013,8 @@ ${gtex ? `{
     float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
     float ridgeTop = smoothstep(1.0, 1.6, vWorldPos.y);
     if (steep > 0.01 || ridgeTop > 0.01) {
-    vec3 side = steep > 0.01 ? mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx)) : vec3(0.0);
+    vec3 tw = pow(abs(n), vec3(4.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
+    vec3 side = steep > 0.01 ? texture2D(rockSide, uvX).rgb * tw.x + texture2D(rockSide, vWorldPos.xz * 0.19).rgb * tw.y + texture2D(rockSide, uvZ).rgb * tw.z : vec3(0.0);
     vec3 top = texture2D(rockTop, vWorldPos.xz * 0.13).rgb;
     // верх террас хребта — камень с мхом и лишайником (не газон); вторая выборка под углом против повтора,
     // пятна травы оставляем шумом; ниже 1.2 — обычная земля
@@ -1395,17 +1397,23 @@ ${gtex ? `{
       const jx = x + (r() - 0.5) * TREE_STEP * 0.9, jz = z + (r() - 0.5) * TREE_STEP * 0.9;
       const m = sample(jx, jz);
       // уступы и верх хребта: ёлки редкими группами на ровном месте, не у края
+      if (jx < groundX0 + 1.5 || jx > groundX0 + groundW - 1.5 || jz < groundZ0 + 1.5 || jz > groundZ0 + groundH - 1.5) continue;   // не за краем карты
       if (blocked(jx, jz)) continue;
       const gyRidge = groundY(jx, jz);
       if (gyRidge > 1.0) {
         const flat = [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].every(([dx, dz]) => Math.abs(groundY(jx + dx, jz + dz) - gyRidge) < 0.25);
-        // уступы не пустошь: лес группами, на краю уступа — кусты и коряги
-        if (flat && valueNoise2(jx * 0.25, jz * 0.25) > 0.12) treeSpots.push([jx, jz, 'ridge', false]);
-        else if (r() < 0.35) treeSpots.push([jx, jz, 'ridge', true]);
+        // уступы: лес КУЧНЫМИ рощами (крупный шум, внутри рощи — каждое место), между рощами пусто;
+        // кустов на уступах нет. Порода — по биому соседних колод (тёмный лес -> тёмные ели и т. д.)
+        const rg = valueNoise2(jx * 0.11 + 2.3, jz * 0.11 + 9.1);
+        if (flat && rg > 0.5) {
+          const b = biomeAt(jx, jz);
+          treeSpots.push([jx, jz, ['dark', 'autumn', 'birch', 'forest'].includes(b) ? b : 'ridge', false]);
+        }
         continue;
       }
       const biome0 = biomeAt(jx, jz);
-      const special = (biome0 === 'lake' && [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([ox, oz]) => sample(jx + ox, jz + oz).water > 0.4))
+      // ивы у озера вне лесной маски — редкими одиночками, не стеной вдоль воды
+      const special = (biome0 === 'lake' && r() < 0.25 && [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([ox, oz]) => sample(jx + ox, jz + oz).water > 0.4))
         || biome0 === 'fairy';
       if (!special && m.forest < 0.5) continue;
       if (m.water > 0.3 || m.rock > 0.45) continue;
@@ -1416,7 +1424,7 @@ ${gtex ? `{
       const biome = biome0;
       // ритм плотности: рощи и поляны (крупный шум), на лугу деревья редкие
       const grove = valueNoise2(jx * 0.13 + 7.1, jz * 0.13 + 3.7);
-      if (grove < 0.2 && r() > 0.2) continue;
+      if (grove < 0.2 && r() < 0.12) continue;          // лес сомкнутый: шум лишь слегка разрежает (совет Codex)
       if (biome === 'meadow' && r() > 0.22) continue;
       const edge = dCell < CELL_CLEAR + 0.9;            // опушка у тропы: кусты и молодые деревца
       treeSpots.push([jx, jz, biome, edge]);
@@ -1429,8 +1437,7 @@ ${gtex ? `{
   const nearWaterT = (x, z) => [[1.8, 0], [-1.8, 0], [0, 1.8], [0, -1.8]].some(([ox, oz]) => sample(x + ox, z + oz).water > 0.4);
   for (const [x, z, biome, edge] of treeSpots) {
     let name;
-    if (edge && biome === 'ridge') name = r() < 0.6 ? 'tree_bush' : 'tree_snag';      // край уступа
-    else if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
+    if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
     else if (biome === 'lake') name = nearWaterT(x, z) || r() < 0.45 ? 'tree_willow' : pickWeighted(BIOME_MIX.lake, r);   // у озера больше ив
     else name = pickWeighted(BIOME_MIX[biome] ?? BIOME_MIX.forest, r);
     (byName[name] ??= []).push([x, z, edge && name !== 'tree_bush' ? 0.65 : r() < 0.03 ? 1.45 : 1]);
@@ -1661,7 +1668,7 @@ ${gtex ? `{
       for (const [x, z, mul] of spots) {
         // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
         const darkB = biomeAt(x, z) === 'dark';
-        const tone = [(r() - 0.5) * 0.05 + (darkB ? 0.03 : 0), 0.82 + r() * 0.3, (0.82 + r() * 0.3) * (darkB ? 0.78 : 1)];
+        const tone = [(r() - 0.5) * 0.04 + (darkB ? 0.03 : 0), 0.88 + r() * 0.18, (0.92 + r() * 0.14) * (darkB ? 0.78 : 1)];   // ±7%: лес единой массой
         let h = (h0 + r() * (h1 - h0)) * mul * 1.1, group = SPRITE_GROUP[name] ?? 'spruce';
         // дерево не закрывает клетки за собой: ниже до допустимой высоты, а если совсем низко — куст
         const lim = coverLimit(x, z, h * 0.35);
@@ -1673,15 +1680,21 @@ ${gtex ? `{
         list.push({ x, y: groundY(x, z), z, h, group, pick: Math.floor(r() * 99), tint: tone });
       }
     }
-    // сказочные не стоят кучей: между кронами зазор ~0,55 высоты (остальные лишние — убираем)
+    // не кучей: между кронами зазор (сказочные — шире); на уступах хребта рощи плотнее
     {
-      const kept = [];
-      for (let i = list.length - 1; i >= 0; i -= 1) {
-        const t = list[i];
-        if (!t.group.startsWith('fairy')) continue;
-        if (kept.some(o => Math.hypot(o.x - t.x, o.z - t.z) < (o.h + t.h) * 0.55)) list.splice(i, 1);
-        else kept.push(t);
+      const cellOf2 = new Map(), k2 = (x, z) => `${Math.floor(x / 3)},${Math.floor(z / 3)}`;
+      const keep = [];
+      for (const t of list) {
+        const gap = t.group.startsWith('fairy') ? 0.55 : 0;          // остальным — только не в одной точке (ниже)
+        const cx = Math.floor(t.x / 3), cz = Math.floor(t.z / 3);
+        let ok = true;
+        for (let i = -1; i <= 1 && ok; i += 1) for (let j = -1; j <= 1 && ok; j += 1)
+          for (const o of cellOf2.get(`${cx + i},${cz + j}`) ?? []) if (Math.hypot(o.x - t.x, o.z - t.z) < Math.max(0.35, (o.h + t.h) * gap)) { ok = false; break; }
+        if (!ok) continue;
+        keep.push(t);
+        const kk = k2(t.x, t.z); if (!cellOf2.has(kk)) cellOf2.set(kk, []); cellOf2.get(kk).push(t);
       }
+      list.length = 0; list.push(...keep);
     }
     // дальние — сначала: альфа-срез и так корректен по глубине, но так меньше перерисовки
     // густота рощи: сколько деревьев рядом — в гуще темнее, на опушке светлее
