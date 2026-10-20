@@ -752,7 +752,11 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
         hsv.x = fract(hsv.x + vTint.x); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= vTint.z;
         // затенение: низ кроны и ствол темнее (окклюзия), в густой роще всё дерево темнее (vTint.w)
         hsv.z *= mix(0.62, 1.0, smoothstep(0.0, 0.55, vH)) * vTint.w;
-        gl_FragColor = vec4(hsv2rgb(hsv), c.a);
+        vec3 rgb = hsv2rgb(hsv);
+        // грейд под концепт v6b: темнее, чуть холоднее и приглушённее (картинки не видят освещение сцены)
+        float lum = dot(rgb, vec3(0.3, 0.59, 0.11));
+        rgb = mix(vec3(lum), rgb, 0.82) * vec3(0.80, 0.84, 0.86);
+        gl_FragColor = vec4(rgb, c.a);
         #include <colorspace_fragment>
       }`,
   });
@@ -1003,7 +1007,9 @@ ${gtex ? `{
   // дно под водой: от песка у берега к глубокой бирюзе
   float depth = clamp(-vWorldPos.y / 0.9, 0.0, 1.0);
   col = mix(col, mix(vec3(0.55, 0.62, 0.45), vec3(0.04, 0.32, 0.38), smoothstep(0.1, 0.8, depth)), smoothstep(0.02, 0.15, depth));
-  diffuseColor.rgb = col;
+  // грейд v6b: земля темнее и холоднее, зелень приглушена
+  float gl0 = dot(col, vec3(0.3, 0.59, 0.11));
+  diffuseColor.rgb = mix(vec3(gl0), col, 0.8) * vec3(0.84, 0.88, 0.88);
 }` : ''}
 {
   vec3 n = normalize(vNrm);
@@ -1045,13 +1051,26 @@ ${gtex ? `{
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+      // ячеистый шум Вороного (расстояние до края ячейки) — сетка бликов, как каустика
+      vec2 hh(vec2 p){ return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+      float vor(vec2 p, float t){ vec2 i = floor(p), f = fract(p); float d1 = 8.0, d2 = 8.0;
+        for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 g = vec2(float(x), float(y));
+          vec2 o = 0.5 + 0.5 * sin(t + 6.2831 * hh(i + g)); float d = length(g + o - f);
+          if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d; }
+        return d2 - d1; }
       void main(){
         float d = texture2D(dist, vUv).r;                  // 0 у берега -> 1 на глубине
-        vec3 shallow = vec3(0.32, 0.86, 0.84), deep = vec3(0.02, 0.38, 0.52);
-        vec3 col = mix(shallow, deep, smoothstep(0.0, 0.75, d));
-        // рябь: две бегущие волны шума — светлые прожилки
-        float rip = n2(vPos.xz * 1.6 + vec2(time * 0.35, time * 0.2)) * n2(vPos.xz * 2.3 - vec2(time * 0.25, -time * 0.3));
-        col += smoothstep(0.42, 0.62, rip) * 0.22;
+        // тёмная холодная вода (концепт v6b): бирюза у берега -> глубокий сине-зелёный
+        vec3 shallow = vec3(0.22, 0.58, 0.60), deep = vec3(0.02, 0.16, 0.24);
+        vec3 col = mix(shallow, deep, smoothstep(0.0, 0.6, d));
+        // два слоя Вороного разного масштаба, бегут навстречу — светлые прожилки на гранях ячеек
+        // координаты искривлены шумом — ячейки не ровные «плитки», а живая каустика
+        vec2 wp = vPos.xz + vec2(n2(vPos.xz * 0.7 + time * 0.05), n2(vPos.xz * 0.7 + 5.3 - time * 0.04)) * 1.4;
+        float v1 = vor(wp * 1.0 + vec2(time * 0.10, time * 0.06), time * 0.7);
+        float v2 = vor(wp * 2.1 - vec2(time * 0.08, -time * 0.11), time * 0.9 + 1.7);
+        float lines = (1.0 - smoothstep(0.0, 0.06, v1)) * 0.55 + (1.0 - smoothstep(0.0, 0.045, v2)) * 0.45;
+        lines *= smoothstep(0.25, 0.75, n2(vPos.xz * 0.45 + time * 0.03));     // местами пропадает — не сплошная сетка
+        col += lines * mix(0.20, 0.10, smoothstep(0.0, 0.8, d)) * vec3(0.75, 0.95, 1.0);
         // пена у берега: полоса + бегущие волны прибоя, рваный край
         float wave = sin((d * 26.0) - time * 2.2 + n2(vPos.xz * 1.3) * 4.0) * 0.5 + 0.5;
         float foamBand = (1.0 - smoothstep(0.02, 0.14, d)) + (1.0 - smoothstep(0.08, 0.28, d)) * smoothstep(0.7, 0.95, wave) * 0.85;
@@ -1417,7 +1436,9 @@ ${gtex ? `{
       // ивы у озера вне лесной маски — редкими одиночками, не стеной вдоль воды
       const special = (biome0 === 'lake' && r() < 0.25 && [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([ox, oz]) => sample(jx + ox, jz + oz).water > 0.4))
         || biome0 === 'fairy';
-      if (!special && m.forest < 0.5) continue;
+      // у подножия хребта (стена в пределах 3) лес и вне маски — не пустая трава под скалой
+      const footOfRidge = m.forest < 0.5 && groundY(jx, jz) < 0.3 && [[0, -2.5], [1.8, -1.8], [-1.8, -1.8], [2.5, 0], [-2.5, 0]].some(([dx, dz]) => groundY(jx + dx, jz + dz) > 1.2);
+      if (!special && !footOfRidge && m.forest < 0.5) continue;
       if (m.water > 0.3 || m.rock > 0.45) continue;
       const dCell = nearest(jx, jz);
       if (dCell < CELL_CLEAR) continue;
@@ -1680,7 +1701,7 @@ ${gtex ? `{
       for (const [x, z, mul] of spots) {
         // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
         const darkB = biomeAt(x, z) === 'dark';
-        const tone = [(r() - 0.5) * 0.04 + (darkB ? 0.03 : 0), 0.88 + r() * 0.18, (0.92 + r() * 0.14) * (darkB ? 0.78 : 1)];   // ±7%: лес единой массой
+        const tone = [(r() - 0.5) * 0.05 + (darkB ? 0.03 : 0), 0.82 + r() * 0.3, (0.82 + r() * 0.3) * (darkB ? 0.78 : 1)];   // разнотонность — как было (возврат 20.10)
         let h = (h0 + r() * (h1 - h0)) * mul * 1.1, group = SPRITE_GROUP[name] ?? 'spruce';
         // дерево не закрывает клетки за собой: ниже до допустимой высоты, а если совсем низко — куст
         const lim = coverLimit(x, z, h * 0.35);
@@ -1884,6 +1905,7 @@ ${gtex ? `{
       }
       g.userData.laid = true;
     }
+    if (items.prop_log) items.prop_log = items.prop_log.filter(([x, , z]) => nearest(x, z) > 1.3);   // брёвна не на клетках
     for (const [name, list] of Object.entries(items)) {
       if (!propKit[name]) continue;
       const mesh = new THREE.InstancedMesh(propKit[name], name === 'prop_mush_glow' ? glowMat : propMat, list.length);
@@ -1945,7 +1967,7 @@ ${gtex ? `{
       if (sp) place.push(['crystal_cluster', ...sp, 1.0 + r() * 0.5, CRYSTAL[i]]);
     }
     const byS = {};
-    for (const it of place) (byS[it[0]] ??= []).push(it);
+    for (const it of place) if (it[0] === 'crystal_cluster') (byS[it[0]] ??= []).push(it);   // шпили убраны (20.10), кристаллы оставлены
     const spireMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     const crystalMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x3a2050, transparent: true, opacity: 0.92 });
     for (const [name, list] of Object.entries(byS)) {

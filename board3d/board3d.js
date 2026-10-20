@@ -8,7 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildTerrain } from './terrain.js?v=156';
+import { buildAtmosphere } from './atmosphere.js?v=2';
+import { buildTerrain } from './terrain.js?v=165';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -31,17 +32,18 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const BG = new THREE.Color('#1b1712');
+// этап 0 (концепт v6b): тёмный холодный фон и дымка вдали
+const BG = new THREE.Color('#151a1e');
 scene.background = BG;
-scene.fog = new THREE.Fog(BG, 90, 190);
+scene.fog = new THREE.Fog(new THREE.Color('#2a3236'), 70, 170);
 
 // Узкий угол обзора (24°): перспектива мягче, вертикали почти не сходятся — ближе к виду цели-арта
 const FOV_K = 40 / 24;   // во сколько раз камера дальше, чем при прежних 40°
 const camera = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, 4, 500);   // ближняя плоскость дальше — точнее глубина
 
-const hemi = new THREE.HemisphereLight(0xfff4e0, 0x3a3020, 2.2);
+const hemi = new THREE.HemisphereLight(0xc9d6e0, 0x2a2a26, 1.7);   // небо холодное, земля тёмная
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffe9c8, 2.0);
+const sun = new THREE.DirectionalLight(0xffdcae, 2.3);   // тёплый луч сверху-слева
 // Живые тени дороги для телефонов (замер: 60 → 42–49 FPS), там — только пятна под фигурками.
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
 sun.castShadow = !IS_TOUCH;
@@ -121,14 +123,16 @@ const terrain = await buildTerrain({
     splatA: './data/splat-a.png?v=6', splatB: './data/splat-b.png?v=6',
   },
   waterDistUrl: './data/water-dist.png?v=1',   // этап 3: расстояние до берега для шейдера воды
-  // spireKitUrl: './models/spire-kit.glb?v=1',   // этап 4: шпили — убраны 20.10 (low-poly, торчат сквозь деревья-картинки); вернуть — раскомментировать
+  spireKitUrl: './models/spire-kit.glb?v=1',   // набор шпилей и кристаллов: шпили выключены (20.10), кристаллы сказочной поляны — нужны
   propKitUrl: './models/prop-kit.glb?v=1',   // этап 5: мелочь биома (tools/blender/prop_kit.py)
-  cliffTexUrl: './data/tex-cliff2.webp?v=1',   // нерегулярная скала (Codex) для стен хребта
+  cliffTexUrl: './data/tex-rockside-v6b.webp?v=1',   // концепт v6b: холодный тёмный камень блоками   // нерегулярная скала (Codex) для стен хребта
   rockStyle: 'monolith',   // цельная скала + рисованные текстуры Codex (tex-rock-top/side)
-  rockTopUrl: './data/tex-rocktop2.webp?v=1',
-  rockSideUrl: './data/tex-cliff2.webp?v=1',   // пока одна скала — у моста (как в концепте), точка в пикселях арта
+  rockTopUrl: './data/tex-rocktop-v6b.webp?v=1',
+  rockSideUrl: './data/tex-rockside-v6b.webp?v=1',   // пока одна скала — у моста (как в концепте), точка в пикселях арта
 });
 scene.add(terrain.group);
+const atmo = buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH });
+scene.add(atmo.group);
 terrain.stats.buildMs = Math.round(performance.now() - tTerrain);
 
 // ─── Клетки: тонкие гексы (один InstancedMesh) + общий контур ─────────────
@@ -597,6 +601,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1);
   controls.update(dt);
   terrain.update?.(dt, camera);
+  atmo.update(dt);
   for (const u of units) {
     if (u.path) stepAlongPath(u, dt);
     u.mixer.update(dt);
