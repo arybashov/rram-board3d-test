@@ -1418,7 +1418,7 @@ ${gtex ? `{
     const needed = new Set();
     for (const [name, [model, vars]] of Object.entries(KIT_SPECIES)) if (byName[name]) for (const v of vars) needed.add(v ? `${model}_${v}` : model);
     await Promise.all([...needed].map(async id => {
-      const g = await loader.loadAsync(kitLodUrl ? `${kitLodUrl}${id}.glb?v=27` : `${kitTreesUrl}${id}.gltf`).catch(e => { console.warn('kit tree', id, e); return null; });
+      const g = await loader.loadAsync(kitLodUrl ? `${kitLodUrl}${id}.glb?v=28` : `${kitTreesUrl}${id}.gltf`).catch(e => { console.warn('kit tree', id, e); return null; });
       if (!g) return;
       g.scene.updateMatrixWorld(true);
       const parts = [];

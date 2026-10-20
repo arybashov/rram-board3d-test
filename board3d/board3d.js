@@ -8,7 +8,7 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildTerrain } from './terrain.js?v=128';
+import { buildTerrain } from './terrain.js?v=129';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -19,6 +19,7 @@ const FIGURE_HEIGHT = 1.53;    // фигурка без подставки (−1
 // ─── Сцена ────────────────────────────────────────────────────────────────
 const stage = document.getElementById('stage');
 // на телефонах (Adreno 610: 12→15 FPS от 1.5→1) — чёткость 1, на компьютере 1.5
+const FLAT_TREES = new URLSearchParams(location.search).has('flat');
 let pixelRatioCap = matchMedia('(pointer: coarse)').matches ? 1 : 1.5;
 // MSAA включён всегда: нужен для мягких краёв деревьев (alpha-to-coverage); на тайловых GPU телефонов дёшев
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -110,9 +111,9 @@ const terrain = await buildTerrain({
   cliffKitUrl: './models/cliff-kit.glb?v=1',   // модули обрыва хребта (tools/blender/cliff_kit.py)
   grassUrl: './data/tex-grass.webp?v=1',
   treeKitUrl: './models/tree-kit.glb?v=1',
-  kitTreesUrl: './models/megakit/', kitLodUrl: './models/megakit-lod/',   // упрощённые для телефона (tools/blender/kit_decimate.py)   // готовые деревья Quaternius (CC0); остальные виды — наши
-  treesUrl: './models/trees.glb?v=9', leafAtlasUrl: './data/leaf-atlas.webp?v=2',   // «гиблиевские» деревья (tools/blender/ghibli_trees.py)
-  // treeSpritesUrl: './data/tree-sprites',   // картинки больше не нужны: все деревья 3D   // v2: настоящая прозрачность   // деревья-картинки Codex (tools/board3d_tree_atlas.py), без ?v — грузятся .png и .json   // виды деревьев по биомам (tools/blender/tree_kit.py)
+  // ?flat=1 — для сравнения FPS: вместо 3D-деревьев прежние плоские картинки (data/tree-sprites)
+  ...(FLAT_TREES ? { treeSpritesUrl: './data/tree-sprites' } : { kitTreesUrl: './models/megakit/', kitLodUrl: './models/megakit-lod/',   // упрощённые для телефона (tools/blender/kit_decimate.py); готовые деревья Quaternius (CC0)
+  treesUrl: './models/trees.glb?v=9', leafAtlasUrl: './data/leaf-atlas.webp?v=2' }),   // «гиблиевские» деревья (tools/blender/ghibli_trees.py)
   groundTextures: {   // этап 2: рисованные текстуры земли (Codex) + карты смешивания (tools/board3d_splat.py)
     grass: './data/tex-grass.webp?v=1', path: './data/tex-path.webp?v=1', forest: './data/tex-forest.webp?v=1',
     beach: './data/tex-beach.webp?v=1', meadow: './data/tex-meadow.webp?v=1', dark: './data/tex-darkforest.webp?v=1',
