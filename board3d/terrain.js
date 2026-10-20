@@ -692,9 +692,11 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   const fwd = new THREE.Vector3(), last = new THREE.Vector3(Infinity, 0, 0), lastF = new THREE.Vector3();
   mesh.userData.resort = camera => {
     camera.getWorldDirection(fwd);
-    if (last.distanceTo(camera.position) < 0.5 && lastF.dot(fwd) > 0.9995) return;
-    last.copy(camera.position); lastF.copy(fwd);
-    for (const t of list) t.depth = (t.x - camera.position.x) * fwd.x + (t.y - camera.position.y) * fwd.y + (t.z - camera.position.z) * fwd.z;
+    // порядок зависит ТОЛЬКО от направления взгляда, не от положения камеры: иначе при сдвиге
+    // соседние деревья с почти равной глубиной менялись местами (перспектива) — мигание
+    if (lastF.dot(fwd) > 0.9995 && list.sorted) return;
+    lastF.copy(fwd); list.sorted = true;
+    for (const t of list) t.depth = t.x * fwd.x + t.y * fwd.y + t.z * fwd.z + (t.x * 0.0001);   // + стабильная развязка
     list.sort((a, b) => b.depth - a.depth);
     list.forEach((t, i) => {
       m.compose(pos.set(t.x, t.y - 0.05, t.z), q, sc.set(t.h * t.aspect, t.h, 1));
