@@ -904,6 +904,7 @@ export async function buildTerrain({ cells, cellById, groundX0, groundZ0, ground
     return [k, t];
   }))) : null;
   const groundMat = new THREE.MeshLambertMaterial({ map: groundTex });
+  if (matchMedia('(pointer: coarse)').matches) groundMat.defines = { LOWQ: 1 };   // телефон: без второй выборки травы
   groundMat.onBeforeCompile = shader => {
     shader.uniforms.rockTop = { value: rockTopTex };
     shader.uniforms.rockSide = { value: rockSideTex };
@@ -926,21 +927,27 @@ varying vec3 vNrm;`)
 ${gtex ? `{
   // тайлы ~4 единицы; лёгкий поворот второй выборки травы против повтора
   vec2 tuv = vWorldPos.xz * 0.24;
-  vec3 grass = mix(texture2D(g_grass, tuv).rgb, texture2D(g_grass, tuv * 0.41 + 0.37).rgb, 0.35);
+  vec3 grass = texture2D(g_grass, tuv).rgb;
+#ifndef LOWQ
+  grass = mix(grass, texture2D(g_grass, tuv * 0.41 + 0.37).rgb, 0.35);
+#endif
   vec4 sa = texture2D(g_splatA, vMapUv);
   vec4 sb = texture2D(g_splatB, vMapUv);
   vec3 col = grass;
-  col = mix(col, texture2D(g_meadow, tuv).rgb, sb.r);
-  col = mix(col, texture2D(g_forest, tuv).rgb, sa.g);
-  col = mix(col, texture2D(g_dark, tuv).rgb, sb.g);
-  col = mix(col, texture2D(g_beach, tuv).rgb * vec3(0.95, 0.9, 0.82), sa.b);
+  if (sb.r > 0.01) col = mix(col, texture2D(g_meadow, tuv).rgb, sb.r);
+  if (sa.g > 0.01) col = mix(col, texture2D(g_forest, tuv).rgb, sa.g);
+  if (sb.g > 0.01) col = mix(col, texture2D(g_dark, tuv).rgb, sb.g);
+  if (sa.b > 0.01) col = mix(col, texture2D(g_beach, tuv).rgb * vec3(0.95, 0.9, 0.82), sa.b);
   // тропа без видимого повтора: две выборки в разном масштабе и под углом, смешаны шумовой маской
   vec2 ruv = mat2(0.80, -0.60, 0.60, 0.80) * tuv * 0.47 + 0.31;
   float pm = sin(vWorldPos.x * 0.37 + sin(vWorldPos.z * 0.29) * 2.0) * 0.5 + 0.5;
-  vec3 pth = mix(texture2D(g_path, tuv * 0.9).rgb, texture2D(g_path, ruv).rgb, 0.35 + 0.4 * pm);
+  vec3 pth = vec3(0.0);
+  if (sa.r > 0.01) {
+  pth = mix(texture2D(g_path, tuv * 0.9).rgb, texture2D(g_path, ruv).rgb, 0.35 + 0.4 * pm);
   pth = mix(vec3(dot(pth, vec3(0.3, 0.59, 0.11))), pth, 0.5) * vec3(0.86, 0.76, 0.62);   // утоптанная земля, не оранжевый песок
   pth *= mix(0.9, 1.2, sb.b);                    // середина тропы светлее (протоптана), к краям темнее
   col = mix(col, pth, sa.r);
+  }
   // дно под водой: от песка у берега к глубокой бирюзе
   float depth = clamp(-vWorldPos.y / 0.9, 0.0, 1.0);
   col = mix(col, mix(vec3(0.55, 0.62, 0.45), vec3(0.04, 0.32, 0.38), smoothstep(0.1, 0.8, depth)), smoothstep(0.02, 0.15, depth));
@@ -952,7 +959,9 @@ ${gtex ? `{
   if (vWorldPos.y > -0.6) {
     vec2 uvX = vec2(vWorldPos.z, vWorldPos.y) * 0.19, uvZ = vec2(vWorldPos.x, vWorldPos.y) * 0.19;
     float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
-    vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx));
+    float ridgeTop = smoothstep(1.0, 1.6, vWorldPos.y);
+    if (steep > 0.01 || ridgeTop > 0.01) {
+    vec3 side = steep > 0.01 ? mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx)) : vec3(0.0);
     vec3 top = texture2D(rockTop, vWorldPos.xz * 0.13).rgb;
     // верх террас хребта — камень с мхом и лишайником (не газон); вторая выборка под углом против повтора,
     // пятна травы оставляем шумом; ниже 1.2 — обычная земля
@@ -960,9 +969,9 @@ ${gtex ? `{
     vec3 rtop = mix(top, top2, 0.35 + 0.3 * sin(vWorldPos.x * 0.21 + sin(vWorldPos.z * 0.17) * 2.0));
     float mossy = smoothstep(0.55, 0.85, sin(vWorldPos.x * 0.43 + 1.3) * sin(vWorldPos.z * 0.37 + 0.7) * 0.5 + 0.5);
     rtop = mix(rtop, diffuseColor.rgb, mossy * 0.55);
-    float ridgeTop = smoothstep(1.0, 1.6, vWorldPos.y);
     diffuseColor.rgb = mix(diffuseColor.rgb, rtop, ridgeTop);
     diffuseColor.rgb = mix(diffuseColor.rgb, side, steep);
+    }
   }
 }`);
   };
@@ -1409,7 +1418,7 @@ ${gtex ? `{
     const needed = new Set();
     for (const [name, [model, vars]] of Object.entries(KIT_SPECIES)) if (byName[name]) for (const v of vars) needed.add(v ? `${model}_${v}` : model);
     await Promise.all([...needed].map(async id => {
-      const g = await loader.loadAsync(kitLodUrl ? `${kitLodUrl}${id}.glb?v=25` : `${kitTreesUrl}${id}.gltf`).catch(e => { console.warn('kit tree', id, e); return null; });
+      const g = await loader.loadAsync(kitLodUrl ? `${kitLodUrl}${id}.glb?v=27` : `${kitTreesUrl}${id}.gltf`).catch(e => { console.warn('kit tree', id, e); return null; });
       if (!g) return;
       g.scene.updateMatrixWorld(true);
       const parts = [];

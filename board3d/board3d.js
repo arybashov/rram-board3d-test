@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
-import { buildTerrain } from './terrain.js?v=126';
+import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
+import { buildTerrain } from './terrain.js?v=128';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -17,7 +18,8 @@ const FIGURE_HEIGHT = 1.53;    // фигурка без подставки (−1
 
 // ─── Сцена ────────────────────────────────────────────────────────────────
 const stage = document.getElementById('stage');
-let pixelRatioCap = 1.5;
+// на телефонах (Adreno 610: 12→15 FPS от 1.5→1) — чёткость 1, на компьютере 1.5
+let pixelRatioCap = matchMedia('(pointer: coarse)').matches ? 1 : 1.5;
 // MSAA включён всегда: нужен для мягких краёв деревьев (alpha-to-coverage); на тайловых GPU телефонов дёшев
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, pixelRatioCap));
@@ -178,6 +180,58 @@ const [robotGltf, foxGltf] = await Promise.all([
   loader.loadAsync('./models/RobotExpressive.glb'),
   loader.loadAsync('./models/Fox.glb'),
 ]);
+
+// Робот-заглушка — 19 частей (жёсткие куски на костях + скин-кисти), MeshStandard: на 10 фигур это
+// 190 вызовов отрисовки. Склеиваем в одну скин-сетку: жёсткий кусок — вес 1 на свою кость,
+// цвет материала — в цвет вершин, материал Ламберт. Итог: 1 вызов на фигурку.
+function mergeSkinnedModel(root) {
+  root.updateMatrixWorld(true);
+  const bones = [];
+  root.traverse(o => { if (o.isBone) bones.push(o); });
+  const boneIdx = new Map(bones.map((b, i) => [b, i]));
+  const byName = new Map(bones.map((b, i) => [b.name, i]));
+  const geos = [], parts = [];
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    const src = o.geometry;
+    const g = new THREE.BufferGeometry();
+    const n = src.attributes.position.count;
+    g.setAttribute('position', src.attributes.position.clone());
+    g.setAttribute('normal', src.attributes.normal.clone());
+    g.setIndex(src.index ? Array.from(src.index.array) : null);
+    const c = o.material.color ?? new THREE.Color(1, 1, 1);
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i += 1) col.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    if (o.isSkinnedMesh) {
+      const a = src.attributes.skinIndex, w = src.attributes.skinWeight;
+      for (let i = 0; i < n; i += 1) for (let k = 0; k < 4; k += 1) {
+        const b = o.skeleton.bones[a.getComponent(i, k)];
+        si[i * 4 + k] = (b && byName.get(b.name)) ?? 0;
+        sw[i * 4 + k] = w.getComponent(i, k);
+      }
+    } else {
+      let p = o.parent;
+      while (p && !p.isBone) p = p.parent;
+      const bi = p ? boneIdx.get(p) : 0;
+      for (let i = 0; i < n; i += 1) { si[i * 4] = bi; sw[i * 4] = 1; }
+    }
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    g.applyMatrix4(o.matrixWorld);
+    geos.push(g);
+    parts.push(o);
+  });
+  for (const o of parts) o.removeFromParent();
+  const merged = new THREE.SkinnedMesh(mergeGeometries(geos), new THREE.MeshLambertMaterial({ vertexColors: true }));
+  merged.name = 'figure';
+  root.add(merged);
+  root.updateMatrixWorld(true);
+  merged.bind(new THREE.Skeleton(bones), merged.matrixWorld);
+  return root;
+}
+mergeSkinnedModel(robotGltf.scene);
 
 function makeBase(side) {
   const base = new THREE.Group();
@@ -622,7 +676,7 @@ async function runBench() {
     report(row);
   }
   controls.autoRotate = false;
-  applySettings({ q: 1.5 });
+  applySettings({ q: matchMedia('(pointer: coarse)').matches ? 1 : 1.5 });
   report({ type: 'bench-done' });
   benchRunning = false;
   const gpu = (() => { try { const gl = renderer.getContext(); const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : ''; } catch { return ''; } })();
