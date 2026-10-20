@@ -2038,7 +2038,8 @@ ${gtex ? `{
       );
       group.add(upper);
     }
-    const fall = waterfallMesh(toW(wf.lipX[0], wf.lipY), toW(wf.lipX[1], wf.lipY),
+    // верх струи — под концом воды плато (она теперь доходит до края на 14 px дальше)
+    const fall = waterfallMesh(toW(wf.lipX[0], wf.lipY + 10), toW(wf.lipX[1], wf.lipY + 10),
       toW((wf.poolX[0] + wf.poolX[1]) / 2, wf.poolY), wf.topH + 0.12, WATER_LEVEL);
     const poolCenter = fall.geometry.attributes.position;
     const last = poolCenter.count - 1;
