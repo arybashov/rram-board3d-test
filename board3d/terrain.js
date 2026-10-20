@@ -1810,10 +1810,18 @@ ${gtex ? `{
     }
     // плоский режим: кувшинки — плоские картинки на воде (без толщины), из того же атласа (группа lily)
     if (sprites && sprites.frames.some(f => f.group === 'lily') && items.prop_lily) {
-      const lilies = flatDecals(items.prop_lily.map(([x, y, z, k, ry]) => ({ x, y, z, size: 0.55 * k, rot: ry, pick: Math.floor(r() * 99) })),
+      // не пересекаются (зазор по размеру), и все «головой вверх»: картинка нарисована с наклоном,
+      // поэтому поворот только ±15°; каждая на своей высоте над водой — без мерцания
+      const lilyList = [];
+      for (const [x, y, z, k] of items.prop_lily) {
+        const size = 0.55 * k;
+        if (lilyList.some(o => Math.hypot(o.x - x, o.z - z) < (o.size + size) * 0.55)) continue;
+        lilyList.push({ x, y: y + 0.004 + lilyList.length * 0.0006, z, size, rot: (r() - 0.5) * 0.5, pick: Math.floor(r() * 99) });
+      }
+      const lilies = flatDecals(lilyList,
         sprites.tex, sprites.frames.filter(f => f.group === 'lily'));
       props.add(lilies);
-      propCounts.lily_decals = items.prop_lily.length;
+      propCounts.lily_decals = lilyList.length;
       delete items.prop_lily;
     }
     const propMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide });
