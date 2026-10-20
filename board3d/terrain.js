@@ -613,17 +613,21 @@ async function loadKitGeos(url) {
 // Колода клетки -> биом леса вокруг неё (цель-арт: paintover-biomes-spires-v2-overview.png).
 const DECK_BIOME = { forest: 'forest', dark_forest: 'dark', forest_trail: 'birch', mixed: 'autumn', lake: 'lake', sheep: 'meadow', fairy_glade: 'fairy' };
 // Состав видов по биомам: [имя модели, вес]. Высоты видов — в TREE_H.
+// Состав по биомам — по замерам концепта v6b (outputs/board3d-concept/zones/answer.md)
 const BIOME_MIX = {
-  forest: [['tree_spruce', 9], ['tree_pine', 2.5], ['tree_birch', 0.6], ['tree_oak_green', 0.6], ['tree_autumn_yellow', 0.25], ['tree_autumn_orange', 0.3]],
-  dark: [['tree_spruce_dark', 3], ['tree_dead', 2.5], ['tree_snag', 5.5], ['tree_spruce', 0.5]],   // коряги — только тёмный лес, их больше, елей меньше
-  birch: [['tree_birch', 6], ['tree_pine', 2], ['tree_spruce', 2]],
-  autumn: [['tree_autumn_orange', 2], ['tree_autumn_red', 1.5], ['tree_autumn_yellow', 2], ['tree_spruce', 2], ['tree_birch', 1]],
-  lake: [['tree_willow', 5], ['tree_birch', 3], ['tree_oak_green', 1.5], ['tree_spruce', 1.5]],
-  meadow: [['tree_autumn_yellow', 1], ['tree_birch', 2], ['tree_oak_green', 2], ['tree_spruce', 2]],
+  forest: [['tree_spruce', 6], ['tree_pine', 0.6], ['tree_birch', 2], ['tree_autumn_orange', 1], ['tree_autumn_red', 0.8]],
+  dark: [['tree_spruce_dark', 6.5], ['tree_dead', 2], ['tree_snag', 1.5], ['tree_spruce', 0.5]],
+  birch: [['tree_birch', 8], ['tree_spruce', 1.5], ['tree_autumn_orange', 0.5]],
+  autumn: [['tree_autumn_red', 2.5], ['tree_autumn_orange', 2.5], ['tree_spruce', 2.5], ['tree_birch', 0.5], ['tree_dead', 0.5]],
+  lake: [['tree_willow', 5.5], ['tree_spruce', 2], ['tree_autumn_orange', 1.5], ['tree_birch', 1]],
+  meadow: [['tree_spruce', 2], ['tree_birch', 1], ['tree_autumn_red', 1.5], ['tree_autumn_orange', 1.5]],
   fairy: [['tree_fairy_pink', 1], ['tree_fairy_violet', 1], ['tree_fairy_teal', 1], ['tree_fairy_gold', 1],
     ['tree_fairy_mushroom', 1], ['tree_fairy_crystal', 0.8], ['tree_fairy_willow', 0.8], ['tree_fairy_lantern', 0.8]],
-  ridge: [['tree_spruce', 6], ['tree_pine', 3], ['tree_birch', 0.6], ['tree_spruce_dark', 1], ['tree_autumn_orange', 0.5], ['tree_dead', 0.4]],
+  ridge: [['tree_spruce', 9], ['tree_spruce_dark', 3], ['tree_pine', 0.3]],      // реф v6b: хребет — тёмные ели
 };
+// доля мест, где дерево остаётся (замеры v6b: деревьев в 1,3–2 раза меньше)
+const BIOME_KEEP = { forest: 0.75, dark: 0.85, birch: 0.85, autumn: 0.85, lake: 0.55, meadow: 0.45, fairy: 1, ridge: 1 };
+
 const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
   tree_autumn_orange: [2.4, 3.2], tree_autumn_red: [2.4, 3.2], tree_autumn_yellow: [2.4, 3.2],
@@ -671,12 +675,11 @@ function flatDecals(list, atlasTex, frames) {
 }
 
 // грейд пород под концепт v6b: [сдвиг оттенка, насыщенность ×, яркость ×]
-const SPRITE_GRADE = {
-  spruce: [0.035, 0.95, 0.58], dark: [0.04, 0.85, 0.5], pine: [0.02, 0.9, 0.66],
-  birch: [-0.045, 1.35, 1.05], oak_green: [0.0, 0.9, 0.7], willow: [-0.02, 1.0, 0.78],
-  autumn_orange: [-0.01, 1.3, 0.95], autumn_red: [-0.015, 1.3, 0.9], autumn_yellow: [-0.02, 1.3, 1.0],
-  bush: [0.02, 0.9, 0.7], fern: [0.02, 0.9, 0.7], dead: [0, 0.8, 0.75], snag: [0, 0.8, 0.75],
-};
+const SPRITE_GRADE = {   // новые породы (sheet6b-*) уже в цветах рефа — правим только старые
+  autumn_red: [0.03, 0.95, 0.85], autumn_orange: [0.015, 1.0, 0.9],   // реф: тёплый красно-оранжевый, не малиновый
+  pine: [0.02, 0.9, 0.66], oak_green: [0.0, 0.9, 0.7], autumn_yellow: [-0.02, 1.2, 0.95],
+  fern: [0.02, 0.9, 0.7], snag: [0, 0.8, 0.75],
+}
 function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   // list: [{x, y, z, h, group, tint}]
   const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
@@ -756,13 +759,15 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
       vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
       void main(){ vec4 c = texture2D(atlas, vUv); if (c.a < ALPHA_CUT) discard;
         vec3 hsv = rgb2hsv(c.rgb);
-        hsv.x = fract(hsv.x + vTint.x); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= vTint.z;
+        // сдвиг оттенка — только у насыщенных пикселей: у тёмной малонасыщенной хвои оттенок неустойчив,
+        // и сдвиг уводил её в розовый (новые ели v6b)
+        hsv.x = fract(hsv.x + vTint.x * smoothstep(0.25, 0.5, hsv.y)); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= vTint.z;
         // затенение: низ кроны и ствол темнее (окклюзия), в густой роще всё дерево темнее (vTint.w)
         hsv.z *= mix(0.62, 1.0, smoothstep(0.0, 0.55, vH)) * vTint.w;
         vec3 rgb = hsv2rgb(hsv);
         // грейд под концепт v6b: темнее, чуть холоднее и приглушённее (картинки не видят освещение сцены)
         float lum = dot(rgb, vec3(0.3, 0.59, 0.11));
-        rgb = mix(vec3(lum), rgb, 0.75) * vec3(0.66, 0.71, 0.74);
+        rgb = mix(vec3(lum), rgb, 0.9) * vec3(0.8, 0.83, 0.85);   // мягче: новые картинки уже в тоне рефа
         gl_FragColor = vec4(rgb, c.a);
         #include <colorspace_fragment>
       }`,
@@ -1436,9 +1441,9 @@ ${gtex ? `{
         // уступы: лес КУЧНЫМИ рощами (крупный шум, внутри рощи — каждое место), между рощами пусто;
         // кустов на уступах нет. Порода — по биому соседних колод (тёмный лес -> тёмные ели и т. д.)
         const rg = valueNoise2(jx * 0.11 + 2.3, jz * 0.11 + 9.1);
-        if (flat && rg > 0.3) {          // рощи крупные, между ними — меньше голого камня
+        if (flat && rg > 0.18) {          // хребет густо в елях (реф v6b)          // рощи крупные, между ними — меньше голого камня
           const b = biomeAt(jx, jz);
-          treeSpots.push([jx, jz, ['dark', 'autumn', 'birch', 'forest'].includes(b) ? b : 'ridge', false]);
+          treeSpots.push([jx, jz, b === 'autumn' ? 'autumn' : 'ridge', false]);   // на хребте ели; осень — только справа
         } else if (r() < 0.16) treeSpots.push([jx, jz, 'ridge_dry', false]);     // между рощами — сухой кустарник
         continue;
       }
@@ -1468,17 +1473,18 @@ ${gtex ? `{
   genSpots(r, 0, 0, treeSpots);
   const r2 = rng(20261020);
   const extraSpots = [];
-  genSpots(r2, TREE_STEP / 2, TREE_STEP / 2, extraSpots);
+  // genSpots(r2, TREE_STEP / 2, TREE_STEP / 2, extraSpots);   // второй проход выключен: на рефе v6b деревьев меньше
   mark('treeSpots');
   // Виды деревьев по биомам; на опушках — кусты и молодые деревца; редкие старые деревья-ориентиры.
   const kit = treeKitUrl ? await loadKitGeos(treeKitUrl).catch(() => null) : null;
   const byName = {};
   const nearWaterT = (x, z) => [[1.8, 0], [-1.8, 0], [0, 1.8], [0, -1.8]].some(([ox, oz]) => sample(x + ox, z + oz).water > 0.4);
   const nameSpots = (spots, r, byName) => { for (const [x, z, biome, edge] of spots) {
+    if (r() > (BIOME_KEEP[biome] ?? 1)) continue;          // плотность по замерам рефа
     let name;
     if (biome === 'ridge_dry') name = 'tree_dry_bush';
     else if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
-    else if (biome === 'lake') name = nearWaterT(x, z) || r() < 0.45 ? 'tree_willow' : pickWeighted(BIOME_MIX.lake, r);   // у озера больше ив
+    else if (biome === 'lake') name = nearWaterT(x, z) ? 'tree_willow' : pickWeighted(BIOME_MIX.lake, r);
     else name = pickWeighted(BIOME_MIX[biome] ?? BIOME_MIX.forest, r);
     (byName[name] ??= []).push([x, z, edge && name !== 'tree_bush' ? 0.65 : r() < 0.03 ? 1.45 : 1]);
   } };
@@ -1489,7 +1495,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=7' : '.png')), (await fetch(treeSpritesUrl + '.json?v=7')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=10' : '.png')), (await fetch(treeSpritesUrl + '.json?v=10')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -1712,7 +1718,7 @@ ${gtex ? `{
         // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
         const darkB = biomeAt(x, z) === 'dark';
         const tone = [(r() - 0.5) * 0.05 + (darkB ? 0.03 : 0), 0.82 + r() * 0.3, (0.82 + r() * 0.3) * (darkB ? 0.78 : 1)];   // разнотонность — как было (возврат 20.10)
-        let h = (h0 + r() * (h1 - h0)) * mul * 1.1, group = SPRITE_GROUP[name] ?? 'spruce';
+        let h = (h0 + r() * (h1 - h0)) * mul * 1.0, group = SPRITE_GROUP[name] ?? 'spruce';   // мельче — как на рефе v6b
         // дерево не закрывает клетки за собой: ниже до допустимой высоты, а если совсем низко — куст
         const lim = coverLimit(x, z, h * 0.35);
         if (h > lim) {
