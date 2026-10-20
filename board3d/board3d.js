@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=2';
-import { buildTerrain } from './terrain.js?v=165';
+import { buildAtmosphere } from './atmosphere.js?v=5';
+import { buildTerrain } from './terrain.js?v=166';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -35,15 +35,15 @@ const scene = new THREE.Scene();
 // этап 0 (концепт v6b): тёмный холодный фон и дымка вдали
 const BG = new THREE.Color('#151a1e');
 scene.background = BG;
-scene.fog = new THREE.Fog(new THREE.Color('#2a3236'), 70, 170);
+scene.fog = new THREE.Fog(new THREE.Color('#2b3236'), 55, 140);
 
 // Узкий угол обзора (24°): перспектива мягче, вертикали почти не сходятся — ближе к виду цели-арта
 const FOV_K = 40 / 24;   // во сколько раз камера дальше, чем при прежних 40°
 const camera = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, 4, 500);   // ближняя плоскость дальше — точнее глубина
 
-const hemi = new THREE.HemisphereLight(0xc9d6e0, 0x2a2a26, 1.7);   // небо холодное, земля тёмная
+const hemi = new THREE.HemisphereLight(0xb8c6d2, 0x23241f, 1.35);   // небо холодное, земля тёмная
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffdcae, 2.3);   // тёплый луч сверху-слева
+const sun = new THREE.DirectionalLight(0xffd8a4, 2.1);   // тёплый луч сверху-слева
 // Живые тени дороги для телефонов (замер: 60 → 42–49 FPS), там — только пятна под фигурками.
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
 sun.castShadow = !IS_TOUCH;

@@ -755,7 +755,7 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
         vec3 rgb = hsv2rgb(hsv);
         // грейд под концепт v6b: темнее, чуть холоднее и приглушённее (картинки не видят освещение сцены)
         float lum = dot(rgb, vec3(0.3, 0.59, 0.11));
-        rgb = mix(vec3(lum), rgb, 0.82) * vec3(0.80, 0.84, 0.86);
+        rgb = mix(vec3(lum), rgb, 0.75) * vec3(0.66, 0.71, 0.74);
         gl_FragColor = vec4(rgb, c.a);
         #include <colorspace_fragment>
       }`,
@@ -1009,7 +1009,7 @@ ${gtex ? `{
   col = mix(col, mix(vec3(0.55, 0.62, 0.45), vec3(0.04, 0.32, 0.38), smoothstep(0.1, 0.8, depth)), smoothstep(0.02, 0.15, depth));
   // грейд v6b: земля темнее и холоднее, зелень приглушена
   float gl0 = dot(col, vec3(0.3, 0.59, 0.11));
-  diffuseColor.rgb = mix(vec3(gl0), col, 0.8) * vec3(0.84, 0.88, 0.88);
+  diffuseColor.rgb = mix(vec3(gl0), col, 0.72) * vec3(0.72, 0.77, 0.78);
 }` : ''}
 {
   vec3 n = normalize(vNrm);

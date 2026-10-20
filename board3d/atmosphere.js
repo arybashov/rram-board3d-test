@@ -29,7 +29,7 @@ function mistLayer({ x0, z0, w, d, y, maskFn, res = 128, strength = 0.55, color 
         float m = texture2D(mask, vec2(vUv.x, 1.0 - vUv.y)).r;
         if (m < 0.01) discard;
         float n = fbm(vW.xz * ${scale.toFixed(3)} + vec2(time * ${speed.toFixed(3)}, time * ${(speed * 0.6).toFixed(3)}));
-        float a = smoothstep(0.25, 0.75, n) * m * k;
+        float a = smoothstep(0.2, 0.7, n) * m * k;
         gl_FragColor = vec4(col, a);
       }`,
   });
@@ -50,14 +50,16 @@ function godRays({ origin, count = 6, length = 70, spread = 0.5 }) {
         float across = 1.0 - abs(vUv.x - 0.5) * 2.0;           // мягкие края полосы
         float along = smoothstep(0.0, 0.25, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
         float flick = 0.85 + 0.15 * sin(time * 0.4 + vUv.y * 3.0);
-        gl_FragColor = vec4(vec3(1.0, 0.92, 0.75), pow(across, 1.6) * along * 0.16 * flick);
+        gl_FragColor = vec4(vec3(1.0, 0.92, 0.75), pow(across, 1.3) * along * 0.24 * flick);
       }`,
   });
+  // веер из ОДНОЙ точки (солнце за краем): у всех полос общая вершина, расходятся вниз-вправо
   for (let i = 0; i < count; i += 1) {
-    const w = 3 + Math.random() * 4;
+    const w = 4 + Math.random() * 5;
     const ray = new THREE.Mesh(new THREE.PlaneGeometry(w, length).translate(0, -length / 2, 0), mat);
-    ray.position.copy(origin).add(new THREE.Vector3(i * 6 - count * 3, 0, (Math.random() - 0.5) * 8));
-    ray.rotation.set(-0.35, 0, 0.55 + (Math.random() - 0.5) * spread);   // наклон: сверху-слева вниз-вправо
+    ray.position.copy(origin);
+    const t = count > 1 ? i / (count - 1) : 0.5;
+    ray.rotation.set(-0.5, 0, 0.35 + t * spread);
     ray.renderOrder = 21;
     g.add(ray);
   }
@@ -78,25 +80,9 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   const group = new THREE.Group();
   const anim = [];
   const hAt = terrain.heightAt;
-  // 1) туман низко над водой и берегом (у рек, озера)
-  const nearWater = (x, z) => {
-    let k = 0;
-    for (const [dx, dz] of [[0, 0], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5]]) if (hAt(x + dx, z + dz) < -0.2) k += 0.2;
-    return k;
-  };
-  const water = mistLayer({ x0: groundX0, z0: groundZ0, w: groundW, d: groundH, y: 0.35, maskFn: nearWater, strength: 0.6, scale: 0.11, speed: 0.02 });
-  // 2) туман у подножия и по уступам хребта
-  const ridge = (x, z) => {
-    const y = hAt(x, z);
-    const up = hAt(x, z - 3);
-    return y > 1.0 ? 0.55 : up > 1.5 ? 0.8 : 0;
-  };
-  const ridgeLow = mistLayer({ x0: groundX0, z0: groundZ0, w: groundW, d: groundH, y: 1.4, maskFn: ridge, strength: 0.7, scale: 0.07 });
-  const ridgeHigh = mistLayer({ x0: groundX0, z0: groundZ0, w: groundW, d: groundH, y: 5.0, maskFn: (x, z) => hAt(x, z) > 2.5 ? 0.8 : 0, strength: 0.6, scale: 0.06, speed: 0.01 });
-  group.add(water, ridgeLow, ridgeHigh);
-  anim.push(water.material, ridgeLow.material, ridgeHigh.material);
+  // туман убран (20.10: «туман убери»); mistLayer оставлен в файле на будущее
   // 3) лучи сверху-слева над хребтом
-  const rays = godRays({ origin: new THREE.Vector3(groundX0 + groundW * 0.22, 40, groundZ0 + 4), count: 5 });
+  const rays = godRays({ origin: new THREE.Vector3(groundX0 + 6, 34, groundZ0 - 2), count: 6, length: 75, spread: 0.6 });
   group.add(rays);
   anim.push(rays.userData.mat);
   // 4) тёплые огни: по краям мостов (факелы)
