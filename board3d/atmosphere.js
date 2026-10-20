@@ -39,7 +39,7 @@ function mistLayer({ x0, z0, w, d, y, maskFn, res = 128, strength = 0.55, color 
 }
 
 // Лучи: длинные полупрозрачные полосы с градиентом, падают сверху-слева (аддитивно)
-function godRays({ origin, count = 6, length = 70, spread = 0.5 }) {
+function godRays({ origin, targets }) {
   const g = new THREE.Group();
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
@@ -48,18 +48,24 @@ function godRays({ origin, count = 6, length = 70, spread = 0.5 }) {
     fragmentShader: `uniform float time; varying vec2 vUv;
       void main(){
         float across = 1.0 - abs(vUv.x - 0.5) * 2.0;           // мягкие края полосы
-        float along = smoothstep(0.0, 0.25, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+        float along = smoothstep(0.0, 0.45, vUv.y) * (1.0 - smoothstep(0.75, 1.0, vUv.y));
         float flick = 0.85 + 0.15 * sin(time * 0.4 + vUv.y * 3.0);
         gl_FragColor = vec4(vec3(1.0, 0.92, 0.75), pow(across, 1.3) * along * 0.24 * flick);
       }`,
   });
-  // веер из ОДНОЙ точки (солнце за краем): у всех полос общая вершина, расходятся вниз-вправо
-  for (let i = 0; i < count; i += 1) {
-    const w = 4 + Math.random() * 5;
-    const ray = new THREE.Mesh(new THREE.PlaneGeometry(w, length).translate(0, -length / 2, 0), mat);
-    ray.position.copy(origin);
-    const t = count > 1 ? i / (count - 1) : 0.5;
-    ray.rotation.set(-0.5, 0, 0.35 + t * spread);
+  // веер из ОДНОЙ точки: каждый луч — клин от общей вершины (origin) к своей точке на поле (targets)
+  for (const tg of targets) {
+    const dir = new THREE.Vector3().subVectors(tg, origin);
+    const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 0, 1)).normalize();
+    const w0 = 0.4, w1 = 3 + Math.random() * 3.5;
+    const a = origin.clone().addScaledVector(side, -w0), b = origin.clone().addScaledVector(side, w0);
+    const c = tg.clone().addScaledVector(side, w1), d = tg.clone().addScaledVector(side, -w1);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([...a.toArray(), ...b.toArray(), ...c.toArray(), ...d.toArray()], 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2));
+    geo.setIndex([0, 1, 2, 0, 2, 3]);
+    const ray = new THREE.Mesh(geo, mat);
+    ray.frustumCulled = false;
     ray.renderOrder = 21;
     g.add(ray);
   }
@@ -82,7 +88,11 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   const hAt = terrain.heightAt;
   // туман убран (20.10: «туман убери»); mistLayer оставлен в файле на будущее
   // 3) лучи сверху-слева над хребтом
-  const rays = godRays({ origin: new THREE.Vector3(groundX0 + 6, 34, groundZ0 - 2), count: 6, length: 75, spread: 0.6 });
+  // вершина — над верхним левым углом поля, лучи падают на хребет и верх долины
+  const O = new THREE.Vector3(groundX0 + groundW * 0.12, 38, groundZ0 - 10);
+  const T = [[0.22, 0.12], [0.33, 0.18], [0.44, 0.24], [0.55, 0.20], [0.66, 0.28], [0.40, 0.38]]
+    .map(([u, v]) => new THREE.Vector3(groundX0 + groundW * u, 1.5, groundZ0 + groundH * v));
+  const rays = godRays({ origin: O, targets: T });
   group.add(rays);
   anim.push(rays.userData.mat);
   // 4) тёплые огни: по краям мостов (факелы)

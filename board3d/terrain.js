@@ -485,11 +485,11 @@ varying vec3 vRockNrm;`)
 {
   vec3 n = normalize(vRockNrm);
   float topW = smoothstep(0.45, 0.8, n.y);
-  vec3 top = texture2D(rockTop, vRockPos.xz * 0.13).rgb;
+  vec3 top = texture2D(rockTop, vRockPos.xz * 0.13).rgb * 1.3;
   // двухплоскостная проекция для боков: ось, ближе всего к нормали по горизонтали
   vec2 uvX = vec2(vRockPos.z, vRockPos.y) * 0.19, uvZ = vec2(vRockPos.x, vRockPos.y) * 0.19;
   float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
-  vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx));
+  vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx)) * 1.45;   // светлее (концепт v6b)
   {
   // мох: пятнами на гранях, обращённых вверх и вбок (стиль домиков)
   float mn = 0.5 + 0.5 * sin(vRockPos.x * 1.9 + sin(vRockPos.z * 1.3 + vRockPos.y) * 1.7) * sin(vRockPos.z * 1.7 - sin(vRockPos.x * 1.1) * 1.5 + vRockPos.y * 0.8);   // плавный шум, без клеток
@@ -565,7 +565,7 @@ varying vec3 vCNrm;`)
   vec2 uvX = vec2(vCPos.z, vCPos.y) * 0.17, uvZ = vec2(vCPos.x, vCPos.y) * 0.17;
   // трёхплоскостная проекция с весами по нормали: на косых гранях нет растянутых полос
   vec3 tw = pow(abs(n), vec3(4.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
-  vec3 side = texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z;
+  vec3 side = (texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z) * 1.45;   // светлее (концепт v6b)
   side *= mix(0.78, 1.08, clamp(vCPos.y / 6.5, 0.0, 1.0));          // низ темнее, верх светлее
   // верх уступа — камень с мхом и лишайником (tex-rocktop), не газон; редкие пятна травы
   vec3 rtop = mix(texture2D(cliffGrass, vCPos.xz * 0.13).rgb,
@@ -670,6 +670,13 @@ function flatDecals(list, atlasTex, frames) {
   return mesh;
 }
 
+// грейд пород под концепт v6b: [сдвиг оттенка, насыщенность ×, яркость ×]
+const SPRITE_GRADE = {
+  spruce: [0.035, 0.95, 0.58], dark: [0.04, 0.85, 0.5], pine: [0.02, 0.9, 0.66],
+  birch: [-0.045, 1.35, 1.05], oak_green: [0.0, 0.9, 0.7], willow: [-0.02, 1.0, 0.78],
+  autumn_orange: [-0.01, 1.3, 0.95], autumn_red: [-0.015, 1.3, 0.9], autumn_yellow: [-0.02, 1.3, 1.0],
+  bush: [0.02, 0.9, 0.7], fern: [0.02, 0.9, 0.7], dead: [0, 0.8, 0.75], snag: [0, 0.8, 0.75],
+};
 function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   // list: [{x, y, z, h, group, tint}]
   const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
@@ -1009,7 +1016,10 @@ ${gtex ? `{
   col = mix(col, mix(vec3(0.55, 0.62, 0.45), vec3(0.04, 0.32, 0.38), smoothstep(0.1, 0.8, depth)), smoothstep(0.02, 0.15, depth));
   // грейд v6b: земля темнее и холоднее, зелень приглушена
   float gl0 = dot(col, vec3(0.3, 0.59, 0.11));
-  diffuseColor.rgb = mix(vec3(gl0), col, 0.72) * vec3(0.72, 0.77, 0.78);
+  // земля как на концепте v6b: тёмная мшистая олива с бурым; тропы остаются светлыми песчаными
+  vec3 graded = mix(vec3(gl0), col, 0.62) * vec3(0.62, 0.64, 0.50);
+  float pathW = sa.r;
+  diffuseColor.rgb = mix(graded, mix(vec3(gl0), col, 0.7) * vec3(0.92, 0.86, 0.72), pathW);
 }` : ''}
 {
   vec3 n = normalize(vNrm);
@@ -1020,7 +1030,7 @@ ${gtex ? `{
     float ridgeTop = smoothstep(1.0, 1.6, vWorldPos.y);
     if (steep > 0.01 || ridgeTop > 0.01) {
     vec3 tw = pow(abs(n), vec3(4.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
-    vec3 side = steep > 0.01 ? texture2D(rockSide, uvX).rgb * tw.x + texture2D(rockSide, vWorldPos.xz * 0.19).rgb * tw.y + texture2D(rockSide, uvZ).rgb * tw.z : vec3(0.0);
+    vec3 side = steep > 0.01 ? (texture2D(rockSide, uvX).rgb * tw.x + texture2D(rockSide, vWorldPos.xz * 0.19).rgb * tw.y + texture2D(rockSide, uvZ).rgb * tw.z) * 1.45 : vec3(0.0);   // светлее (концепт v6b)
     vec3 top = texture2D(rockTop, vWorldPos.xz * 0.13).rgb;
     // верх террас хребта — камень с мхом и лишайником (не газон); вторая выборка под углом против повтора,
     // пятна травы оставляем шумом; ниже 1.2 — обычная земля
@@ -1710,6 +1720,9 @@ ${gtex ? `{
           else if (lim >= 0.55 && group !== 'snag') { group = 'bush'; h = Math.min(0.95, lim); }
           else continue;
         }
+        // цвет по породе — с концепта v6b: хвойные тёмные сине-зелёные, берёзы золотые, осень насыщенная
+        const gg = SPRITE_GRADE[group];
+        if (gg) { tone[0] += gg[0]; tone[1] *= gg[1]; tone[2] *= gg[2]; }
         list.push({ x, y: groundY(x, z), z, h, group, pick: Math.floor(r() * 99), tint: tone });
       }
     }
