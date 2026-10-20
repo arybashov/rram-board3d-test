@@ -735,10 +735,7 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
         vTint = tint; vH = uv.y;
         // глубина дерева = глубина основания, сдвинутого к камере (~радиус кроны у земли):
         // всё, что стоит за стволом, остаётся за деревом
-        // глубина — как у настоящего вертикального дерева (верх кроны ближе к камере, чем основание):
-        // иначе стена уступа выше-сзади дерева оказывалась «ближе» основания и срезала крону
-        vec3 vert = base + upv * position.y * h * k;
-        vec4 cb = projectionMatrix * viewMatrix * vec4(vert + normalize(cameraPosition - base) * 0.45, 1.0);
+        vec4 cb = projectionMatrix * viewMatrix * vec4(base + normalize(cameraPosition - base) * 0.45, 1.0);   // одинаково для всех деревьев (откат 20.10: «деревья хорошо сидели»)
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         gl_Position.z = (cb.z / cb.w) * gl_Position.w;
       }`,
@@ -1389,7 +1386,7 @@ ${gtex ? `{
     // как раньше: перепад рядом (берег, уступ); плюс стена ВЫШЕ дерева чуть дальше — она режет крону.
     // Спуск к воде дальше не считаем — иначе пропадал весь прибрежный лес (замечание 20.10)
     return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 1.4, z + dz * 1.4) - y) > 0.45)
-      || RING08.some(([dx, dz]) => dz < 0 && groundY(x + dx * 1.7, z + dz * 1.7) - y > 0.45);   // стена позади-выше
+      || RING08.some(([dx, dz]) => dz < 0 && groundY(x + dx * 1.25, z + dz * 1.25) - y > 0.45);   // стена позади-выше вплотную
   };
   const treeSpots = [];
   for (let z = groundZ0; z < groundZ0 + groundH; z += TREE_STEP) {
@@ -1401,11 +1398,11 @@ ${gtex ? `{
       if (blocked(jx, jz)) continue;
       const gyRidge = groundY(jx, jz);
       if (gyRidge > 1.0) {
-        const flat = [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].every(([dx, dz]) => Math.abs(groundY(jx + dx, jz + dz) - gyRidge) < 0.25);
+        const flat = [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]].every(([dx, dz]) => Math.abs(groundY(jx + dx, jz + dz) - gyRidge) < 0.35);
         // уступы: лес КУЧНЫМИ рощами (крупный шум, внутри рощи — каждое место), между рощами пусто;
         // кустов на уступах нет. Порода — по биому соседних колод (тёмный лес -> тёмные ели и т. д.)
         const rg = valueNoise2(jx * 0.11 + 2.3, jz * 0.11 + 9.1);
-        if (flat && rg > 0.5) {
+        if (flat && rg > 0.3) {          // рощи крупные, между ними — меньше голого камня
           const b = biomeAt(jx, jz);
           treeSpots.push([jx, jz, ['dark', 'autumn', 'birch', 'forest'].includes(b) ? b : 'ridge', false]);
         }
