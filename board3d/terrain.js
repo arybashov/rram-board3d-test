@@ -627,7 +627,7 @@ const BIOME_MIX = {
 const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
   tree_autumn_orange: [2.4, 3.2], tree_autumn_red: [2.4, 3.2], tree_autumn_yellow: [2.4, 3.2],
-  tree_willow: [2.4, 3.0], tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0], tree_snag: [0.75, 1.1], tree_oak_green: [2.6, 3.4],
+  tree_willow: [2.4, 3.0], tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0], tree_snag: [0.75, 1.1], tree_dry_bush: [0.6, 0.95], tree_oak_green: [2.6, 3.4],
   tree_fairy_pink: [2.6, 3.6], tree_fairy_violet: [2.6, 3.6], tree_fairy_teal: [2.6, 3.6], tree_fairy_gold: [2.6, 3.6],
   tree_fairy_mushroom: [1.8, 2.6], tree_fairy_crystal: [2.3, 3.2], tree_fairy_willow: [2.3, 3.1], tree_fairy_lantern: [2.4, 3.3],
 };
@@ -638,7 +638,7 @@ const TREE_H = {
 const SPRITE_GROUP = {
   tree_spruce: 'spruce', tree_spruce_dark: 'dark', tree_pine: 'pine', tree_birch: 'birch',
   tree_autumn_orange: 'autumn_orange', tree_autumn_red: 'autumn_red', tree_autumn_yellow: 'autumn_yellow',
-  tree_willow: 'willow', tree_dead: 'dead', tree_bush: 'bush', tree_snag: 'snag', tree_oak_green: 'oak_green',
+  tree_willow: 'willow', tree_dead: 'dead', tree_bush: 'bush', tree_snag: 'snag', tree_dry_bush: 'dry_bush', tree_oak_green: 'oak_green',
   tree_fairy_pink: 'fairy_pink', tree_fairy_violet: 'fairy_violet', tree_fairy_teal: 'fairy_teal', tree_fairy_gold: 'fairy_gold',
   tree_fairy_mushroom: 'fairy_mushroom', tree_fairy_crystal: 'fairy_crystal', tree_fairy_willow: 'fairy_willow', tree_fairy_lantern: 'fairy_lantern',
 };
@@ -1391,9 +1391,11 @@ ${gtex ? `{
     return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 1.4, z + dz * 1.4) - y) > 0.45)
       || RING08.some(([dx, dz]) => dz < 0 && groundY(x + dx * 1.25, z + dz * 1.25) - y > 0.45);   // стена позади-выше вплотную
   };
-  const treeSpots = [];
-  for (let z = groundZ0; z < groundZ0 + groundH; z += TREE_STEP) {
-    for (let x = groundX0; x < groundX0 + groundW; x += TREE_STEP) {
+  // посадка: основной проход (как раньше) и второй — со сдвигом на полшага и своим генератором:
+  // только ДОБАВЛЯЕТ деревья в промежутки, не пересаживая уже стоящие (замечание 20.10)
+  const genSpots = (r, ox, oz, treeSpots) => {
+  for (let z = groundZ0 + oz; z < groundZ0 + groundH; z += TREE_STEP) {
+    for (let x = groundX0 + ox; x < groundX0 + groundW; x += TREE_STEP) {
       const jx = x + (r() - 0.5) * TREE_STEP * 0.9, jz = z + (r() - 0.5) * TREE_STEP * 0.9;
       const m = sample(jx, jz);
       // уступы и верх хребта: ёлки редкими группами на ровном месте, не у края
@@ -1408,7 +1410,7 @@ ${gtex ? `{
         if (flat && rg > 0.3) {          // рощи крупные, между ними — меньше голого камня
           const b = biomeAt(jx, jz);
           treeSpots.push([jx, jz, ['dark', 'autumn', 'birch', 'forest'].includes(b) ? b : 'ridge', false]);
-        }
+        } else if (r() < 0.16) treeSpots.push([jx, jz, 'ridge_dry', false]);     // между рощами — сухой кустарник
         continue;
       }
       const biome0 = biomeAt(jx, jz);
@@ -1430,23 +1432,33 @@ ${gtex ? `{
       treeSpots.push([jx, jz, biome, edge]);
     }
   }
+  };
+  const treeSpots = [];
+  genSpots(r, 0, 0, treeSpots);
+  const r2 = rng(20261020);
+  const extraSpots = [];
+  genSpots(r2, TREE_STEP / 2, TREE_STEP / 2, extraSpots);
   mark('treeSpots');
   // Виды деревьев по биомам; на опушках — кусты и молодые деревца; редкие старые деревья-ориентиры.
   const kit = treeKitUrl ? await loadKitGeos(treeKitUrl).catch(() => null) : null;
   const byName = {};
   const nearWaterT = (x, z) => [[1.8, 0], [-1.8, 0], [0, 1.8], [0, -1.8]].some(([ox, oz]) => sample(x + ox, z + oz).water > 0.4);
-  for (const [x, z, biome, edge] of treeSpots) {
+  const nameSpots = (spots, r, byName) => { for (const [x, z, biome, edge] of spots) {
     let name;
-    if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
+    if (biome === 'ridge_dry') name = 'tree_dry_bush';
+    else if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
     else if (biome === 'lake') name = nearWaterT(x, z) || r() < 0.45 ? 'tree_willow' : pickWeighted(BIOME_MIX.lake, r);   // у озера больше ив
     else name = pickWeighted(BIOME_MIX[biome] ?? BIOME_MIX.forest, r);
     (byName[name] ??= []).push([x, z, edge && name !== 'tree_bush' ? 0.65 : r() < 0.03 ? 1.45 : 1]);
-  }
+  } };
+  nameSpots(treeSpots, r, byName);
+  const extraByName = {};
+  nameSpots(extraSpots, r2, extraByName);
   const trees = new THREE.Group();
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=6' : '.png')), (await fetch(treeSpritesUrl + '.json?v=6')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=7' : '.png')), (await fetch(treeSpritesUrl + '.json?v=7')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -1663,7 +1675,7 @@ ${gtex ? `{
   };
   if (sprites && !treesGltf) {
     const list = [];
-    for (const [name, spots] of Object.entries(byName)) {
+    const addSprites = (srcByName, r) => { for (const [name, spots] of Object.entries(srcByName)) {
       const [h0, h1] = TREE_H[name] ?? [PINE_MIN, PINE_MAX];
       for (const [x, z, mul] of spots) {
         // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
@@ -1680,6 +1692,9 @@ ${gtex ? `{
         list.push({ x, y: groundY(x, z), z, h, group, pick: Math.floor(r() * 99), tint: tone });
       }
     }
+    };
+    addSprites(byName, r);
+    addSprites(extraByName, r2);      // добавочные деревья — своим генератором, прежние не сдвигаются
     // не кучей: между кронами зазор (сказочные — шире); на уступах хребта рощи плотнее
     {
       const cellOf2 = new Map(), k2 = (x, z) => `${Math.floor(x / 3)},${Math.floor(z / 3)}`;
@@ -1860,6 +1875,15 @@ ${gtex ? `{
     }
     const propMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide });
     const glowMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x6a3cff, emissiveIntensity: 0.6 });
+    // бревно в наборе стоит вертикально (выглядело как столб) — кладём на землю
+    if (propKit.prop_log && !propKit.prop_log.userData.laid) {
+      const g = propKit.prop_log;
+      g.computeBoundingBox();
+      if (g.boundingBox.max.y - g.boundingBox.min.y > g.boundingBox.max.x - g.boundingBox.min.x) {
+        g.rotateZ(Math.PI / 2); g.computeBoundingBox(); g.translate(0, -g.boundingBox.min.y, 0);
+      }
+      g.userData.laid = true;
+    }
     for (const [name, list] of Object.entries(items)) {
       if (!propKit[name]) continue;
       const mesh = new THREE.InstancedMesh(propKit[name], name === 'prop_mush_glow' ? glowMat : propMat, list.length);
