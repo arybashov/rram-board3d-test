@@ -621,7 +621,7 @@ const BIOME_MIX = {
   meadow: [['tree_autumn_yellow', 1], ['tree_birch', 2], ['tree_oak_green', 2], ['tree_spruce', 2]],
   fairy: [['tree_fairy_pink', 1], ['tree_fairy_violet', 1], ['tree_fairy_teal', 1], ['tree_fairy_gold', 1],
     ['tree_fairy_mushroom', 1], ['tree_fairy_crystal', 0.8], ['tree_fairy_willow', 0.8], ['tree_fairy_lantern', 0.8]],
-  ridge: [['tree_spruce', 6], ['tree_pine', 3], ['tree_birch', 0.4]],
+  ridge: [['tree_spruce', 6], ['tree_pine', 3], ['tree_birch', 0.6], ['tree_spruce_dark', 1], ['tree_autumn_orange', 0.5], ['tree_dead', 0.4]],
 };
 const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
@@ -1387,7 +1387,7 @@ ${gtex ? `{
     // как раньше: перепад рядом (берег, уступ); плюс стена ВЫШЕ дерева чуть дальше — она режет крону.
     // Спуск к воде дальше не считаем — иначе пропадал весь прибрежный лес (замечание 20.10)
     return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 1.4, z + dz * 1.4) - y) > 0.45)
-      || RING08.some(([dx, dz]) => groundY(x + dx * 2.0, z + dz * 2.0) - y > 0.45);
+      || RING08.some(([dx, dz]) => dz < 0 && groundY(x + dx * 1.7, z + dz * 1.7) - y > 0.45);   // стена позади-выше
   };
   const treeSpots = [];
   for (let z = groundZ0; z < groundZ0 + groundH; z += TREE_STEP) {
@@ -1399,7 +1399,9 @@ ${gtex ? `{
       const gyRidge = groundY(jx, jz);
       if (gyRidge > 1.0) {
         const flat = [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].every(([dx, dz]) => Math.abs(groundY(jx + dx, jz + dz) - gyRidge) < 0.25);
-        if (flat && valueNoise2(jx * 0.25, jz * 0.25) > 0.3 && r() < 0.85) treeSpots.push([jx, jz, 'ridge', false]);
+        // уступы не пустошь: лес группами, на краю уступа — кусты и коряги
+        if (flat && valueNoise2(jx * 0.25, jz * 0.25) > 0.12) treeSpots.push([jx, jz, 'ridge', false]);
+        else if (r() < 0.35) treeSpots.push([jx, jz, 'ridge', true]);
         continue;
       }
       const biome0 = biomeAt(jx, jz);
@@ -1427,7 +1429,8 @@ ${gtex ? `{
   const nearWaterT = (x, z) => [[1.8, 0], [-1.8, 0], [0, 1.8], [0, -1.8]].some(([ox, oz]) => sample(x + ox, z + oz).water > 0.4);
   for (const [x, z, biome, edge] of treeSpots) {
     let name;
-    if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
+    if (edge && biome === 'ridge') name = r() < 0.6 ? 'tree_bush' : 'tree_snag';      // край уступа
+    else if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
     else if (biome === 'lake') name = nearWaterT(x, z) || r() < 0.45 ? 'tree_willow' : pickWeighted(BIOME_MIX.lake, r);   // у озера больше ив
     else name = pickWeighted(BIOME_MIX[biome] ?? BIOME_MIX.forest, r);
     (byName[name] ??= []).push([x, z, edge && name !== 'tree_bush' ? 0.65 : r() < 0.03 ? 1.45 : 1]);
