@@ -1381,9 +1381,13 @@ ${gtex ? `{
   // и так рисуется поверх)
   const blocked = (x, z) => {
     if (underRock(x, z) || RING08.some(([dx, dz]) => underRock(x + dx, z + dz))) return true;
-    if (RING08.some(([dx, dz]) => underRock(x + dx * 2.0, z + dz * (dz > 0 ? 1.0 : 2.0)))) return true;
+    // от скалы — отступ только СБОКУ (по x); сзади и спереди можно вплотную
+    if ([[1, 0], [-1, 0]].some(([dx]) => underRock(x + dx * 1.5, z))) return true;
     const y = groundY(x, z);
-    return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 2.0, z + dz * 2.0) - y) > 0.45);
+    // как раньше: перепад рядом (берег, уступ); плюс стена ВЫШЕ дерева чуть дальше — она режет крону.
+    // Спуск к воде дальше не считаем — иначе пропадал весь прибрежный лес (замечание 20.10)
+    return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 1.4, z + dz * 1.4) - y) > 0.45)
+      || RING08.some(([dx, dz]) => groundY(x + dx * 2.0, z + dz * 2.0) - y > 0.45);
   };
   const treeSpots = [];
   for (let z = groundZ0; z < groundZ0 + groundH; z += TREE_STEP) {
