@@ -619,15 +619,15 @@ const BIOME_MIX = {
   forest: [['tree_spruce', 6], ['tree_pine', 0.5], ['tree_birch', 3], ['tree_autumn_orange', 0.3]],   // реф: красная осень только справа
   dark: [['tree_spruce_dark', 4.5], ['tree_dead', 2.5], ['tree_snag', 4], ['tree_spruce', 0.5]],   // коряг много (решение 20.10), елей меньше
   birch: [['tree_birch', 9], ['tree_spruce', 1.2]],      // зона D рефа: сплошь золотые берёзы, редкие ели
-  autumn: [['tree_autumn_red', 2.5], ['tree_autumn_orange', 2.5], ['tree_spruce', 2.5], ['tree_birch', 0.5], ['tree_dead', 0.5]],
+  autumn: [['tree_autumn_red', 4], ['tree_autumn_orange', 3.5], ['tree_spruce', 2], ['tree_dead', 0.3]],   // зона F: 50% красно-оранжевые, ели вкраплениями
   lake: [['tree_willow', 5.5], ['tree_spruce', 2], ['tree_autumn_orange', 1.5], ['tree_birch', 1]],
-  meadow: [['tree_spruce', 2], ['tree_birch', 1], ['tree_autumn_red', 1.5], ['tree_autumn_orange', 1.5]],
+  meadow: [['tree_spruce', 7], ['tree_birch', 2], ['tree_autumn_red', 1.5], ['tree_autumn_orange', 1.5]],
   fairy: [['tree_fairy_pink', 1], ['tree_fairy_violet', 1], ['tree_fairy_teal', 1], ['tree_fairy_gold', 1],
     ['tree_fairy_mushroom', 1], ['tree_fairy_crystal', 0.8], ['tree_fairy_willow', 0.8], ['tree_fairy_lantern', 0.8]],
   ridge: [['tree_spruce', 9], ['tree_spruce_dark', 3], ['tree_pine', 0.3]],      // реф v6b: хребет — тёмные ели
 };
 // доля мест, где дерево остаётся (замеры v6b: деревьев в 1,3–2 раза меньше)
-const BIOME_KEEP = { forest: 0.75, dark: 1, birch: 1, autumn: 0.85, lake: 0.85, meadow: 0.45, fairy: 1, ridge: 1 };
+const BIOME_KEEP = { forest: 0.75, dark: 1, birch: 1, autumn: 1, lake: 0.85, meadow: 1, fairy: 1, ridge: 1 };
 
 const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
@@ -1482,7 +1482,23 @@ ${gtex ? `{
   const kit = treeKitUrl ? await loadKitGeos(treeKitUrl).catch(() => null) : null;
   const byName = {};
   const nearWaterT = (x, z) => [[1.8, 0], [-1.8, 0], [0, 1.8], [0, -1.8]].some(([ox, oz]) => sample(x + ox, z + oz).water > 0.4);
-  const nameSpots = (spots, r, byName) => { for (const [x, z, biome, edge] of spots) {
+  // зоны рефа v6b по положению на карте (доли ширины/высоты поля): u — слева направо, v — сверху вниз
+  const zoneOf = (x, z) => {
+    const u = (x - groundX0) / groundW, v = (z - groundZ0) / groundH;
+    if (u > 0.6 && v > 0.32 && v < 0.78) return 'F';            // осенний лес справа
+    if (u > 0.3 && u < 0.7 && v > 0.62) return 'G';             // луг снизу по центру
+    if (u < 0.3 && v > 0.68) return 'H';                         // низина слева снизу: тёмные ели на скале
+    return null;
+  };
+  const nameSpots = (spots, r, byName) => { for (let [x, z, biome, edge] of spots) {
+    const zn = zoneOf(x, z);
+    if (zn === 'F' && biome === 'forest') biome = 'autumn';      // F: сплошная красно-оранжевая масса
+    if (zn === 'H' && biome !== 'fairy') { biome = 'ridge'; if (r() < 0.45) continue; }   // H: ~65% ели, деревьев вдвое меньше
+    // G: открытый луг — деревья только по краям, центр пустой
+    if (zn === 'G' && biome !== 'fairy') {
+      if (r() < 0.6) continue;              // реф: ~20 деревьев группами по краям луга
+      biome = 'meadow';
+    }
     if (r() > (BIOME_KEEP[biome] ?? 1)) continue;          // плотность по замерам рефа
     let name;
     if (biome === 'ridge_dry') name = 'tree_dry_bush';
@@ -1499,7 +1515,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=13' : '.png')), (await fetch(treeSpritesUrl + '.json?v=13')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=14' : '.png')), (await fetch(treeSpritesUrl + '.json?v=14')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -1850,6 +1866,12 @@ ${gtex ? `{
         const jx = x + (r() - 0.5) * STEP, jz = z + (r() - 0.5) * STEP;
         const dC = nearest(jx, jz);
         if (dC < 1.05 || nearHouse(jx, jz, 2.2)) continue;
+        // камыш у берегов и камней — до проверки «перепада» (у воды он всегда есть)
+        if (sample(jx, jz).water > 0.5 && groundY(jx, jz) < -0.3 && r() < 0.16 && biomeAt(jx, jz) !== 'lake'
+          && [[1.1, 0], [-1.1, 0], [0, 1.1], [0, -1.1]].some(([dx, dz]) => groundY(jx + dx, jz + dz) > -0.2)) {
+          add('prop_reeds', jx, WATER_LEVEL - 0.05, jz, 1 + r() * 0.5);
+          continue;
+        }
         if (blocked(jx, jz)) continue;
         const gy = groundY(jx, jz);
         if (gy > 1.0) continue;                                    // хребет — отдельная история
@@ -1866,7 +1888,7 @@ ${gtex ? `{
           if (biome === 'dark') {
             if (r() < 0.07) add('prop_mush_glow', jx, gy, jz, 1.2 + r() * 0.6);
             else if (r() < 0.14) add('prop_fern', jx, gy, jz, 1.1 + r() * 0.6);
-          } else if (r() < 0.13) add('prop_fern', jx, gy, jz, 1 + r() * 0.7);
+          } else if (r() < (zoneOf(jx, jz) === 'G' ? 0.03 : 0.13)) add('prop_fern', jx, gy, jz, 1 + r() * 0.7);   // на лугу G папоротников почти нет (реф)
           else if (r() < 0.035) add('prop_mush_red', jx, gy, jz, 1 + r() * 0.6);
           else if (r() < 0.02) add('prop_stump', jx, gy, jz, 0.9 + r() * 0.4);
           else if (r() < 0.016) add('prop_log', jx, gy + 0.02, jz, 0.8 + r() * 0.4);
@@ -1929,6 +1951,17 @@ ${gtex ? `{
       }
       propCounts.fern_sprites = ferns.length;
       delete items.prop_fern;
+    }
+    // плоский режим: камыш — картинками атласа (группа reeds), сортируется вместе с деревьями
+    if (sprites && treeBillboard && sprites.frames.some(f => f.group === 'reeds') && items.prop_reeds) {
+      const reeds = items.prop_reeds.map(([x, y, z, k]) => ({ x, y, z, h: 1.35 * k, group: 'reeds', pick: Math.floor(r() * 99), tint: [0, 0.9 + r() * 0.2, 0.85 + r() * 0.3] }));
+      const all = treeBillboard.list.concat(reeds);
+      const nb = billboardTrees(all, sprites.tex, sprites.frames);
+      trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
+      trees.add(nb); billboards.push(nb);
+      treeBillboard = { list: all, mesh: nb };
+      propCounts.reed_sprites = reeds.length;
+      delete items.prop_reeds;
     }
     // плоский режим: кувшинки — плоские картинки на воде (без толщины), из того же атласа (группа lily)
     if (sprites && sprites.frames.some(f => f.group === 'lily') && items.prop_lily) {
