@@ -121,7 +121,7 @@ const terrain = await buildTerrain({
     splatA: './data/splat-a.png?v=6', splatB: './data/splat-b.png?v=6',
   },
   waterDistUrl: './data/water-dist.png?v=1',   // этап 3: расстояние до берега для шейдера воды
-  spireKitUrl: './models/spire-kit.glb?v=1',   // этап 4: шпили и кристаллы (tools/blender/spire_kit.py)
+  // spireKitUrl: './models/spire-kit.glb?v=1',   // этап 4: шпили — убраны 20.10 (low-poly, торчат сквозь деревья-картинки); вернуть — раскомментировать
   propKitUrl: './models/prop-kit.glb?v=1',   // этап 5: мелочь биома (tools/blender/prop_kit.py)
   cliffTexUrl: './data/tex-cliff2.webp?v=1',   // нерегулярная скала (Codex) для стен хребта
   rockStyle: 'monolith',   // цельная скала + рисованные текстуры Codex (tex-rock-top/side)
