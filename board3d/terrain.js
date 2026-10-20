@@ -1922,7 +1922,7 @@ ${gtex ? `{
     if (camera) for (const bb of billboards) bb.userData.resort(camera);
   };
   return {
-    group, trees, fairy, rocks, bridges, bridgeIds, heightAt: groundY, gate, houses, update, terraces, cliffs,
+    group, trees, fairy, rocks, bridges, bridgeIds, heightAt: groundY, gate, houses, update, terraces, cliffs, props, water, ground,
     blobShadowTexture,
     stats: { timings: T, props: propCounts, trees: treeSpots.length, species: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, v.length])), rocks: rockSpots.reduce((a, l) => a + l.length, 0), bridges: bridgeIds.size },
   };

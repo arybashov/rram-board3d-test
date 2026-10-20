@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
-import { buildTerrain } from './terrain.js?v=125';
+import { buildTerrain } from './terrain.js?v=126';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -169,7 +169,7 @@ scene.add(pickTiles);
 }
 
 // Ёлки из terrain.js; кнопка «Ёлки» и автотест FPS включают/выключают их.
-const forest = terrain.trees;
+const forest = terrain.trees;   // (автотест выключает части сцены сам — BENCH_PARTS)
 
 // ─── Фигурки ──────────────────────────────────────────────────────────────
 const SIDE_COLORS = { green: 0x35c77b, red: 0xef554f, beast: 0xb07a3c };
@@ -580,16 +580,19 @@ function report(data) {
 // Камера медленно вращается, по очереди перебираются настройки; каждая —
 // 1 с прогрева и 5 с замера. Средний FPS и «худшие 5%» кадров уходят в лог.
 const BENCH = [
-  { name: 'база: тени, без леса, 1.5', shadows: true, forest: false, q: 1.5 },
-  { name: 'без теней, без леса, 1.5', shadows: false, forest: false, q: 1.5 },
-  { name: 'тени, лес, 1.5', shadows: true, forest: true, q: 1.5 },
-  { name: 'без теней, лес, 1.5', shadows: false, forest: true, q: 1.5 },
-  { name: 'без теней, лес, 2', shadows: false, forest: true, q: 2 },
-  { name: 'тени, лес, 2', shadows: true, forest: true, q: 2 },
+  { name: 'всё как есть, чёткость 1.5', q: 1.5 },
+  { name: 'чёткость 1', q: 1 },
+  { name: 'чёткость 0.75', q: 0.75 },
+  { name: 'без деревьев (1)', q: 1, off: ['trees'] },
+  { name: 'без скал и обрывов (1)', q: 1, off: ['rocks', 'terraces', 'cliffs'] },
+  { name: 'без мелочи: трава, грибы (1)', q: 1, off: ['props'] },
+  { name: 'без воды (1)', q: 1, off: ['water'] },
+  { name: 'только земля и клетки (1)', q: 1, off: ['trees', 'rocks', 'terraces', 'cliffs', 'props', 'water', 'houses'] },
 ];
-function applySettings({ shadows, forest: withForest, q }) {
+const BENCH_PARTS = ['trees', 'rocks', 'terraces', 'cliffs', 'props', 'water', 'houses'];
+function applySettings({ q, off = [], shadows = !IS_TOUCH }) {
   sun.castShadow = shadows;
-  forest.visible = withForest;
+  for (const k of BENCH_PARTS) if (terrain[k]) terrain[k].visible = !off.includes(k);
   pixelRatioCap = q;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, pixelRatioCap));
   renderer.setSize(innerWidth, innerHeight);
@@ -599,13 +602,14 @@ async function runBench() {
   benchRunning = true;
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const panel = document.getElementById('hint');
+  panel.style.display = 'block';
   const rows = [];
   controls.autoRotate = true;
   controls.autoRotateSpeed = 3;
   for (const [i, cfg] of BENCH.entries()) {
     panel.textContent = `Тест ${i + 1}/${BENCH.length}: ${cfg.name}… Не трогайте экран.`;
     applySettings(cfg);
-    await wait(1000);
+    await wait(1500);
     benchFrames = [];
     await wait(5000);
     const dts = benchFrames.filter(d => d > 0).sort((a, b) => b - a);
@@ -618,10 +622,12 @@ async function runBench() {
     report(row);
   }
   controls.autoRotate = false;
-  applySettings({ shadows: !IS_TOUCH, forest: true, q: 1.5 });
+  applySettings({ q: 1.5 });
   report({ type: 'bench-done' });
   benchRunning = false;
-  panel.innerHTML = 'Готово, результаты отправлены.<br>' + rows.map(r => `${r.cfg}: <b>${Math.round(r.avg)}</b> FPS (худшие 5%: ${Math.round(r.low5)})`).join('<br>');
+  const gpu = (() => { try { const gl = renderer.getContext(); const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : ''; } catch { return ''; } })();
+  panel.innerHTML = `<b>Готово — пришлите скриншот.</b><br>${gpu} · экран ${innerWidth}×${innerHeight}×${devicePixelRatio}<br>` +
+    rows.map(r => `${r.cfg}: <b>${Math.round(r.avg)}</b> FPS (худш. ${Math.round(r.low5)}) · ${r.calls} выз · ${Math.round(r.tris / 1000)}k тр`).join('<br>');
 }
 if (new URLSearchParams(location.search).has('bench')) runBench();
 // Для проверки из консоли / автотестов.
