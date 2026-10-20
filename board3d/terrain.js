@@ -1373,10 +1373,14 @@ ${gtex ? `{
   // Деревья и мелочь не должны стоять внутри твёрдого: в скале (с запасом), у стены уступа
   // (крутой склон рядом) — иначе любая отрисовка покажет дерево, растущее сквозь камень.
   const RING08 = [[0.8, 0], [-0.8, 0], [0, 0.8], [0, -0.8], [0.57, 0.57], [-0.57, 0.57], [0.57, -0.57], [-0.57, -0.57]];
+  // Дерево-картинка рядом со скалой на той же глубине «режется» её неровной поверхностью — держим
+  // деревья на ширину кроны от скал и обрывов (сбоку — шире, перед скалой — можно ближе: там дерево
+  // и так рисуется поверх)
   const blocked = (x, z) => {
     if (underRock(x, z) || RING08.some(([dx, dz]) => underRock(x + dx, z + dz))) return true;
+    if (RING08.some(([dx, dz]) => underRock(x + dx * 2.0, z + dz * (dz > 0 ? 1.0 : 2.0)))) return true;
     const y = groundY(x, z);
-    return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 1.4, z + dz * 1.4) - y) > 0.45);
+    return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 2.0, z + dz * 2.0) - y) > 0.45);
   };
   const treeSpots = [];
   for (let z = groundZ0; z < groundZ0 + groundH; z += TREE_STEP) {
@@ -1423,6 +1427,7 @@ ${gtex ? `{
   }
   const trees = new THREE.Group();
   const billboards = [];
+  let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
     const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=6' : '.png')), (await fetch(treeSpritesUrl + '.json?v=6')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
@@ -1682,6 +1687,7 @@ ${gtex ? `{
     const bb = billboardTrees(list, sprites.tex, sprites.frames);
     trees.add(bb);
     billboards.push(bb);
+    treeBillboard = { list, mesh: bb };
     addBlobs(list);
   }
   function addBlobs(list) {
@@ -1784,9 +1790,21 @@ ${gtex ? `{
     if (sprites && !treesGltf && sprites.frames.some(f => f.group === 'fern') && items.prop_fern) {
       const ferns = items.prop_fern.map(([x, y, z, k]) => ({ x, y, z, h: 0.55 * k, group: 'fern', pick: Math.floor(r() * 99),
         tint: [(r() - 0.5) * 0.04, 0.85 + r() * 0.25, 0.8 + r() * 0.3] }));
-      const fb = billboardTrees(ferns, sprites.tex, sprites.frames, { writeDepth: true });
-      props.add(fb);
-      billboards.push(fb);
+      // в ОДИН отсортированный список с деревьями — иначе две сетки сравниваются по глубине от камеры
+      // и папоротник с деревом меняются местами при движении
+      if (treeBillboard) {
+        const all = treeBillboard.list.concat(ferns);
+        const nb = billboardTrees(all, sprites.tex, sprites.frames);
+        trees.remove(treeBillboard.mesh);
+        billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
+        trees.add(nb);
+        billboards.push(nb);
+        treeBillboard = { list: all, mesh: nb };
+      } else {
+        const fb = billboardTrees(ferns, sprites.tex, sprites.frames, { writeDepth: true });
+        props.add(fb);
+        billboards.push(fb);
+      }
       propCounts.fern_sprites = ferns.length;
       delete items.prop_fern;
     }
