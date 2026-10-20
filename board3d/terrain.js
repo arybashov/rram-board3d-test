@@ -627,8 +627,8 @@ const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
   tree_autumn_orange: [2.4, 3.2], tree_autumn_red: [2.4, 3.2], tree_autumn_yellow: [2.4, 3.2],
   tree_willow: [2.4, 3.0], tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0], tree_snag: [0.75, 1.1], tree_oak_green: [2.6, 3.4],
-  tree_fairy_pink: [3.6, 5.0], tree_fairy_violet: [3.6, 5.0], tree_fairy_teal: [3.6, 5.0], tree_fairy_gold: [3.6, 5.0],
-  tree_fairy_mushroom: [2.2, 3.2], tree_fairy_crystal: [3.0, 4.2], tree_fairy_willow: [3.0, 4.0], tree_fairy_lantern: [3.2, 4.4],
+  tree_fairy_pink: [2.6, 3.6], tree_fairy_violet: [2.6, 3.6], tree_fairy_teal: [2.6, 3.6], tree_fairy_gold: [2.6, 3.6],
+  tree_fairy_mushroom: [1.8, 2.6], tree_fairy_crystal: [2.3, 3.2], tree_fairy_willow: [2.3, 3.1], tree_fairy_lantern: [2.4, 3.3],
 };
 // Деревья-картинки (камера только спереди): рисованные Codex спрайты на плоскостях,
 // повёрнутых к камере вокруг вертикали. Атлас: data/tree-sprites.png + .json
@@ -1654,6 +1654,16 @@ ${gtex ? `{
           else continue;
         }
         list.push({ x, y: groundY(x, z), z, h, group, pick: Math.floor(r() * 99), tint: tone });
+      }
+    }
+    // сказочные не стоят кучей: между кронами зазор ~0,55 высоты (остальные лишние — убираем)
+    {
+      const kept = [];
+      for (let i = list.length - 1; i >= 0; i -= 1) {
+        const t = list[i];
+        if (!t.group.startsWith('fairy')) continue;
+        if (kept.some(o => Math.hypot(o.x - t.x, o.z - t.z) < (o.h + t.h) * 0.55)) list.splice(i, 1);
+        else kept.push(t);
       }
     }
     // дальние — сначала: альфа-срез и так корректен по глубине, но так меньше перерисовки
