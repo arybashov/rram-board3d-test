@@ -678,7 +678,7 @@ function flatDecals(list, atlasTex, frames) {
 // грейд пород под концепт v6b: [сдвиг оттенка, насыщенность ×, яркость ×]
 const SPRITE_GRADE = {   // новые породы (sheet6b-*) уже в цветах рефа — правим только старые
   autumn_red: [0.03, 0.95, 0.85], autumn_orange: [0.015, 1.0, 0.9],
-  birch: [0.02, 0.95, 1.05],      // чуть желтее — как на рефе   // реф: тёплый красно-оранжевый, не малиновый
+  birch: [0.0, 1.0, 1.0],      // берёзы v3 уже в тоне рефа   // реф: тёплый красно-оранжевый, не малиновый
   pine: [0.02, 0.9, 0.66], oak_green: [0.0, 0.9, 0.7], autumn_yellow: [-0.02, 1.2, 0.95],
   fern: [0.02, 0.9, 0.7], snag: [0, 0.8, 0.75],
 }
@@ -769,7 +769,7 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
         vec3 rgb = hsv2rgb(hsv);
         // грейд под концепт v6b: темнее, чуть холоднее и приглушённее (картинки не видят освещение сцены)
         float lum = dot(rgb, vec3(0.3, 0.59, 0.11));
-        rgb = mix(vec3(lum), rgb, 0.9) * vec3(0.8, 0.83, 0.85);   // мягче: новые картинки уже в тоне рефа
+        rgb = rgb * vec3(0.84, 0.83, 0.80);   // нейтрально-тёплый: холодный грейд и обесцвечивание уводили охру берёз в лосось
         gl_FragColor = vec4(rgb, c.a);
         #include <colorspace_fragment>
       }`,
@@ -1499,7 +1499,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=12' : '.png')), (await fetch(treeSpritesUrl + '.json?v=12')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=13' : '.png')), (await fetch(treeSpritesUrl + '.json?v=13')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -1721,7 +1721,7 @@ ${gtex ? `{
       for (const [x, z, mul] of spots) {
         // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
         const darkB = biomeAt(x, z) === 'dark';
-        const tone = [(r() - 0.5) * 0.05 + (darkB ? 0.03 : 0), 0.82 + r() * 0.3, (0.82 + r() * 0.3) * (darkB ? 0.78 : 1)];   // разнотонность — как было (возврат 20.10)
+        const tone = [(r() - 0.5) * 0.018 + (darkB ? 0.03 : 0), 0.95 + r() * 0.15, (0.8 + r() * 0.32) * (darkB ? 0.78 : 1)];   // оттенок почти не сдвигаем — охра уходила в лосось; разнотонность — яркостью   // разнотонность — как было (возврат 20.10)
         let h = (h0 + r() * (h1 - h0)) * mul * 1.0, group = SPRITE_GROUP[name] ?? 'spruce';   // мельче — как на рефе v6b
         // дерево не закрывает клетки за собой: ниже до допустимой высоты, а если совсем низко — куст
         const lim = coverLimit(x, z, h * 0.35);
