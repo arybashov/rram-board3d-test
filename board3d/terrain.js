@@ -615,9 +615,9 @@ const DECK_BIOME = { forest: 'forest', dark_forest: 'dark', forest_trail: 'birch
 // Состав видов по биомам: [имя модели, вес]. Высоты видов — в TREE_H.
 // Состав по биомам — по замерам концепта v6b (outputs/board3d-concept/zones/answer.md)
 const BIOME_MIX = {
-  forest: [['tree_spruce', 6], ['tree_pine', 0.6], ['tree_birch', 2], ['tree_autumn_orange', 1], ['tree_autumn_red', 0.8]],
+  forest: [['tree_spruce', 6], ['tree_pine', 0.5], ['tree_birch', 3], ['tree_autumn_orange', 0.3]],   // реф: красная осень только справа
   dark: [['tree_spruce_dark', 6.5], ['tree_dead', 2], ['tree_snag', 1.5], ['tree_spruce', 0.5]],
-  birch: [['tree_birch', 8], ['tree_spruce', 1.5], ['tree_autumn_orange', 0.5]],
+  birch: [['tree_birch', 9], ['tree_spruce', 1.2]],      // зона D рефа: сплошь золотые берёзы, редкие ели
   autumn: [['tree_autumn_red', 2.5], ['tree_autumn_orange', 2.5], ['tree_spruce', 2.5], ['tree_birch', 0.5], ['tree_dead', 0.5]],
   lake: [['tree_willow', 5.5], ['tree_spruce', 2], ['tree_autumn_orange', 1.5], ['tree_birch', 1]],
   meadow: [['tree_spruce', 2], ['tree_birch', 1], ['tree_autumn_red', 1.5], ['tree_autumn_orange', 1.5]],
@@ -626,7 +626,7 @@ const BIOME_MIX = {
   ridge: [['tree_spruce', 9], ['tree_spruce_dark', 3], ['tree_pine', 0.3]],      // реф v6b: хребет — тёмные ели
 };
 // доля мест, где дерево остаётся (замеры v6b: деревьев в 1,3–2 раза меньше)
-const BIOME_KEEP = { forest: 0.75, dark: 0.85, birch: 0.85, autumn: 0.85, lake: 0.55, meadow: 0.45, fairy: 1, ridge: 1 };
+const BIOME_KEEP = { forest: 0.75, dark: 0.85, birch: 1, autumn: 0.85, lake: 0.85, meadow: 0.45, fairy: 1, ridge: 1 };
 
 const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
@@ -676,7 +676,8 @@ function flatDecals(list, atlasTex, frames) {
 
 // грейд пород под концепт v6b: [сдвиг оттенка, насыщенность ×, яркость ×]
 const SPRITE_GRADE = {   // новые породы (sheet6b-*) уже в цветах рефа — правим только старые
-  autumn_red: [0.03, 0.95, 0.85], autumn_orange: [0.015, 1.0, 0.9],   // реф: тёплый красно-оранжевый, не малиновый
+  autumn_red: [0.03, 0.95, 0.85], autumn_orange: [0.015, 1.0, 0.9],
+  birch: [0.035, 1.0, 1.08],      // зона D: золотисто-жёлтые, не оранжевые   // реф: тёплый красно-оранжевый, не малиновый
   pine: [0.02, 0.9, 0.66], oak_green: [0.0, 0.9, 0.7], autumn_yellow: [-0.02, 1.2, 0.95],
   fern: [0.02, 0.9, 0.7], snag: [0, 0.8, 0.75],
 }
@@ -1449,14 +1450,15 @@ ${gtex ? `{
       }
       const biome0 = biomeAt(jx, jz);
       // ивы у озера вне лесной маски — редкими одиночками, не стеной вдоль воды
-      const special = (biome0 === 'lake' && r() < 0.25 && [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([ox, oz]) => sample(jx + ox, jz + oz).water > 0.4))
+      const special = (biome0 === 'lake' && r() < 0.9 &&   // зона E рефа: ивы кольцом по берегу озера
+        [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([ox, oz]) => sample(jx + ox, jz + oz).water > 0.4))
         || biome0 === 'fairy';
       // у подножия хребта (стена в пределах 3) лес и вне маски — не пустая трава под скалой
       const footOfRidge = m.forest < 0.5 && groundY(jx, jz) < 0.3 && [[0, -2.5], [1.8, -1.8], [-1.8, -1.8], [2.5, 0], [-2.5, 0]].some(([dx, dz]) => groundY(jx + dx, jz + dz) > 1.2);
       if (!special && !footOfRidge && m.forest < 0.5) continue;
       if (m.water > 0.3 || m.rock > 0.45) continue;
       const dCell = nearest(jx, jz);
-      if (dCell < CELL_CLEAR) continue;
+      if (dCell < (special && biome0 === 'lake' ? 0.85 : CELL_CLEAR)) continue;   // ивы у воды — ближе к клеткам
       if (nearHouse(jx, jz, 3.1)) continue;         // дом входит в биом: вокруг него поляна
       if (groundY(jx, jz) < -0.05) continue;     // не на воде (кувшинки в озере зелёные)
       const biome = biome0;
@@ -1485,6 +1487,7 @@ ${gtex ? `{
     if (biome === 'ridge_dry') name = 'tree_dry_bush';
     else if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
     else if (biome === 'lake') name = nearWaterT(x, z) ? 'tree_willow' : pickWeighted(BIOME_MIX.lake, r);
+    else if (biome === 'autumn' && x < groundX0 + groundW * 0.45) name = pickWeighted(BIOME_MIX.birch, r);   // зона D рефа: слева золотые берёзы, красная осень — только справа
     else name = pickWeighted(BIOME_MIX[biome] ?? BIOME_MIX.forest, r);
     (byName[name] ??= []).push([x, z, edge && name !== 'tree_bush' ? 0.65 : r() < 0.03 ? 1.45 : 1]);
   } };
@@ -1735,6 +1738,25 @@ ${gtex ? `{
     };
     addSprites(byName, r);
     addSprites(extraByName, r2);      // добавочные деревья — своим генератором, прежние не сдвигаются
+    // зона E рефа: ивы кольцом по берегу озера (обычная посадка берег отсекает — там перепад высоты)
+    {
+      const lakeCells = cells.filter(c => c.deck === 'lake');
+      const shore = [];
+      for (let z = groundZ0 + 2; z < groundZ0 + groundH - 2; z += 0.5) for (let x = groundX0 + 2; x < groundX0 + groundW - 2; x += 0.5) {
+        // озеро — по клеткам колоды «озеро» (у центрального озера ближайший биом — луг)
+        if (!lakeCells.some(c => Math.hypot(c.x - x, c.z - z) < 7) || groundY(x, z) < -0.45) continue;   // можно и на мелководье у кромки
+        if (![[1.0, 0], [-1.0, 0], [0, 1.0], [0, -1.0]].some(([dx, dz]) => groundY(x + dx, z + dz) < -0.25)) continue;
+        if (nearest(x, z) < 0.6 || nearHouse(x, z, 1.4)) continue;
+        if (shore.some(o => Math.hypot(o[0] - x, o[1] - z) < 1.15)) continue;
+        shore.push([x, z]);
+      }
+      T.shoreWillows = shore.length;
+      const [w0, w1] = TREE_H.tree_willow;
+      for (const [x, z] of shore) {
+        list.push({ x, y: Math.max(groundY(x, z), -0.25), z, h: (w0 + r() * (w1 - w0)) * 0.8, group: r() < 0.8 ? 'willow' : 'bush', pick: Math.floor(r() * 99),
+          tint: [(r() - 0.5) * 0.04, 0.85 + r() * 0.25, 0.85 + r() * 0.25] });
+      }
+    }
     // не кучей: между кронами зазор (сказочные — шире); на уступах хребта рощи плотнее
     {
       const cellOf2 = new Map(), k2 = (x, z) => `${Math.floor(x / 3)},${Math.floor(z / 3)}`;
