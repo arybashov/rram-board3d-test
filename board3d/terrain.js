@@ -735,7 +735,10 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
         vTint = tint; vH = uv.y;
         // глубина дерева = глубина основания, сдвинутого к камере (~радиус кроны у земли):
         // всё, что стоит за стволом, остаётся за деревом
-        vec4 cb = projectionMatrix * viewMatrix * vec4(base + normalize(cameraPosition - base) * 0.45, 1.0);   // одинаково для всех деревьев (откат 20.10: «деревья хорошо сидели»)
+        // глубина — как у настоящего вертикального дерева (верх кроны ближе к камере, чем основание):
+        // иначе стена уступа выше-сзади дерева оказывалась «ближе» основания и срезала крону
+        vec3 vert = base + upv * position.y * h * k;
+        vec4 cb = projectionMatrix * viewMatrix * vec4(vert + normalize(cameraPosition - base) * 0.45, 1.0);
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         gl_Position.z = (cb.z / cb.w) * gl_Position.w;
       }`,
