@@ -1,0 +1,7263 @@
+{
+  "format": "rram-game-map",
+  "schemaVersion": 3,
+  "id": "rram-main-map-v1",
+  "revision": 1,
+  "layout": {
+    "source": {
+      "width": 3084,
+      "height": 2439
+    },
+    "target": {
+      "width": 2896,
+      "height": 2172
+    }
+  },
+  "art": {
+    "src": "/assets/fantasy-map-background-4096.webp",
+    "width": 4096,
+    "height": 3072,
+    "scaleX": 0.91,
+    "scaleY": 0.961
+  },
+  "coordinateSystem": {
+    "display": "normalized-image",
+    "origin": "top-left",
+    "xAxis": "right",
+    "yAxis": "down",
+    "range": [
+      0,
+      1
+    ]
+  },
+  "hex": {
+    "orientation": "flat",
+    "radius": 0.012086
+  },
+  "deckMarkers": {
+    "size": 1.78,
+    "assetRoot": "/assets/cards/backs/markers"
+  },
+  "display": {
+    "cellOpacity": 0.22,
+    "coloredCellOpacity": 0.45,
+    "cellStrokeColor": "#e8f0ff",
+    "cellStrokeOpacity": 1,
+    "colors": {
+      "points": {
+        "green_deck": "#20c56b",
+        "battle": "#f44336",
+        "teleport": "#a933e8",
+        "dwarf_border": "#ffd928",
+        "dwarf_entry": "#2f7dff",
+        "blacksmith_stone": "#2196f3"
+      },
+      "decks": {
+        "mixed": "#ffd66b",
+        "forest": "#4caf50",
+        "forest_trail": "#6f8f3a",
+        "dark_forest": "#1b5e20",
+        "sheep": "#8bc34a",
+        "red": "#f44336",
+        "lake": "#29b6f6",
+        "recipes": "#9c27b0",
+        "blueprints": "#2196f3",
+        "fairy_glade": "#e91e63"
+      },
+      "sides": {
+        "green": "#35c77b",
+        "red": "#ef554f"
+      },
+      "terrain": {
+        "start": "#f4c95d",
+        "event": "#9b5de5",
+        "teleport": "#24c7d9",
+        "resource": "#ff9f43",
+        "blocked": "#6b7280",
+        "path": "#dbe8f7"
+      }
+    }
+  },
+  "starts": {
+    "green": {
+      "K": "H007",
+      "P": "H006",
+      "V": "H009",
+      "O": "H003",
+      "S": "H004"
+    },
+    "red": {
+      "K": "H232",
+      "P": "H224",
+      "V": "H227",
+      "O": "H225",
+      "S": "H230"
+    }
+  },
+  "dwarfRoute": [
+    "H248",
+    "H245",
+    "H243",
+    "H241",
+    "H240",
+    "H238",
+    "H237",
+    "H236",
+    "H173",
+    "H174",
+    "H175",
+    "H176",
+    "H177",
+    "H178",
+    "H179",
+    "H180",
+    "H038",
+    "H039",
+    "H041",
+    "H044",
+    "H046",
+    "H047",
+    "H049",
+    "H052",
+    "H062",
+    "H063",
+    "H065",
+    "H067",
+    "H068",
+    "H073",
+    "H075",
+    "H077",
+    "H079",
+    "H080",
+    "H081",
+    "H083",
+    "H084",
+    "H087",
+    "H088",
+    "H094",
+    "H095",
+    "H097",
+    "H098",
+    "H100",
+    "H102",
+    "H103",
+    "H109",
+    "H110",
+    "H107",
+    "H108",
+    "H105",
+    "H092",
+    "H090",
+    "H085",
+    "H083",
+    "H081",
+    "H079",
+    "H078",
+    "H075",
+    "H074",
+    "H069",
+    "H066",
+    "H071",
+    "H072",
+    "H143",
+    "H145",
+    "H146",
+    "H149",
+    "H151",
+    "H152",
+    "H154",
+    "H156",
+    "H158",
+    "H160",
+    "H161",
+    "H163",
+    "H164",
+    "H166",
+    "H168",
+    "H170",
+    "H171",
+    "H172",
+    "H174",
+    "H175",
+    "H184",
+    "H185",
+    "H186",
+    "H262",
+    "H260",
+    "H259",
+    "H258",
+    "H257",
+    "H256",
+    "H255",
+    "H254",
+    "H253",
+    "H251",
+    "H250",
+    "H249",
+    "H187",
+    "H185",
+    "H184",
+    "H175",
+    "H174",
+    "H173",
+    "H236",
+    "H188",
+    "H189",
+    "H239",
+    "H240",
+    "H242",
+    "H244",
+    "H246",
+    "H247"
+  ],
+  "cells": [
+    {
+      "id": "H001",
+      "center": {
+        "u": 0.091535,
+        "v": 0.509649
+      },
+      "neighbors": [
+        "H002",
+        "H003",
+        "H010"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H002",
+      "center": {
+        "u": 0.091535,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H001",
+        "H003",
+        "H006"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H003",
+      "center": {
+        "u": 0.109664,
+        "v": 0.523605
+      },
+      "neighbors": [
+        "H001",
+        "H002",
+        "H004",
+        "H005",
+        "H006",
+        "H010"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "green",
+      "role": "O",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H004",
+      "center": {
+        "u": 0.127792,
+        "v": 0.509649
+      },
+      "neighbors": [
+        "H003",
+        "H005",
+        "H007",
+        "H008",
+        "H010"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "green",
+      "role": "S",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H005",
+      "center": {
+        "u": 0.127792,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H003",
+        "H004",
+        "H006",
+        "H008",
+        "H009",
+        "H011"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H006",
+      "center": {
+        "u": 0.109664,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H002",
+        "H003",
+        "H005",
+        "H011"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "green",
+      "role": "P",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H007",
+      "center": {
+        "u": 0.14592,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H004",
+        "H008",
+        "H014"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "green",
+      "role": "K",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H008",
+      "center": {
+        "u": 0.14592,
+        "v": 0.523605
+      },
+      "neighbors": [
+        "H004",
+        "H005",
+        "H007",
+        "H009",
+        "H013",
+        "H014"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H009",
+      "center": {
+        "u": 0.14592,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H005",
+        "H008",
+        "H011",
+        "H012",
+        "H013"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "green",
+      "role": "V",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H010",
+      "center": {
+        "u": 0.109663,
+        "v": 0.495693
+      },
+      "neighbors": [
+        "H001",
+        "H003",
+        "H004"
+      ],
+      "terrain": "path",
+      "pointClass": "blacksmith_stone",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "blueprints",
+        "asset": "blacksmith-stone-01",
+        "scale": 1.46,
+        "standingPoint": null,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H011",
+      "center": {
+        "u": 0.127792,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H005",
+        "H006",
+        "H009"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "forest",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "forest",
+        "asset": "forest-01",
+        "scale": 2,
+        "standingPoint": {
+          "x": -0.050847,
+          "y": 0.397492
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H012",
+      "center": {
+        "u": 0.164049,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H009",
+        "H013",
+        "H015",
+        "H016"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H013",
+      "center": {
+        "u": 0.164049,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H008",
+        "H009",
+        "H012",
+        "H014",
+        "H015"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H014",
+      "center": {
+        "u": 0.164049,
+        "v": 0.509649
+      },
+      "neighbors": [
+        "H007",
+        "H008",
+        "H013"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "mixed",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "mixed",
+        "asset": "mixed-01",
+        "scale": 2,
+        "standingPoint": null,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H015",
+      "center": {
+        "u": 0.182178,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H012",
+        "H013",
+        "H016",
+        "H017"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H016",
+      "center": {
+        "u": 0.182178,
+        "v": 0.579425
+      },
+      "neighbors": [
+        "H012",
+        "H015",
+        "H017",
+        "H018"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H017",
+      "center": {
+        "u": 0.200306,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H015",
+        "H016",
+        "H018",
+        "H019",
+        "H020"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H018",
+      "center": {
+        "u": 0.200306,
+        "v": 0.593381
+      },
+      "neighbors": [
+        "H016",
+        "H017",
+        "H019",
+        "H270"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H019",
+      "center": {
+        "u": 0.218435,
+        "v": 0.579425
+      },
+      "neighbors": [
+        "H017",
+        "H018",
+        "H020",
+        "H021",
+        "H270"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H020",
+      "center": {
+        "u": 0.218435,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H017",
+        "H019",
+        "H021",
+        "H022"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H021",
+      "center": {
+        "u": 0.236563,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H019",
+        "H020",
+        "H022",
+        "H023"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H022",
+      "center": {
+        "u": 0.236563,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H020",
+        "H021",
+        "H023",
+        "H024"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H023",
+      "center": {
+        "u": 0.254692,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H021",
+        "H022",
+        "H024",
+        "H025"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H024",
+      "center": {
+        "u": 0.254692,
+        "v": 0.523605
+      },
+      "neighbors": [
+        "H022",
+        "H023",
+        "H025",
+        "H026"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H025",
+      "center": {
+        "u": 0.27282,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H023",
+        "H024",
+        "H026"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H026",
+      "center": {
+        "u": 0.27282,
+        "v": 0.509649
+      },
+      "neighbors": [
+        "H024",
+        "H025",
+        "H027",
+        "H028"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H027",
+      "center": {
+        "u": 0.27282,
+        "v": 0.481738
+      },
+      "neighbors": [
+        "H026",
+        "H028",
+        "H029"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H028",
+      "center": {
+        "u": 0.290948,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H026",
+        "H027",
+        "H029",
+        "H030"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H029",
+      "center": {
+        "u": 0.290948,
+        "v": 0.467784
+      },
+      "neighbors": [
+        "H027",
+        "H028",
+        "H030",
+        "H031"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H030",
+      "center": {
+        "u": 0.309077,
+        "v": 0.481738
+      },
+      "neighbors": [
+        "H028",
+        "H029",
+        "H031",
+        "H032"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H031",
+      "center": {
+        "u": 0.309077,
+        "v": 0.453828
+      },
+      "neighbors": [
+        "H029",
+        "H030",
+        "H032",
+        "H033"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H032",
+      "center": {
+        "u": 0.327205,
+        "v": 0.467784
+      },
+      "neighbors": [
+        "H030",
+        "H031",
+        "H033",
+        "H034"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H033",
+      "center": {
+        "u": 0.327205,
+        "v": 0.439872
+      },
+      "neighbors": [
+        "H031",
+        "H032",
+        "H034",
+        "H035"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H034",
+      "center": {
+        "u": 0.345333,
+        "v": 0.453828
+      },
+      "neighbors": [
+        "H032",
+        "H033",
+        "H035",
+        "H036"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H035",
+      "center": {
+        "u": 0.345333,
+        "v": 0.425918
+      },
+      "neighbors": [
+        "H033",
+        "H034",
+        "H036"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H036",
+      "center": {
+        "u": 0.363463,
+        "v": 0.439872
+      },
+      "neighbors": [
+        "H034",
+        "H035",
+        "H037",
+        "H038"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H037",
+      "center": {
+        "u": 0.381591,
+        "v": 0.425918
+      },
+      "neighbors": [
+        "H036",
+        "H038",
+        "H179",
+        "H180"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H038",
+      "center": {
+        "u": 0.381591,
+        "v": 0.453828
+      },
+      "neighbors": [
+        "H036",
+        "H037",
+        "H039",
+        "H180"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H039",
+      "center": {
+        "u": 0.381591,
+        "v": 0.481738
+      },
+      "neighbors": [
+        "H038",
+        "H040",
+        "H041",
+        "H042"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H040",
+      "center": {
+        "u": 0.363463,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H039",
+        "H041",
+        "H043"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H041",
+      "center": {
+        "u": 0.381591,
+        "v": 0.509649
+      },
+      "neighbors": [
+        "H039",
+        "H040",
+        "H042",
+        "H043",
+        "H044"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H042",
+      "center": {
+        "u": 0.399719,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H039",
+        "H041"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "lake",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "lake",
+        "asset": "lake-01",
+        "scale": 2,
+        "standingPoint": {
+          "x": 0.008989,
+          "y": 0.472219
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H043",
+      "center": {
+        "u": 0.363463,
+        "v": 0.523605
+      },
+      "neighbors": [
+        "H040",
+        "H041",
+        "H044"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H044",
+      "center": {
+        "u": 0.381591,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H041",
+        "H043",
+        "H045",
+        "H046"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H045",
+      "center": {
+        "u": 0.399719,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H044",
+        "H046",
+        "H048"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H046",
+      "center": {
+        "u": 0.381591,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H044",
+        "H045",
+        "H047",
+        "H048"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H047",
+      "center": {
+        "u": 0.381591,
+        "v": 0.593381
+      },
+      "neighbors": [
+        "H046",
+        "H048",
+        "H049",
+        "H050"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H048",
+      "center": {
+        "u": 0.399719,
+        "v": 0.579426
+      },
+      "neighbors": [
+        "H045",
+        "H046",
+        "H047",
+        "H049"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H049",
+      "center": {
+        "u": 0.399719,
+        "v": 0.607337
+      },
+      "neighbors": [
+        "H047",
+        "H048",
+        "H050",
+        "H051",
+        "H052"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H050",
+      "center": {
+        "u": 0.381591,
+        "v": 0.621291
+      },
+      "neighbors": [
+        "H047",
+        "H049",
+        "H052",
+        "H053"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H051",
+      "center": {
+        "u": 0.417848,
+        "v": 0.621291
+      },
+      "neighbors": [
+        "H049",
+        "H052",
+        "H061",
+        "H062"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H052",
+      "center": {
+        "u": 0.399719,
+        "v": 0.635247
+      },
+      "neighbors": [
+        "H049",
+        "H050",
+        "H051",
+        "H053",
+        "H062"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H053",
+      "center": {
+        "u": 0.381591,
+        "v": 0.649203
+      },
+      "neighbors": [
+        "H050",
+        "H052",
+        "H054",
+        "H055"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H054",
+      "center": {
+        "u": 0.363463,
+        "v": 0.663158
+      },
+      "neighbors": [
+        "H053",
+        "H055",
+        "H056"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H055",
+      "center": {
+        "u": 0.381591,
+        "v": 0.677113
+      },
+      "neighbors": [
+        "H053",
+        "H054",
+        "H056",
+        "H058"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H056",
+      "center": {
+        "u": 0.363463,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H054",
+        "H055",
+        "H057",
+        "H058"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H057",
+      "center": {
+        "u": 0.363463,
+        "v": 0.718978
+      },
+      "neighbors": [
+        "H056",
+        "H058",
+        "H059",
+        "H060"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H058",
+      "center": {
+        "u": 0.381591,
+        "v": 0.705024
+      },
+      "neighbors": [
+        "H055",
+        "H056",
+        "H057",
+        "H059"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H059",
+      "center": {
+        "u": 0.381591,
+        "v": 0.732934
+      },
+      "neighbors": [
+        "H057",
+        "H058",
+        "H060",
+        "H272"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H060",
+      "center": {
+        "u": 0.363463,
+        "v": 0.74689
+      },
+      "neighbors": [
+        "H057",
+        "H059",
+        "H272"
+      ],
+      "terrain": "resource",
+      "pointClass": "teleport",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H061",
+      "center": {
+        "u": 0.435976,
+        "v": 0.635247
+      },
+      "neighbors": [
+        "H051",
+        "H062",
+        "H064"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H062",
+      "center": {
+        "u": 0.417848,
+        "v": 0.649203
+      },
+      "neighbors": [
+        "H051",
+        "H052",
+        "H061",
+        "H063",
+        "H064"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H063",
+      "center": {
+        "u": 0.417848,
+        "v": 0.677113
+      },
+      "neighbors": [
+        "H062",
+        "H064",
+        "H065"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H064",
+      "center": {
+        "u": 0.435976,
+        "v": 0.663158
+      },
+      "neighbors": [
+        "H061",
+        "H062",
+        "H063",
+        "H065"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H065",
+      "center": {
+        "u": 0.435976,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H063",
+        "H064",
+        "H066",
+        "H067"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H066",
+      "center": {
+        "u": 0.454104,
+        "v": 0.705024
+      },
+      "neighbors": [
+        "H065",
+        "H067",
+        "H069",
+        "H070",
+        "H071"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H067",
+      "center": {
+        "u": 0.435976,
+        "v": 0.718978
+      },
+      "neighbors": [
+        "H065",
+        "H066",
+        "H068",
+        "H069"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H068",
+      "center": {
+        "u": 0.435976,
+        "v": 0.74689
+      },
+      "neighbors": [
+        "H067",
+        "H069",
+        "H073"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H069",
+      "center": {
+        "u": 0.454104,
+        "v": 0.732934
+      },
+      "neighbors": [
+        "H066",
+        "H067",
+        "H068",
+        "H070",
+        "H073",
+        "H074"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H070",
+      "center": {
+        "u": 0.472233,
+        "v": 0.718978
+      },
+      "neighbors": [
+        "H066",
+        "H069",
+        "H071",
+        "H072",
+        "H074"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H071",
+      "center": {
+        "u": 0.472233,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H066",
+        "H070",
+        "H072",
+        "H142"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H072",
+      "center": {
+        "u": 0.490361,
+        "v": 0.705024
+      },
+      "neighbors": [
+        "H070",
+        "H071",
+        "H142",
+        "H143"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H073",
+      "center": {
+        "u": 0.454104,
+        "v": 0.760844
+      },
+      "neighbors": [
+        "H068",
+        "H069",
+        "H074",
+        "H075",
+        "H076"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H074",
+      "center": {
+        "u": 0.472233,
+        "v": 0.74689
+      },
+      "neighbors": [
+        "H069",
+        "H070",
+        "H073",
+        "H075"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H075",
+      "center": {
+        "u": 0.472233,
+        "v": 0.7748
+      },
+      "neighbors": [
+        "H073",
+        "H074",
+        "H076",
+        "H077",
+        "H078"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H076",
+      "center": {
+        "u": 0.454104,
+        "v": 0.788755
+      },
+      "neighbors": [
+        "H073",
+        "H075",
+        "H077"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H077",
+      "center": {
+        "u": 0.472233,
+        "v": 0.802711
+      },
+      "neighbors": [
+        "H075",
+        "H076",
+        "H078",
+        "H079"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H078",
+      "center": {
+        "u": 0.490361,
+        "v": 0.788755
+      },
+      "neighbors": [
+        "H075",
+        "H077",
+        "H079"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H079",
+      "center": {
+        "u": 0.490361,
+        "v": 0.816666
+      },
+      "neighbors": [
+        "H077",
+        "H078",
+        "H080",
+        "H081"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H080",
+      "center": {
+        "u": 0.490361,
+        "v": 0.844577
+      },
+      "neighbors": [
+        "H079",
+        "H081",
+        "H082"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H081",
+      "center": {
+        "u": 0.508489,
+        "v": 0.830621
+      },
+      "neighbors": [
+        "H079",
+        "H080",
+        "H082",
+        "H083"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H082",
+      "center": {
+        "u": 0.508489,
+        "v": 0.858531
+      },
+      "neighbors": [
+        "H080",
+        "H081",
+        "H083",
+        "H084"
+      ],
+      "terrain": "resource",
+      "pointClass": "dwarf_border",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H083",
+      "center": {
+        "u": 0.526619,
+        "v": 0.844577
+      },
+      "neighbors": [
+        "H081",
+        "H082",
+        "H084",
+        "H085"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H084",
+      "center": {
+        "u": 0.526619,
+        "v": 0.872487
+      },
+      "neighbors": [
+        "H082",
+        "H083",
+        "H085",
+        "H086",
+        "H087"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H085",
+      "center": {
+        "u": 0.544747,
+        "v": 0.858531
+      },
+      "neighbors": [
+        "H083",
+        "H084",
+        "H086",
+        "H090"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H086",
+      "center": {
+        "u": 0.544747,
+        "v": 0.886443
+      },
+      "neighbors": [
+        "H084",
+        "H085",
+        "H087",
+        "H088",
+        "H089",
+        "H090"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H087",
+      "center": {
+        "u": 0.526619,
+        "v": 0.900398
+      },
+      "neighbors": [
+        "H084",
+        "H086",
+        "H088"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H088",
+      "center": {
+        "u": 0.544747,
+        "v": 0.914353
+      },
+      "neighbors": [
+        "H086",
+        "H087",
+        "H089",
+        "H094"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H089",
+      "center": {
+        "u": 0.562875,
+        "v": 0.900398
+      },
+      "neighbors": [
+        "H086",
+        "H088",
+        "H090",
+        "H092",
+        "H093",
+        "H094"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H090",
+      "center": {
+        "u": 0.562875,
+        "v": 0.872487
+      },
+      "neighbors": [
+        "H085",
+        "H086",
+        "H089",
+        "H091",
+        "H092"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H091",
+      "center": {
+        "u": 0.581004,
+        "v": 0.858531
+      },
+      "neighbors": [
+        "H090",
+        "H092",
+        "H106"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H092",
+      "center": {
+        "u": 0.581004,
+        "v": 0.886443
+      },
+      "neighbors": [
+        "H089",
+        "H090",
+        "H091",
+        "H093",
+        "H105",
+        "H106"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H093",
+      "center": {
+        "u": 0.581004,
+        "v": 0.914353
+      },
+      "neighbors": [
+        "H089",
+        "H092",
+        "H094",
+        "H095",
+        "H096",
+        "H105"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H094",
+      "center": {
+        "u": 0.562875,
+        "v": 0.928308
+      },
+      "neighbors": [
+        "H088",
+        "H089",
+        "H093",
+        "H095"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H095",
+      "center": {
+        "u": 0.581004,
+        "v": 0.942264
+      },
+      "neighbors": [
+        "H093",
+        "H094",
+        "H096",
+        "H097"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H096",
+      "center": {
+        "u": 0.599132,
+        "v": 0.928308
+      },
+      "neighbors": [
+        "H093",
+        "H095",
+        "H097",
+        "H099",
+        "H104",
+        "H105"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H097",
+      "center": {
+        "u": 0.599132,
+        "v": 0.956218
+      },
+      "neighbors": [
+        "H095",
+        "H096",
+        "H098",
+        "H099"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H098",
+      "center": {
+        "u": 0.617261,
+        "v": 0.970174
+      },
+      "neighbors": [
+        "H097",
+        "H099",
+        "H100",
+        "H101"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H099",
+      "center": {
+        "u": 0.617261,
+        "v": 0.942264
+      },
+      "neighbors": [
+        "H096",
+        "H097",
+        "H098",
+        "H100",
+        "H103",
+        "H104"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H100",
+      "center": {
+        "u": 0.635389,
+        "v": 0.956218
+      },
+      "neighbors": [
+        "H098",
+        "H099",
+        "H101",
+        "H102",
+        "H103"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H101",
+      "center": {
+        "u": 0.635389,
+        "v": 0.98413
+      },
+      "neighbors": [
+        "H098",
+        "H100"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": "dark_forest",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "dark_forest",
+        "asset": "dark-forest-01",
+        "scale": 1.97,
+        "standingPoint": {
+          "x": 0.030852,
+          "y": 0.670334
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H102",
+      "center": {
+        "u": 0.653517,
+        "v": 0.942264
+      },
+      "neighbors": [
+        "H100",
+        "H103"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H103",
+      "center": {
+        "u": 0.635389,
+        "v": 0.928308
+      },
+      "neighbors": [
+        "H099",
+        "H100",
+        "H102",
+        "H104",
+        "H109"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H104",
+      "center": {
+        "u": 0.617261,
+        "v": 0.914353
+      },
+      "neighbors": [
+        "H096",
+        "H099",
+        "H103",
+        "H105",
+        "H108",
+        "H109"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H105",
+      "center": {
+        "u": 0.599132,
+        "v": 0.900398
+      },
+      "neighbors": [
+        "H092",
+        "H093",
+        "H096",
+        "H104",
+        "H106",
+        "H108"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H106",
+      "center": {
+        "u": 0.599132,
+        "v": 0.872487
+      },
+      "neighbors": [
+        "H091",
+        "H092",
+        "H105",
+        "H107",
+        "H108"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H107",
+      "center": {
+        "u": 0.617261,
+        "v": 0.858531
+      },
+      "neighbors": [
+        "H106",
+        "H108",
+        "H110",
+        "H111"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H108",
+      "center": {
+        "u": 0.617261,
+        "v": 0.886443
+      },
+      "neighbors": [
+        "H104",
+        "H105",
+        "H106",
+        "H107",
+        "H109",
+        "H110"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H109",
+      "center": {
+        "u": 0.635389,
+        "v": 0.900398
+      },
+      "neighbors": [
+        "H103",
+        "H104",
+        "H108",
+        "H110"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H110",
+      "center": {
+        "u": 0.635389,
+        "v": 0.872487
+      },
+      "neighbors": [
+        "H107",
+        "H108",
+        "H109",
+        "H111",
+        "H112"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H111",
+      "center": {
+        "u": 0.635389,
+        "v": 0.844577
+      },
+      "neighbors": [
+        "H107",
+        "H110",
+        "H112",
+        "H113"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H112",
+      "center": {
+        "u": 0.653517,
+        "v": 0.858531
+      },
+      "neighbors": [
+        "H110",
+        "H111",
+        "H113"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H113",
+      "center": {
+        "u": 0.653517,
+        "v": 0.830621
+      },
+      "neighbors": [
+        "H111",
+        "H112",
+        "H114",
+        "H115"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H114",
+      "center": {
+        "u": 0.653517,
+        "v": 0.802711
+      },
+      "neighbors": [
+        "H113",
+        "H115",
+        "H116"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H115",
+      "center": {
+        "u": 0.671646,
+        "v": 0.816666
+      },
+      "neighbors": [
+        "H113",
+        "H114",
+        "H116",
+        "H117"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H116",
+      "center": {
+        "u": 0.671646,
+        "v": 0.788755
+      },
+      "neighbors": [
+        "H114",
+        "H115",
+        "H117",
+        "H118"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H117",
+      "center": {
+        "u": 0.689775,
+        "v": 0.802711
+      },
+      "neighbors": [
+        "H115",
+        "H116",
+        "H118",
+        "H119"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H118",
+      "center": {
+        "u": 0.689775,
+        "v": 0.7748
+      },
+      "neighbors": [
+        "H116",
+        "H117",
+        "H119",
+        "H120",
+        "H121"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H119",
+      "center": {
+        "u": 0.707903,
+        "v": 0.788755
+      },
+      "neighbors": [
+        "H117",
+        "H118",
+        "H120"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H120",
+      "center": {
+        "u": 0.707903,
+        "v": 0.760844
+      },
+      "neighbors": [
+        "H118",
+        "H119",
+        "H121",
+        "H122"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H121",
+      "center": {
+        "u": 0.689775,
+        "v": 0.74689
+      },
+      "neighbors": [
+        "H118",
+        "H120",
+        "H122"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H122",
+      "center": {
+        "u": 0.707903,
+        "v": 0.732934
+      },
+      "neighbors": [
+        "H120",
+        "H121",
+        "H123",
+        "H124"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H123",
+      "center": {
+        "u": 0.707903,
+        "v": 0.705024
+      },
+      "neighbors": [
+        "H122",
+        "H124",
+        "H125"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H124",
+      "center": {
+        "u": 0.726032,
+        "v": 0.718978
+      },
+      "neighbors": [
+        "H122",
+        "H123",
+        "H125",
+        "H126"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H125",
+      "center": {
+        "u": 0.726032,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H123",
+        "H124",
+        "H126",
+        "H127"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H126",
+      "center": {
+        "u": 0.74416,
+        "v": 0.705024
+      },
+      "neighbors": [
+        "H124",
+        "H125",
+        "H127",
+        "H128"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H127",
+      "center": {
+        "u": 0.74416,
+        "v": 0.677113
+      },
+      "neighbors": [
+        "H125",
+        "H126",
+        "H128"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H128",
+      "center": {
+        "u": 0.762288,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H126",
+        "H127",
+        "H129",
+        "H130"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H129",
+      "center": {
+        "u": 0.780417,
+        "v": 0.677113
+      },
+      "neighbors": [
+        "H128",
+        "H130",
+        "H131"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H130",
+      "center": {
+        "u": 0.780417,
+        "v": 0.705024
+      },
+      "neighbors": [
+        "H128",
+        "H129",
+        "H131",
+        "H132"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H131",
+      "center": {
+        "u": 0.798545,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H129",
+        "H130",
+        "H132"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H132",
+      "center": {
+        "u": 0.798545,
+        "v": 0.718978
+      },
+      "neighbors": [
+        "H130",
+        "H131",
+        "H133",
+        "H134"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H133",
+      "center": {
+        "u": 0.798545,
+        "v": 0.74689
+      },
+      "neighbors": [
+        "H132",
+        "H134",
+        "H135",
+        "H136"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H134",
+      "center": {
+        "u": 0.816673,
+        "v": 0.732934
+      },
+      "neighbors": [
+        "H132",
+        "H133",
+        "H135",
+        "H141"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H135",
+      "center": {
+        "u": 0.816673,
+        "v": 0.760844
+      },
+      "neighbors": [
+        "H133",
+        "H134",
+        "H136",
+        "H137",
+        "H141"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H136",
+      "center": {
+        "u": 0.798545,
+        "v": 0.7748
+      },
+      "neighbors": [
+        "H133",
+        "H135",
+        "H137",
+        "H138"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H137",
+      "center": {
+        "u": 0.816673,
+        "v": 0.788755
+      },
+      "neighbors": [
+        "H135",
+        "H136",
+        "H138"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H138",
+      "center": {
+        "u": 0.798545,
+        "v": 0.802711
+      },
+      "neighbors": [
+        "H136",
+        "H137",
+        "H139",
+        "H140"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H139",
+      "center": {
+        "u": 0.780417,
+        "v": 0.816666
+      },
+      "neighbors": [
+        "H138",
+        "H140"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H140",
+      "center": {
+        "u": 0.798545,
+        "v": 0.830621
+      },
+      "neighbors": [
+        "H138",
+        "H139"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H141",
+      "center": {
+        "u": 0.834802,
+        "v": 0.74689
+      },
+      "neighbors": [
+        "H134",
+        "H135"
+      ],
+      "terrain": "event",
+      "pointClass": null,
+      "deck": "fairy_glade",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "fairy_glade",
+        "asset": "phoenix-sanctuary-01",
+        "scale": 1.94,
+        "standingPoint": {
+          "x": -0.265814,
+          "y": 0.511509
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H142",
+      "center": {
+        "u": 0.490361,
+        "v": 0.677113
+      },
+      "neighbors": [
+        "H071",
+        "H072",
+        "H143",
+        "H144"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H143",
+      "center": {
+        "u": 0.508489,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H072",
+        "H142",
+        "H144",
+        "H145"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H144",
+      "center": {
+        "u": 0.508489,
+        "v": 0.663158
+      },
+      "neighbors": [
+        "H142",
+        "H143",
+        "H145"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H145",
+      "center": {
+        "u": 0.526619,
+        "v": 0.677113
+      },
+      "neighbors": [
+        "H143",
+        "H144",
+        "H146",
+        "H147"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H146",
+      "center": {
+        "u": 0.544747,
+        "v": 0.663158
+      },
+      "neighbors": [
+        "H145",
+        "H147",
+        "H148",
+        "H149"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H147",
+      "center": {
+        "u": 0.544747,
+        "v": 0.691068
+      },
+      "neighbors": [
+        "H145",
+        "H146",
+        "H148"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H148",
+      "center": {
+        "u": 0.562875,
+        "v": 0.677113
+      },
+      "neighbors": [
+        "H146",
+        "H147",
+        "H149"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H149",
+      "center": {
+        "u": 0.562875,
+        "v": 0.649203
+      },
+      "neighbors": [
+        "H146",
+        "H148",
+        "H150",
+        "H151"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H150",
+      "center": {
+        "u": 0.562875,
+        "v": 0.621291
+      },
+      "neighbors": [
+        "H149",
+        "H151",
+        "H152"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H151",
+      "center": {
+        "u": 0.581004,
+        "v": 0.635247
+      },
+      "neighbors": [
+        "H149",
+        "H150",
+        "H152",
+        "H153"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H152",
+      "center": {
+        "u": 0.581004,
+        "v": 0.607337
+      },
+      "neighbors": [
+        "H150",
+        "H151",
+        "H153",
+        "H154",
+        "H155"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H153",
+      "center": {
+        "u": 0.599132,
+        "v": 0.621291
+      },
+      "neighbors": [
+        "H151",
+        "H152",
+        "H154"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H154",
+      "center": {
+        "u": 0.599132,
+        "v": 0.593381
+      },
+      "neighbors": [
+        "H152",
+        "H153",
+        "H155",
+        "H156"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H155",
+      "center": {
+        "u": 0.581004,
+        "v": 0.579426
+      },
+      "neighbors": [
+        "H152",
+        "H154",
+        "H156"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H156",
+      "center": {
+        "u": 0.599132,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H154",
+        "H155",
+        "H157",
+        "H158"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H157",
+      "center": {
+        "u": 0.617261,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H156",
+        "H158",
+        "H159"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H158",
+      "center": {
+        "u": 0.599132,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H156",
+        "H157",
+        "H159",
+        "H160"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H159",
+      "center": {
+        "u": 0.617261,
+        "v": 0.523605
+      },
+      "neighbors": [
+        "H157",
+        "H158",
+        "H160"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H160",
+      "center": {
+        "u": 0.599132,
+        "v": 0.50965
+      },
+      "neighbors": [
+        "H158",
+        "H159",
+        "H161",
+        "H162"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H161",
+      "center": {
+        "u": 0.599132,
+        "v": 0.481738
+      },
+      "neighbors": [
+        "H160",
+        "H162",
+        "H163"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H162",
+      "center": {
+        "u": 0.581004,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H160",
+        "H161",
+        "H163"
+      ],
+      "terrain": "resource",
+      "pointClass": "teleport",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H163",
+      "center": {
+        "u": 0.581004,
+        "v": 0.467784
+      },
+      "neighbors": [
+        "H161",
+        "H162",
+        "H164",
+        "H165"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H164",
+      "center": {
+        "u": 0.581004,
+        "v": 0.439873
+      },
+      "neighbors": [
+        "H163",
+        "H165",
+        "H166"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H165",
+      "center": {
+        "u": 0.562875,
+        "v": 0.453828
+      },
+      "neighbors": [
+        "H163",
+        "H164",
+        "H166",
+        "H273"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H166",
+      "center": {
+        "u": 0.562875,
+        "v": 0.425918
+      },
+      "neighbors": [
+        "H164",
+        "H165",
+        "H167",
+        "H168",
+        "H273"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H167",
+      "center": {
+        "u": 0.544747,
+        "v": 0.411963
+      },
+      "neighbors": [
+        "H166",
+        "H168",
+        "H169",
+        "H170",
+        "H273"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H168",
+      "center": {
+        "u": 0.562875,
+        "v": 0.398007
+      },
+      "neighbors": [
+        "H166",
+        "H167",
+        "H170"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H169",
+      "center": {
+        "u": 0.526619,
+        "v": 0.398007
+      },
+      "neighbors": [
+        "H167",
+        "H170",
+        "H171",
+        "H172"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H170",
+      "center": {
+        "u": 0.544747,
+        "v": 0.384052
+      },
+      "neighbors": [
+        "H167",
+        "H168",
+        "H169",
+        "H171",
+        "H188"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H171",
+      "center": {
+        "u": 0.526619,
+        "v": 0.370097
+      },
+      "neighbors": [
+        "H169",
+        "H170",
+        "H172",
+        "H173",
+        "H188",
+        "H236"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H172",
+      "center": {
+        "u": 0.508489,
+        "v": 0.384052
+      },
+      "neighbors": [
+        "H169",
+        "H171",
+        "H173",
+        "H174"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H173",
+      "center": {
+        "u": 0.508489,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H171",
+        "H172",
+        "H174",
+        "H236"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H174",
+      "center": {
+        "u": 0.490361,
+        "v": 0.370097
+      },
+      "neighbors": [
+        "H172",
+        "H173",
+        "H175"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H175",
+      "center": {
+        "u": 0.472233,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H174",
+        "H176",
+        "H184"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H176",
+      "center": {
+        "u": 0.454104,
+        "v": 0.370097
+      },
+      "neighbors": [
+        "H175",
+        "H177",
+        "H183",
+        "H184"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H177",
+      "center": {
+        "u": 0.435976,
+        "v": 0.384052
+      },
+      "neighbors": [
+        "H176",
+        "H178",
+        "H182",
+        "H183"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H178",
+      "center": {
+        "u": 0.417848,
+        "v": 0.398007
+      },
+      "neighbors": [
+        "H177",
+        "H179",
+        "H181",
+        "H182"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H179",
+      "center": {
+        "u": 0.399719,
+        "v": 0.411963
+      },
+      "neighbors": [
+        "H037",
+        "H178",
+        "H180",
+        "H181"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H180",
+      "center": {
+        "u": 0.399719,
+        "v": 0.439873
+      },
+      "neighbors": [
+        "H037",
+        "H038",
+        "H179",
+        "H181"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H181",
+      "center": {
+        "u": 0.417848,
+        "v": 0.425918
+      },
+      "neighbors": [
+        "H178",
+        "H179",
+        "H180"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H182",
+      "center": {
+        "u": 0.417848,
+        "v": 0.370097
+      },
+      "neighbors": [
+        "H177",
+        "H178",
+        "H183"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H183",
+      "center": {
+        "u": 0.435976,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H176",
+        "H177",
+        "H182",
+        "H184"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H184",
+      "center": {
+        "u": 0.454104,
+        "v": 0.342187
+      },
+      "neighbors": [
+        "H175",
+        "H176",
+        "H183",
+        "H185"
+      ],
+      "terrain": "resource",
+      "pointClass": "dwarf_border",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H185",
+      "center": {
+        "u": 0.454104,
+        "v": 0.314275
+      },
+      "neighbors": [
+        "H184",
+        "H186",
+        "H187",
+        "H269"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H186",
+      "center": {
+        "u": 0.435976,
+        "v": 0.30032
+      },
+      "neighbors": [
+        "H185",
+        "H262",
+        "H269"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H187",
+      "center": {
+        "u": 0.472233,
+        "v": 0.30032
+      },
+      "neighbors": [
+        "H185",
+        "H249",
+        "H268",
+        "H269"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H188",
+      "center": {
+        "u": 0.544747,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H170",
+        "H171",
+        "H189",
+        "H236",
+        "H237"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H189",
+      "center": {
+        "u": 0.562875,
+        "v": 0.342187
+      },
+      "neighbors": [
+        "H188",
+        "H190",
+        "H237",
+        "H238",
+        "H239"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H190",
+      "center": {
+        "u": 0.581004,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H189",
+        "H191",
+        "H239"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H191",
+      "center": {
+        "u": 0.599132,
+        "v": 0.342187
+      },
+      "neighbors": [
+        "H190",
+        "H192",
+        "H193",
+        "H239"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H192",
+      "center": {
+        "u": 0.617261,
+        "v": 0.328231
+      },
+      "neighbors": [
+        "H191",
+        "H193",
+        "H194"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H193",
+      "center": {
+        "u": 0.617261,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H191",
+        "H192",
+        "H194"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H194",
+      "center": {
+        "u": 0.635389,
+        "v": 0.342187
+      },
+      "neighbors": [
+        "H192",
+        "H193",
+        "H195",
+        "H196"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H195",
+      "center": {
+        "u": 0.653517,
+        "v": 0.328231
+      },
+      "neighbors": [
+        "H194",
+        "H196",
+        "H197"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H196",
+      "center": {
+        "u": 0.653517,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H194",
+        "H195",
+        "H197",
+        "H198"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H197",
+      "center": {
+        "u": 0.671646,
+        "v": 0.342187
+      },
+      "neighbors": [
+        "H195",
+        "H196",
+        "H198",
+        "H199"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H198",
+      "center": {
+        "u": 0.671646,
+        "v": 0.370097
+      },
+      "neighbors": [
+        "H196",
+        "H197",
+        "H199",
+        "H200"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H199",
+      "center": {
+        "u": 0.689775,
+        "v": 0.356141
+      },
+      "neighbors": [
+        "H197",
+        "H198",
+        "H200",
+        "H201"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H200",
+      "center": {
+        "u": 0.689775,
+        "v": 0.384052
+      },
+      "neighbors": [
+        "H198",
+        "H199",
+        "H201",
+        "H202"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H201",
+      "center": {
+        "u": 0.707903,
+        "v": 0.370097
+      },
+      "neighbors": [
+        "H199",
+        "H200",
+        "H202",
+        "H203"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H202",
+      "center": {
+        "u": 0.707903,
+        "v": 0.398007
+      },
+      "neighbors": [
+        "H200",
+        "H201",
+        "H203",
+        "H204"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H203",
+      "center": {
+        "u": 0.726032,
+        "v": 0.384052
+      },
+      "neighbors": [
+        "H201",
+        "H202",
+        "H204",
+        "H205"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H204",
+      "center": {
+        "u": 0.726032,
+        "v": 0.411963
+      },
+      "neighbors": [
+        "H202",
+        "H203",
+        "H205"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H205",
+      "center": {
+        "u": 0.74416,
+        "v": 0.398007
+      },
+      "neighbors": [
+        "H203",
+        "H204",
+        "H206",
+        "H207"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H206",
+      "center": {
+        "u": 0.762288,
+        "v": 0.384052
+      },
+      "neighbors": [
+        "H205",
+        "H207",
+        "H208"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H207",
+      "center": {
+        "u": 0.762288,
+        "v": 0.411963
+      },
+      "neighbors": [
+        "H205",
+        "H206",
+        "H208"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H208",
+      "center": {
+        "u": 0.780417,
+        "v": 0.398007
+      },
+      "neighbors": [
+        "H206",
+        "H207",
+        "H209",
+        "H210"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H209",
+      "center": {
+        "u": 0.798545,
+        "v": 0.384052
+      },
+      "neighbors": [
+        "H208",
+        "H210",
+        "H211"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H210",
+      "center": {
+        "u": 0.798545,
+        "v": 0.411963
+      },
+      "neighbors": [
+        "H208",
+        "H209",
+        "H211",
+        "H212"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H211",
+      "center": {
+        "u": 0.816673,
+        "v": 0.398007
+      },
+      "neighbors": [
+        "H209",
+        "H210",
+        "H212",
+        "H213"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H212",
+      "center": {
+        "u": 0.816673,
+        "v": 0.425918
+      },
+      "neighbors": [
+        "H210",
+        "H211",
+        "H213",
+        "H214"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H213",
+      "center": {
+        "u": 0.834802,
+        "v": 0.411963
+      },
+      "neighbors": [
+        "H211",
+        "H212",
+        "H214",
+        "H215"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H214",
+      "center": {
+        "u": 0.834802,
+        "v": 0.439873
+      },
+      "neighbors": [
+        "H212",
+        "H213",
+        "H215",
+        "H216"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H215",
+      "center": {
+        "u": 0.85293,
+        "v": 0.425918
+      },
+      "neighbors": [
+        "H213",
+        "H214",
+        "H216",
+        "H229"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H216",
+      "center": {
+        "u": 0.85293,
+        "v": 0.453828
+      },
+      "neighbors": [
+        "H214",
+        "H215",
+        "H217",
+        "H228",
+        "H229"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H217",
+      "center": {
+        "u": 0.85293,
+        "v": 0.481738
+      },
+      "neighbors": [
+        "H216",
+        "H218",
+        "H219",
+        "H227",
+        "H228"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H218",
+      "center": {
+        "u": 0.834802,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H217",
+        "H219"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": "forest",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "forest",
+        "asset": "forest-02",
+        "scale": 1.94,
+        "standingPoint": {
+          "x": 0.147856,
+          "y": 0.515593
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H219",
+      "center": {
+        "u": 0.85293,
+        "v": 0.50965
+      },
+      "neighbors": [
+        "H217",
+        "H218",
+        "H220",
+        "H226",
+        "H227"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H220",
+      "center": {
+        "u": 0.85293,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H219",
+        "H221",
+        "H225",
+        "H226"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H221",
+      "center": {
+        "u": 0.85293,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H220",
+        "H222",
+        "H225"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H222",
+      "center": {
+        "u": 0.871059,
+        "v": 0.579426
+      },
+      "neighbors": [
+        "H221",
+        "H223",
+        "H225"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H223",
+      "center": {
+        "u": 0.889188,
+        "v": 0.565471
+      },
+      "neighbors": [
+        "H222",
+        "H224",
+        "H225",
+        "H234"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H224",
+      "center": {
+        "u": 0.889188,
+        "v": 0.53756
+      },
+      "neighbors": [
+        "H223",
+        "H225",
+        "H226",
+        "H231",
+        "H233",
+        "H234"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "red",
+      "role": "P",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H225",
+      "center": {
+        "u": 0.871059,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H220",
+        "H221",
+        "H222",
+        "H223",
+        "H224",
+        "H226"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "red",
+      "role": "O",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H226",
+      "center": {
+        "u": 0.871059,
+        "v": 0.523605
+      },
+      "neighbors": [
+        "H219",
+        "H220",
+        "H224",
+        "H225",
+        "H227",
+        "H231"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H227",
+      "center": {
+        "u": 0.871059,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H217",
+        "H219",
+        "H226",
+        "H228",
+        "H230",
+        "H231"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "red",
+      "role": "V",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H228",
+      "center": {
+        "u": 0.871059,
+        "v": 0.467784
+      },
+      "neighbors": [
+        "H216",
+        "H217",
+        "H227",
+        "H229",
+        "H230"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H229",
+      "center": {
+        "u": 0.871059,
+        "v": 0.439873
+      },
+      "neighbors": [
+        "H215",
+        "H216",
+        "H228"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "forest_trail",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "forest_trail",
+        "asset": "forest-trail-01",
+        "scale": 1.98,
+        "standingPoint": null,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H230",
+      "center": {
+        "u": 0.889188,
+        "v": 0.481738
+      },
+      "neighbors": [
+        "H227",
+        "H228",
+        "H231",
+        "H232"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "red",
+      "role": "S",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H231",
+      "center": {
+        "u": 0.889188,
+        "v": 0.50965
+      },
+      "neighbors": [
+        "H224",
+        "H226",
+        "H227",
+        "H230",
+        "H232",
+        "H233"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H232",
+      "center": {
+        "u": 0.907316,
+        "v": 0.495694
+      },
+      "neighbors": [
+        "H230",
+        "H231",
+        "H233",
+        "H235"
+      ],
+      "terrain": "start",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": "red",
+      "role": "K",
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H233",
+      "center": {
+        "u": 0.907316,
+        "v": 0.523605
+      },
+      "neighbors": [
+        "H224",
+        "H231",
+        "H232",
+        "H234",
+        "H235"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H234",
+      "center": {
+        "u": 0.907316,
+        "v": 0.551515
+      },
+      "neighbors": [
+        "H223",
+        "H224",
+        "H233"
+      ],
+      "terrain": "path",
+      "pointClass": "blacksmith_stone",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "blueprints",
+        "asset": "blacksmith-stone-02",
+        "scale": 1.75,
+        "standingPoint": {
+          "x": -0.363066,
+          "y": 0.398792
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H235",
+      "center": {
+        "u": 0.925444,
+        "v": 0.50965
+      },
+      "neighbors": [
+        "H232",
+        "H233"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "mixed",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "mixed",
+        "asset": "mixed-02",
+        "scale": 2,
+        "standingPoint": {
+          "x": -0.198338,
+          "y": 0.449034
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H236",
+      "center": {
+        "u": 0.526619,
+        "v": 0.342187
+      },
+      "neighbors": [
+        "H171",
+        "H173",
+        "H188",
+        "H237"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H237",
+      "center": {
+        "u": 0.544747,
+        "v": 0.328231
+      },
+      "neighbors": [
+        "H188",
+        "H189",
+        "H236",
+        "H238"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H238",
+      "center": {
+        "u": 0.562875,
+        "v": 0.314275
+      },
+      "neighbors": [
+        "H189",
+        "H237",
+        "H239",
+        "H240"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H239",
+      "center": {
+        "u": 0.581004,
+        "v": 0.328231
+      },
+      "neighbors": [
+        "H189",
+        "H190",
+        "H191",
+        "H238",
+        "H240"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H240",
+      "center": {
+        "u": 0.581004,
+        "v": 0.30032
+      },
+      "neighbors": [
+        "H238",
+        "H239",
+        "H241",
+        "H242"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H241",
+      "center": {
+        "u": 0.581004,
+        "v": 0.27241
+      },
+      "neighbors": [
+        "H240",
+        "H242",
+        "H243"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H242",
+      "center": {
+        "u": 0.599132,
+        "v": 0.286365
+      },
+      "neighbors": [
+        "H240",
+        "H241",
+        "H243",
+        "H244"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H243",
+      "center": {
+        "u": 0.599132,
+        "v": 0.258454
+      },
+      "neighbors": [
+        "H241",
+        "H242",
+        "H244",
+        "H245"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H244",
+      "center": {
+        "u": 0.617261,
+        "v": 0.27241
+      },
+      "neighbors": [
+        "H242",
+        "H243",
+        "H245",
+        "H246"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H245",
+      "center": {
+        "u": 0.617261,
+        "v": 0.244499
+      },
+      "neighbors": [
+        "H243",
+        "H244",
+        "H246",
+        "H248"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H246",
+      "center": {
+        "u": 0.635389,
+        "v": 0.258454
+      },
+      "neighbors": [
+        "H244",
+        "H245",
+        "H247",
+        "H248"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H247",
+      "center": {
+        "u": 0.653517,
+        "v": 0.244499
+      },
+      "neighbors": [
+        "H246",
+        "H248"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H248",
+      "center": {
+        "u": 0.635389,
+        "v": 0.230544
+      },
+      "neighbors": [
+        "H245",
+        "H246",
+        "H247"
+      ],
+      "terrain": "start",
+      "pointClass": "dwarf_entry",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H249",
+      "center": {
+        "u": 0.490361,
+        "v": 0.286365
+      },
+      "neighbors": [
+        "H187",
+        "H250",
+        "H253",
+        "H267",
+        "H268"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H250",
+      "center": {
+        "u": 0.508489,
+        "v": 0.30032
+      },
+      "neighbors": [
+        "H249",
+        "H251",
+        "H253"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H251",
+      "center": {
+        "u": 0.526619,
+        "v": 0.286365
+      },
+      "neighbors": [
+        "H250",
+        "H252",
+        "H253"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H252",
+      "center": {
+        "u": 0.526619,
+        "v": 0.258454
+      },
+      "neighbors": [
+        "H251",
+        "H253",
+        "H254"
+      ],
+      "terrain": "resource",
+      "pointClass": "green_deck",
+      "deck": "sheep",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H253",
+      "center": {
+        "u": 0.508489,
+        "v": 0.27241
+      },
+      "neighbors": [
+        "H249",
+        "H250",
+        "H251",
+        "H252",
+        "H254",
+        "H267"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H254",
+      "center": {
+        "u": 0.508489,
+        "v": 0.244499
+      },
+      "neighbors": [
+        "H252",
+        "H253",
+        "H255",
+        "H266",
+        "H267"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H255",
+      "center": {
+        "u": 0.508489,
+        "v": 0.216588
+      },
+      "neighbors": [
+        "H254",
+        "H256",
+        "H266",
+        "H271"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H256",
+      "center": {
+        "u": 0.490361,
+        "v": 0.202634
+      },
+      "neighbors": [
+        "H255",
+        "H257",
+        "H266",
+        "H271"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H257",
+      "center": {
+        "u": 0.472233,
+        "v": 0.216588
+      },
+      "neighbors": [
+        "H256",
+        "H258",
+        "H264",
+        "H265",
+        "H266"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H258",
+      "center": {
+        "u": 0.454104,
+        "v": 0.202634
+      },
+      "neighbors": [
+        "H257",
+        "H259",
+        "H264"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H259",
+      "center": {
+        "u": 0.435976,
+        "v": 0.216588
+      },
+      "neighbors": [
+        "H258",
+        "H260",
+        "H264"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H260",
+      "center": {
+        "u": 0.435976,
+        "v": 0.244499
+      },
+      "neighbors": [
+        "H259",
+        "H261",
+        "H262",
+        "H263",
+        "H264"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H261",
+      "center": {
+        "u": 0.417848,
+        "v": 0.258454
+      },
+      "neighbors": [
+        "H260",
+        "H262"
+      ],
+      "terrain": "event",
+      "pointClass": "battle",
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H262",
+      "center": {
+        "u": 0.435976,
+        "v": 0.27241
+      },
+      "neighbors": [
+        "H186",
+        "H260",
+        "H261",
+        "H263",
+        "H269"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H263",
+      "center": {
+        "u": 0.454104,
+        "v": 0.258454
+      },
+      "neighbors": [
+        "H260",
+        "H262",
+        "H264",
+        "H265",
+        "H268",
+        "H269"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H264",
+      "center": {
+        "u": 0.454104,
+        "v": 0.230544
+      },
+      "neighbors": [
+        "H257",
+        "H258",
+        "H259",
+        "H260",
+        "H263",
+        "H265"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H265",
+      "center": {
+        "u": 0.472233,
+        "v": 0.244499
+      },
+      "neighbors": [
+        "H257",
+        "H263",
+        "H264",
+        "H266",
+        "H267",
+        "H268"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H266",
+      "center": {
+        "u": 0.490361,
+        "v": 0.230544
+      },
+      "neighbors": [
+        "H254",
+        "H255",
+        "H256",
+        "H257",
+        "H265",
+        "H267"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H267",
+      "center": {
+        "u": 0.490361,
+        "v": 0.258454
+      },
+      "neighbors": [
+        "H249",
+        "H253",
+        "H254",
+        "H265",
+        "H266",
+        "H268"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H268",
+      "center": {
+        "u": 0.472233,
+        "v": 0.27241
+      },
+      "neighbors": [
+        "H187",
+        "H249",
+        "H263",
+        "H265",
+        "H267",
+        "H269"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H269",
+      "center": {
+        "u": 0.454104,
+        "v": 0.286365
+      },
+      "neighbors": [
+        "H185",
+        "H186",
+        "H187",
+        "H262",
+        "H263",
+        "H268"
+      ],
+      "terrain": "path",
+      "pointClass": null,
+      "deck": null,
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": null
+    },
+    {
+      "id": "H270",
+      "center": {
+        "u": 0.218435,
+        "v": 0.607336
+      },
+      "neighbors": [
+        "H018",
+        "H019"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "forest_trail",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "forest_trail",
+        "asset": "forest-trail-02",
+        "scale": 2,
+        "standingPoint": {
+          "x": -0.130249,
+          "y": 0.47529
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H271",
+      "center": {
+        "u": 0.508489,
+        "v": 0.188678
+      },
+      "neighbors": [
+        "H255",
+        "H256"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "dark_forest",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "dark_forest",
+        "asset": "dark-forest-02",
+        "scale": 2,
+        "standingPoint": null,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H272",
+      "center": {
+        "u": 0.381592,
+        "v": 0.760846
+      },
+      "neighbors": [
+        "H059",
+        "H060"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "forest_trail",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "forest_trail",
+        "asset": "forest-trail-03",
+        "scale": 2,
+        "standingPoint": {
+          "x": -0.466442,
+          "y": 0.373394
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "H273",
+      "center": {
+        "u": 0.544747,
+        "v": 0.439873
+      },
+      "neighbors": [
+        "H165",
+        "H166",
+        "H167"
+      ],
+      "terrain": "resource",
+      "pointClass": null,
+      "deck": "lake",
+      "walkable": true,
+      "side": null,
+      "role": null,
+      "label": null,
+      "marker": {
+        "class": "lake",
+        "asset": "lake-02",
+        "scale": 2,
+        "standingPoint": {
+          "x": 0.405173,
+          "y": 0.525516
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    }
+  ],
+  "editorSource": {
+    "art": {
+      "file": "PnP_Map_Full.png",
+      "width": 3084,
+      "height": 2439,
+      "scaleX": 0.9279999999999999,
+      "scaleY": 1
+    },
+    "centers": {
+      "H001": {
+        "u": 0.085955,
+        "v": 0.453857
+      },
+      "H002": {
+        "u": 0.085955,
+        "v": 0.478713
+      },
+      "H003": {
+        "u": 0.102979,
+        "v": 0.466285
+      },
+      "H004": {
+        "u": 0.120002,
+        "v": 0.453857
+      },
+      "H005": {
+        "u": 0.120002,
+        "v": 0.478713
+      },
+      "H006": {
+        "u": 0.102979,
+        "v": 0.49114
+      },
+      "H007": {
+        "u": 0.137025,
+        "v": 0.44143
+      },
+      "H008": {
+        "u": 0.137025,
+        "v": 0.466285
+      },
+      "H009": {
+        "u": 0.137025,
+        "v": 0.49114
+      },
+      "H010": {
+        "u": 0.102978,
+        "v": 0.441429
+      },
+      "H011": {
+        "u": 0.120002,
+        "v": 0.503568
+      },
+      "H012": {
+        "u": 0.154049,
+        "v": 0.503568
+      },
+      "H013": {
+        "u": 0.154049,
+        "v": 0.478713
+      },
+      "H014": {
+        "u": 0.154049,
+        "v": 0.453857
+      },
+      "H015": {
+        "u": 0.171072,
+        "v": 0.49114
+      },
+      "H016": {
+        "u": 0.171072,
+        "v": 0.515995
+      },
+      "H017": {
+        "u": 0.188095,
+        "v": 0.503568
+      },
+      "H018": {
+        "u": 0.188095,
+        "v": 0.528423
+      },
+      "H019": {
+        "u": 0.205119,
+        "v": 0.515995
+      },
+      "H020": {
+        "u": 0.205119,
+        "v": 0.49114
+      },
+      "H021": {
+        "u": 0.222142,
+        "v": 0.503568
+      },
+      "H022": {
+        "u": 0.222142,
+        "v": 0.478713
+      },
+      "H023": {
+        "u": 0.239166,
+        "v": 0.49114
+      },
+      "H024": {
+        "u": 0.239166,
+        "v": 0.466285
+      },
+      "H025": {
+        "u": 0.256189,
+        "v": 0.478713
+      },
+      "H026": {
+        "u": 0.256189,
+        "v": 0.453857
+      },
+      "H027": {
+        "u": 0.256189,
+        "v": 0.429002
+      },
+      "H028": {
+        "u": 0.273212,
+        "v": 0.44143
+      },
+      "H029": {
+        "u": 0.273212,
+        "v": 0.416575
+      },
+      "H030": {
+        "u": 0.290236,
+        "v": 0.429002
+      },
+      "H031": {
+        "u": 0.290236,
+        "v": 0.404147
+      },
+      "H032": {
+        "u": 0.307259,
+        "v": 0.416575
+      },
+      "H033": {
+        "u": 0.307259,
+        "v": 0.391719
+      },
+      "H034": {
+        "u": 0.324282,
+        "v": 0.404147
+      },
+      "H035": {
+        "u": 0.324282,
+        "v": 0.379292
+      },
+      "H036": {
+        "u": 0.341306,
+        "v": 0.391719
+      },
+      "H037": {
+        "u": 0.358329,
+        "v": 0.379292
+      },
+      "H038": {
+        "u": 0.358329,
+        "v": 0.404147
+      },
+      "H039": {
+        "u": 0.358329,
+        "v": 0.429002
+      },
+      "H040": {
+        "u": 0.341306,
+        "v": 0.44143
+      },
+      "H041": {
+        "u": 0.358329,
+        "v": 0.453857
+      },
+      "H042": {
+        "u": 0.375352,
+        "v": 0.44143
+      },
+      "H043": {
+        "u": 0.341306,
+        "v": 0.466285
+      },
+      "H044": {
+        "u": 0.358329,
+        "v": 0.478713
+      },
+      "H045": {
+        "u": 0.375352,
+        "v": 0.49114
+      },
+      "H046": {
+        "u": 0.358329,
+        "v": 0.503568
+      },
+      "H047": {
+        "u": 0.358329,
+        "v": 0.528423
+      },
+      "H048": {
+        "u": 0.375352,
+        "v": 0.515996
+      },
+      "H049": {
+        "u": 0.375352,
+        "v": 0.540851
+      },
+      "H050": {
+        "u": 0.358329,
+        "v": 0.553278
+      },
+      "H051": {
+        "u": 0.392376,
+        "v": 0.553278
+      },
+      "H052": {
+        "u": 0.375352,
+        "v": 0.565706
+      },
+      "H053": {
+        "u": 0.358329,
+        "v": 0.578134
+      },
+      "H054": {
+        "u": 0.341306,
+        "v": 0.590561
+      },
+      "H055": {
+        "u": 0.358329,
+        "v": 0.602989
+      },
+      "H056": {
+        "u": 0.341306,
+        "v": 0.615416
+      },
+      "H057": {
+        "u": 0.341306,
+        "v": 0.640271
+      },
+      "H058": {
+        "u": 0.358329,
+        "v": 0.627844
+      },
+      "H059": {
+        "u": 0.358329,
+        "v": 0.652699
+      },
+      "H060": {
+        "u": 0.341306,
+        "v": 0.665127
+      },
+      "H061": {
+        "u": 0.409399,
+        "v": 0.565706
+      },
+      "H062": {
+        "u": 0.392376,
+        "v": 0.578134
+      },
+      "H063": {
+        "u": 0.392376,
+        "v": 0.602989
+      },
+      "H064": {
+        "u": 0.409399,
+        "v": 0.590561
+      },
+      "H065": {
+        "u": 0.409399,
+        "v": 0.615416
+      },
+      "H066": {
+        "u": 0.426422,
+        "v": 0.627844
+      },
+      "H067": {
+        "u": 0.409399,
+        "v": 0.640271
+      },
+      "H068": {
+        "u": 0.409399,
+        "v": 0.665127
+      },
+      "H069": {
+        "u": 0.426422,
+        "v": 0.652699
+      },
+      "H070": {
+        "u": 0.443446,
+        "v": 0.640271
+      },
+      "H071": {
+        "u": 0.443446,
+        "v": 0.615416
+      },
+      "H072": {
+        "u": 0.460469,
+        "v": 0.627844
+      },
+      "H073": {
+        "u": 0.426422,
+        "v": 0.677554
+      },
+      "H074": {
+        "u": 0.443446,
+        "v": 0.665127
+      },
+      "H075": {
+        "u": 0.443446,
+        "v": 0.689982
+      },
+      "H076": {
+        "u": 0.426422,
+        "v": 0.702409
+      },
+      "H077": {
+        "u": 0.443446,
+        "v": 0.714837
+      },
+      "H078": {
+        "u": 0.460469,
+        "v": 0.702409
+      },
+      "H079": {
+        "u": 0.460469,
+        "v": 0.727265
+      },
+      "H080": {
+        "u": 0.460469,
+        "v": 0.75212
+      },
+      "H081": {
+        "u": 0.477492,
+        "v": 0.739692
+      },
+      "H082": {
+        "u": 0.477492,
+        "v": 0.764547
+      },
+      "H083": {
+        "u": 0.494516,
+        "v": 0.75212
+      },
+      "H084": {
+        "u": 0.494516,
+        "v": 0.776975
+      },
+      "H085": {
+        "u": 0.511539,
+        "v": 0.764547
+      },
+      "H086": {
+        "u": 0.511539,
+        "v": 0.789403
+      },
+      "H087": {
+        "u": 0.494516,
+        "v": 0.80183
+      },
+      "H088": {
+        "u": 0.511539,
+        "v": 0.814258
+      },
+      "H089": {
+        "u": 0.528562,
+        "v": 0.80183
+      },
+      "H090": {
+        "u": 0.528562,
+        "v": 0.776975
+      },
+      "H091": {
+        "u": 0.545586,
+        "v": 0.764547
+      },
+      "H092": {
+        "u": 0.545586,
+        "v": 0.789403
+      },
+      "H093": {
+        "u": 0.545586,
+        "v": 0.814258
+      },
+      "H094": {
+        "u": 0.528562,
+        "v": 0.826685
+      },
+      "H095": {
+        "u": 0.545586,
+        "v": 0.839113
+      },
+      "H096": {
+        "u": 0.562609,
+        "v": 0.826685
+      },
+      "H097": {
+        "u": 0.562609,
+        "v": 0.85154
+      },
+      "H098": {
+        "u": 0.579633,
+        "v": 0.863968
+      },
+      "H099": {
+        "u": 0.579633,
+        "v": 0.839113
+      },
+      "H100": {
+        "u": 0.596656,
+        "v": 0.85154
+      },
+      "H101": {
+        "u": 0.596656,
+        "v": 0.876396
+      },
+      "H102": {
+        "u": 0.613679,
+        "v": 0.839113
+      },
+      "H103": {
+        "u": 0.596656,
+        "v": 0.826685
+      },
+      "H104": {
+        "u": 0.579633,
+        "v": 0.814258
+      },
+      "H105": {
+        "u": 0.562609,
+        "v": 0.80183
+      },
+      "H106": {
+        "u": 0.562609,
+        "v": 0.776975
+      },
+      "H107": {
+        "u": 0.579633,
+        "v": 0.764547
+      },
+      "H108": {
+        "u": 0.579633,
+        "v": 0.789403
+      },
+      "H109": {
+        "u": 0.596656,
+        "v": 0.80183
+      },
+      "H110": {
+        "u": 0.596656,
+        "v": 0.776975
+      },
+      "H111": {
+        "u": 0.596656,
+        "v": 0.75212
+      },
+      "H112": {
+        "u": 0.613679,
+        "v": 0.764547
+      },
+      "H113": {
+        "u": 0.613679,
+        "v": 0.739692
+      },
+      "H114": {
+        "u": 0.613679,
+        "v": 0.714837
+      },
+      "H115": {
+        "u": 0.630703,
+        "v": 0.727265
+      },
+      "H116": {
+        "u": 0.630703,
+        "v": 0.702409
+      },
+      "H117": {
+        "u": 0.647726,
+        "v": 0.714837
+      },
+      "H118": {
+        "u": 0.647726,
+        "v": 0.689982
+      },
+      "H119": {
+        "u": 0.664749,
+        "v": 0.702409
+      },
+      "H120": {
+        "u": 0.664749,
+        "v": 0.677554
+      },
+      "H121": {
+        "u": 0.647726,
+        "v": 0.665127
+      },
+      "H122": {
+        "u": 0.664749,
+        "v": 0.652699
+      },
+      "H123": {
+        "u": 0.664749,
+        "v": 0.627844
+      },
+      "H124": {
+        "u": 0.681773,
+        "v": 0.640271
+      },
+      "H125": {
+        "u": 0.681773,
+        "v": 0.615416
+      },
+      "H126": {
+        "u": 0.698796,
+        "v": 0.627844
+      },
+      "H127": {
+        "u": 0.698796,
+        "v": 0.602989
+      },
+      "H128": {
+        "u": 0.715819,
+        "v": 0.615416
+      },
+      "H129": {
+        "u": 0.732843,
+        "v": 0.602989
+      },
+      "H130": {
+        "u": 0.732843,
+        "v": 0.627844
+      },
+      "H131": {
+        "u": 0.749866,
+        "v": 0.615416
+      },
+      "H132": {
+        "u": 0.749866,
+        "v": 0.640271
+      },
+      "H133": {
+        "u": 0.749866,
+        "v": 0.665127
+      },
+      "H134": {
+        "u": 0.766889,
+        "v": 0.652699
+      },
+      "H135": {
+        "u": 0.766889,
+        "v": 0.677554
+      },
+      "H136": {
+        "u": 0.749866,
+        "v": 0.689982
+      },
+      "H137": {
+        "u": 0.766889,
+        "v": 0.702409
+      },
+      "H138": {
+        "u": 0.749866,
+        "v": 0.714837
+      },
+      "H139": {
+        "u": 0.732843,
+        "v": 0.727265
+      },
+      "H140": {
+        "u": 0.749866,
+        "v": 0.739692
+      },
+      "H141": {
+        "u": 0.783913,
+        "v": 0.665127
+      },
+      "H142": {
+        "u": 0.460469,
+        "v": 0.602989
+      },
+      "H143": {
+        "u": 0.477492,
+        "v": 0.615416
+      },
+      "H144": {
+        "u": 0.477492,
+        "v": 0.590561
+      },
+      "H145": {
+        "u": 0.494516,
+        "v": 0.602989
+      },
+      "H146": {
+        "u": 0.511539,
+        "v": 0.590561
+      },
+      "H147": {
+        "u": 0.511539,
+        "v": 0.615416
+      },
+      "H148": {
+        "u": 0.528562,
+        "v": 0.602989
+      },
+      "H149": {
+        "u": 0.528562,
+        "v": 0.578134
+      },
+      "H150": {
+        "u": 0.528562,
+        "v": 0.553278
+      },
+      "H151": {
+        "u": 0.545586,
+        "v": 0.565706
+      },
+      "H152": {
+        "u": 0.545586,
+        "v": 0.540851
+      },
+      "H153": {
+        "u": 0.562609,
+        "v": 0.553278
+      },
+      "H154": {
+        "u": 0.562609,
+        "v": 0.528423
+      },
+      "H155": {
+        "u": 0.545586,
+        "v": 0.515996
+      },
+      "H156": {
+        "u": 0.562609,
+        "v": 0.503568
+      },
+      "H157": {
+        "u": 0.579633,
+        "v": 0.49114
+      },
+      "H158": {
+        "u": 0.562609,
+        "v": 0.478713
+      },
+      "H159": {
+        "u": 0.579633,
+        "v": 0.466285
+      },
+      "H160": {
+        "u": 0.562609,
+        "v": 0.453858
+      },
+      "H161": {
+        "u": 0.562609,
+        "v": 0.429002
+      },
+      "H162": {
+        "u": 0.545586,
+        "v": 0.44143
+      },
+      "H163": {
+        "u": 0.545586,
+        "v": 0.416575
+      },
+      "H164": {
+        "u": 0.545586,
+        "v": 0.39172
+      },
+      "H165": {
+        "u": 0.528562,
+        "v": 0.404147
+      },
+      "H166": {
+        "u": 0.528562,
+        "v": 0.379292
+      },
+      "H167": {
+        "u": 0.511539,
+        "v": 0.366865
+      },
+      "H168": {
+        "u": 0.528562,
+        "v": 0.354437
+      },
+      "H169": {
+        "u": 0.494516,
+        "v": 0.354437
+      },
+      "H170": {
+        "u": 0.511539,
+        "v": 0.342009
+      },
+      "H171": {
+        "u": 0.494516,
+        "v": 0.329582
+      },
+      "H172": {
+        "u": 0.477492,
+        "v": 0.342009
+      },
+      "H173": {
+        "u": 0.477492,
+        "v": 0.317154
+      },
+      "H174": {
+        "u": 0.460469,
+        "v": 0.329582
+      },
+      "H175": {
+        "u": 0.443446,
+        "v": 0.317154
+      },
+      "H176": {
+        "u": 0.426422,
+        "v": 0.329582
+      },
+      "H177": {
+        "u": 0.409399,
+        "v": 0.342009
+      },
+      "H178": {
+        "u": 0.392376,
+        "v": 0.354437
+      },
+      "H179": {
+        "u": 0.375352,
+        "v": 0.366865
+      },
+      "H180": {
+        "u": 0.375352,
+        "v": 0.39172
+      },
+      "H181": {
+        "u": 0.392376,
+        "v": 0.379292
+      },
+      "H182": {
+        "u": 0.392376,
+        "v": 0.329582
+      },
+      "H183": {
+        "u": 0.409399,
+        "v": 0.317154
+      },
+      "H184": {
+        "u": 0.426422,
+        "v": 0.304727
+      },
+      "H185": {
+        "u": 0.426422,
+        "v": 0.279871
+      },
+      "H186": {
+        "u": 0.409399,
+        "v": 0.267444
+      },
+      "H187": {
+        "u": 0.443446,
+        "v": 0.267444
+      },
+      "H188": {
+        "u": 0.511539,
+        "v": 0.317154
+      },
+      "H189": {
+        "u": 0.528562,
+        "v": 0.304727
+      },
+      "H190": {
+        "u": 0.545586,
+        "v": 0.317154
+      },
+      "H191": {
+        "u": 0.562609,
+        "v": 0.304727
+      },
+      "H192": {
+        "u": 0.579633,
+        "v": 0.292299
+      },
+      "H193": {
+        "u": 0.579633,
+        "v": 0.317154
+      },
+      "H194": {
+        "u": 0.596656,
+        "v": 0.304727
+      },
+      "H195": {
+        "u": 0.613679,
+        "v": 0.292299
+      },
+      "H196": {
+        "u": 0.613679,
+        "v": 0.317154
+      },
+      "H197": {
+        "u": 0.630703,
+        "v": 0.304727
+      },
+      "H198": {
+        "u": 0.630703,
+        "v": 0.329582
+      },
+      "H199": {
+        "u": 0.647726,
+        "v": 0.317154
+      },
+      "H200": {
+        "u": 0.647726,
+        "v": 0.342009
+      },
+      "H201": {
+        "u": 0.664749,
+        "v": 0.329582
+      },
+      "H202": {
+        "u": 0.664749,
+        "v": 0.354437
+      },
+      "H203": {
+        "u": 0.681773,
+        "v": 0.342009
+      },
+      "H204": {
+        "u": 0.681773,
+        "v": 0.366865
+      },
+      "H205": {
+        "u": 0.698796,
+        "v": 0.354437
+      },
+      "H206": {
+        "u": 0.715819,
+        "v": 0.342009
+      },
+      "H207": {
+        "u": 0.715819,
+        "v": 0.366865
+      },
+      "H208": {
+        "u": 0.732843,
+        "v": 0.354437
+      },
+      "H209": {
+        "u": 0.749866,
+        "v": 0.342009
+      },
+      "H210": {
+        "u": 0.749866,
+        "v": 0.366865
+      },
+      "H211": {
+        "u": 0.766889,
+        "v": 0.354437
+      },
+      "H212": {
+        "u": 0.766889,
+        "v": 0.379292
+      },
+      "H213": {
+        "u": 0.783913,
+        "v": 0.366865
+      },
+      "H214": {
+        "u": 0.783913,
+        "v": 0.39172
+      },
+      "H215": {
+        "u": 0.800936,
+        "v": 0.379292
+      },
+      "H216": {
+        "u": 0.800936,
+        "v": 0.404147
+      },
+      "H217": {
+        "u": 0.800936,
+        "v": 0.429002
+      },
+      "H218": {
+        "u": 0.783913,
+        "v": 0.44143
+      },
+      "H219": {
+        "u": 0.800936,
+        "v": 0.453858
+      },
+      "H220": {
+        "u": 0.800936,
+        "v": 0.478713
+      },
+      "H221": {
+        "u": 0.800936,
+        "v": 0.503568
+      },
+      "H222": {
+        "u": 0.817959,
+        "v": 0.515996
+      },
+      "H223": {
+        "u": 0.834983,
+        "v": 0.503568
+      },
+      "H224": {
+        "u": 0.834983,
+        "v": 0.478713
+      },
+      "H225": {
+        "u": 0.817959,
+        "v": 0.49114
+      },
+      "H226": {
+        "u": 0.817959,
+        "v": 0.466285
+      },
+      "H227": {
+        "u": 0.817959,
+        "v": 0.44143
+      },
+      "H228": {
+        "u": 0.817959,
+        "v": 0.416575
+      },
+      "H229": {
+        "u": 0.817959,
+        "v": 0.39172
+      },
+      "H230": {
+        "u": 0.834983,
+        "v": 0.429002
+      },
+      "H231": {
+        "u": 0.834983,
+        "v": 0.453858
+      },
+      "H232": {
+        "u": 0.852006,
+        "v": 0.44143
+      },
+      "H233": {
+        "u": 0.852006,
+        "v": 0.466285
+      },
+      "H234": {
+        "u": 0.852006,
+        "v": 0.49114
+      },
+      "H235": {
+        "u": 0.869029,
+        "v": 0.453858
+      },
+      "H236": {
+        "u": 0.494516,
+        "v": 0.304727
+      },
+      "H237": {
+        "u": 0.511539,
+        "v": 0.292299
+      },
+      "H238": {
+        "u": 0.528562,
+        "v": 0.279871
+      },
+      "H239": {
+        "u": 0.545586,
+        "v": 0.292299
+      },
+      "H240": {
+        "u": 0.545586,
+        "v": 0.267444
+      },
+      "H241": {
+        "u": 0.545586,
+        "v": 0.242589
+      },
+      "H242": {
+        "u": 0.562609,
+        "v": 0.255016
+      },
+      "H243": {
+        "u": 0.562609,
+        "v": 0.230161
+      },
+      "H244": {
+        "u": 0.579633,
+        "v": 0.242589
+      },
+      "H245": {
+        "u": 0.579633,
+        "v": 0.217733
+      },
+      "H246": {
+        "u": 0.596656,
+        "v": 0.230161
+      },
+      "H247": {
+        "u": 0.613679,
+        "v": 0.217733
+      },
+      "H248": {
+        "u": 0.596656,
+        "v": 0.205306
+      },
+      "H249": {
+        "u": 0.460469,
+        "v": 0.255016
+      },
+      "H250": {
+        "u": 0.477492,
+        "v": 0.267444
+      },
+      "H251": {
+        "u": 0.494516,
+        "v": 0.255016
+      },
+      "H252": {
+        "u": 0.494516,
+        "v": 0.230161
+      },
+      "H253": {
+        "u": 0.477492,
+        "v": 0.242589
+      },
+      "H254": {
+        "u": 0.477492,
+        "v": 0.217733
+      },
+      "H255": {
+        "u": 0.477492,
+        "v": 0.192878
+      },
+      "H256": {
+        "u": 0.460469,
+        "v": 0.180451
+      },
+      "H257": {
+        "u": 0.443446,
+        "v": 0.192878
+      },
+      "H258": {
+        "u": 0.426422,
+        "v": 0.180451
+      },
+      "H259": {
+        "u": 0.409399,
+        "v": 0.192878
+      },
+      "H260": {
+        "u": 0.409399,
+        "v": 0.217733
+      },
+      "H261": {
+        "u": 0.392376,
+        "v": 0.230161
+      },
+      "H262": {
+        "u": 0.409399,
+        "v": 0.242589
+      },
+      "H263": {
+        "u": 0.426422,
+        "v": 0.230161
+      },
+      "H264": {
+        "u": 0.426422,
+        "v": 0.205306
+      },
+      "H265": {
+        "u": 0.443446,
+        "v": 0.217733
+      },
+      "H266": {
+        "u": 0.460469,
+        "v": 0.205306
+      },
+      "H267": {
+        "u": 0.460469,
+        "v": 0.230161
+      },
+      "H268": {
+        "u": 0.443446,
+        "v": 0.242589
+      },
+      "H269": {
+        "u": 0.426422,
+        "v": 0.255016
+      },
+      "H270": {
+        "u": 0.205119,
+        "v": 0.54085
+      },
+      "H271": {
+        "u": 0.477492,
+        "v": 0.168023
+      },
+      "H272": {
+        "u": 0.35833,
+        "v": 0.677555
+      },
+      "H273": {
+        "u": 0.511539,
+        "v": 0.39172
+      }
+    },
+    "markerOffsets": {
+      "H010": {
+        "x": 0.056082,
+        "y": -1.289891
+      },
+      "H011": {
+        "x": -0.044708,
+        "y": 1.564794
+      },
+      "H014": {
+        "x": 0.745548,
+        "y": -0.595122
+      },
+      "H042": {
+        "x": 1.273833,
+        "y": 0.807294
+      },
+      "H101": {
+        "x": 0.550807,
+        "y": 0.926358
+      },
+      "H141": {
+        "x": 1.276571,
+        "y": 0.419871
+      },
+      "H218": {
+        "x": -1.03668,
+        "y": -0.468161
+      },
+      "H229": {
+        "x": 1.004342,
+        "y": -0.772586
+      },
+      "H234": {
+        "x": 1.053941,
+        "y": 0.818052
+      },
+      "H235": {
+        "x": 1.160833,
+        "y": -0.332549
+      },
+      "H270": {
+        "x": 0.275254,
+        "y": 1.0147
+      },
+      "H271": {
+        "x": 0.223542,
+        "y": -1.341252
+      },
+      "H272": {
+        "x": 0.781208,
+        "y": 1.576381
+      },
+      "H273": {
+        "x": -1.325004,
+        "y": 1.089105
+      }
+    }
+  }
+}

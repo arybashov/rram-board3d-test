@@ -1,0 +1,724 @@
+{
+ "waterfall": {
+  "lipY": 600,
+  "poolY": 760,
+  "lipX": [
+   3236,
+   3344
+  ],
+  "poolX": [
+   3220,
+   3336
+  ],
+  "topH": 6.2,
+  "bottomH": -0.3
+ },
+ "coords": "пиксели арта карты 4096×3072",
+ "gate": {
+  "cell": "H248",
+  "x": 2686,
+  "y": 493
+ },
+ "bridges": [
+  {
+   "id": "B1",
+   "cells": [
+    "H030",
+    "H029",
+    "H031"
+   ],
+   "cx": 1290.146,
+   "cy": 1340.069,
+   "dx": 0.888,
+   "dy": -0.46,
+   "len": 203.272,
+   "width": 172.6
+  },
+  {
+   "id": "B2",
+   "cells": [
+    "H115",
+    "H114",
+    "H116"
+   ],
+   "cx": 2822.621,
+   "cy": 2293.513,
+   "dx": 0.888,
+   "dy": -0.46,
+   "len": 203.272,
+   "width": 172.603
+  },
+  {
+   "id": "B3",
+   "cells": [
+    "H203",
+    "H202",
+    "H204"
+   ],
+   "cx": 3052.492,
+   "cy": 1124.603,
+   "dx": 0.888,
+   "dy": 0.46,
+   "len": 203.272,
+   "width": 172.603
+  }
+ ],
+ "rockPiles": [
+  {
+   "x": 1902,
+   "y": 288,
+   "r": 78,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R1"
+  },
+  {
+   "x": 3309,
+   "y": 421,
+   "r": 23,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R2"
+  },
+  {
+   "x": 3265,
+   "y": 449,
+   "r": 26,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R3"
+  },
+  {
+   "x": 2449,
+   "y": 492,
+   "r": 84,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R4"
+  },
+  {
+   "x": 3438,
+   "y": 547,
+   "r": 47,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R5"
+  },
+  {
+   "x": 1433,
+   "y": 612,
+   "r": 120,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R6"
+  },
+  {
+   "x": 363,
+   "y": 668,
+   "r": 25,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R7"
+  },
+  {
+   "x": 181,
+   "y": 699,
+   "r": 25,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R8"
+  },
+  {
+   "x": 428,
+   "y": 721,
+   "r": 28,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R9"
+  },
+  {
+   "x": 252,
+   "y": 750,
+   "r": 25,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R10"
+  },
+  {
+   "x": 740,
+   "y": 770,
+   "r": 34,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R11"
+  },
+  {
+   "x": 200,
+   "y": 800,
+   "r": 31,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R12"
+  },
+  {
+   "x": 414,
+   "y": 810,
+   "r": 41,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R13"
+  },
+  {
+   "x": 3010,
+   "y": 875,
+   "r": 32,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R14"
+  },
+  {
+   "x": 2956,
+   "y": 913,
+   "r": 24,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R15"
+  },
+  {
+   "x": 1642,
+   "y": 978,
+   "r": 181,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R16"
+  },
+  {
+   "x": 1221,
+   "y": 1044,
+   "r": 21,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R17"
+  },
+  {
+   "x": 886,
+   "y": 1295,
+   "r": 228,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R18"
+  },
+  {
+   "x": 3679,
+   "y": 1319,
+   "r": 23,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R19"
+  },
+  {
+   "x": 168,
+   "y": 1338,
+   "r": 155,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R20"
+  },
+  {
+   "x": 2310,
+   "y": 1353,
+   "r": 21,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R21"
+  },
+  {
+   "x": 3782,
+   "y": 1367,
+   "r": 29,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R22"
+  },
+  {
+   "x": 502,
+   "y": 1391,
+   "r": 40,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R23"
+  },
+  {
+   "x": 3832,
+   "y": 1458,
+   "r": 36,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R24"
+  },
+  {
+   "x": 1170,
+   "y": 1568,
+   "r": 47,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R25"
+  },
+  {
+   "x": 1877,
+   "y": 1573,
+   "r": 18,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R26"
+  },
+  {
+   "x": 191,
+   "y": 1588,
+   "r": 20,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R27"
+  },
+  {
+   "x": 3369,
+   "y": 1597,
+   "r": 183,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R28"
+  },
+  {
+   "x": 2992,
+   "y": 1750,
+   "r": 37,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R29"
+  },
+  {
+   "x": 3298,
+   "y": 1793,
+   "r": 33,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R30"
+  },
+  {
+   "x": 4070,
+   "y": 1828,
+   "r": 19,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R31"
+  },
+  {
+   "x": 607,
+   "y": 1911,
+   "r": 27,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R32"
+  },
+  {
+   "x": 682,
+   "y": 1970,
+   "r": 24,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R33"
+  },
+  {
+   "x": 3774,
+   "y": 2051,
+   "r": 23,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R34"
+  },
+  {
+   "x": 2700,
+   "y": 2089,
+   "r": 18,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R35"
+  },
+  {
+   "x": 3815,
+   "y": 2102,
+   "r": 19,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R36"
+  },
+  {
+   "x": 3492,
+   "y": 2123,
+   "r": 19,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R37"
+  },
+  {
+   "x": 846,
+   "y": 2128,
+   "r": 18,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R38"
+  },
+  {
+   "x": 918,
+   "y": 2142,
+   "r": 21,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R39"
+  },
+  {
+   "x": 3770,
+   "y": 2155,
+   "r": 17,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R40"
+  },
+  {
+   "x": 526,
+   "y": 2227,
+   "r": 18,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R41"
+  },
+  {
+   "x": 1387,
+   "y": 2240,
+   "r": 90,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R42"
+  },
+  {
+   "x": 3610,
+   "y": 2243,
+   "r": 20,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R43"
+  },
+  {
+   "x": 3476,
+   "y": 2276,
+   "r": 27,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R44"
+  },
+  {
+   "x": 638,
+   "y": 2296,
+   "r": 17,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R45"
+  },
+  {
+   "x": 3451,
+   "y": 2340,
+   "r": 27,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R46"
+  },
+  {
+   "x": 2572,
+   "y": 2355,
+   "r": 35,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R47"
+  },
+  {
+   "x": 828,
+   "y": 2360,
+   "r": 25,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R48"
+  },
+  {
+   "x": 603,
+   "y": 2370,
+   "r": 29,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R49"
+  },
+  {
+   "x": 713,
+   "y": 2377,
+   "r": 34,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R50"
+  },
+  {
+   "x": 1312,
+   "y": 2394,
+   "r": 35,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R51"
+  },
+  {
+   "x": 3140,
+   "y": 2434,
+   "r": 187,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R52"
+  },
+  {
+   "x": 1395,
+   "y": 2447,
+   "r": 48,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R53"
+  },
+  {
+   "x": 792,
+   "y": 2457,
+   "r": 22,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R54"
+  },
+  {
+   "x": 3392,
+   "y": 2457,
+   "r": 34,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R55"
+  },
+  {
+   "x": 1296,
+   "y": 2465,
+   "r": 18,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R56"
+  },
+  {
+   "x": 3340,
+   "y": 2500,
+   "r": 20,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R57"
+  },
+  {
+   "x": 1013,
+   "y": 2531,
+   "r": 41,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R58"
+  },
+  {
+   "x": 1228,
+   "y": 2557,
+   "r": 19,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R59"
+  },
+  {
+   "x": 1477,
+   "y": 2584,
+   "r": 20,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R60"
+  },
+  {
+   "x": 2969,
+   "y": 2593,
+   "r": 27,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R61"
+  },
+  {
+   "x": 883,
+   "y": 2599,
+   "r": 81,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R62"
+  },
+  {
+   "x": 3062,
+   "y": 2619,
+   "r": 33,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R63"
+  },
+  {
+   "x": 1535,
+   "y": 2655,
+   "r": 19,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R64"
+  },
+  {
+   "x": 1316,
+   "y": 2667,
+   "r": 26,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R65"
+  },
+  {
+   "x": 771,
+   "y": 2683,
+   "r": 28,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R66"
+  },
+  {
+   "x": 1826,
+   "y": 2689,
+   "r": 189,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R67"
+  },
+  {
+   "x": 1173,
+   "y": 2691,
+   "r": 48,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R68"
+  },
+  {
+   "x": 794,
+   "y": 2746,
+   "r": 18,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R69"
+  },
+  {
+   "x": 1624,
+   "y": 2779,
+   "r": 32,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R70"
+  },
+  {
+   "x": 1069,
+   "y": 2781,
+   "r": 30,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R71"
+  },
+  {
+   "x": 2527,
+   "y": 2789,
+   "r": 29,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R72"
+  },
+  {
+   "x": 847,
+   "y": 2802,
+   "r": 36,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R73"
+  },
+  {
+   "x": 1359,
+   "y": 2835,
+   "r": 33,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R74"
+  },
+  {
+   "x": 2358,
+   "y": 2889,
+   "r": 206,
+   "inWater": false,
+   "kind": "pile",
+   "id": "R75"
+  },
+  {
+   "x": 1223,
+   "y": 2891,
+   "r": 20,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R76"
+  },
+  {
+   "x": 1380,
+   "y": 2903,
+   "r": 29,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R77"
+  },
+  {
+   "x": 1263,
+   "y": 2936,
+   "r": 28,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R78"
+  },
+  {
+   "x": 1901,
+   "y": 2968,
+   "r": 28,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R79"
+  },
+  {
+   "x": 1711,
+   "y": 3001,
+   "r": 19,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R80"
+  },
+  {
+   "x": 2713,
+   "y": 3005,
+   "r": 19,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R81"
+  },
+  {
+   "x": 1831,
+   "y": 3035,
+   "r": 31,
+   "inWater": false,
+   "kind": "stones",
+   "id": "R82"
+  }
+ ]
+}

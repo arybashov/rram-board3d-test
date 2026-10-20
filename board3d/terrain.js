@@ -1,0 +1,1929 @@
+// 3D-местность прототипа (этап 5, черновик по концепту
+// outputs/board3d-concept/concept-river-bridge-v1.png).
+//
+// Правила (Doc/board-3d-terrain-refs.md):
+//   - все клетки на одном уровне y = 0, рельефа под тропами нет;
+//   - вода ниже: под водой земля опущена, сверху полупрозрачная гладь;
+//   - клетка, центр которой над водой, — мостовая: под ней настил на уровне клеток;
+//   - ёлки и скалы — инстансинг, расставлены по маске data/terrain-mask.png
+//     (R — вода, G — лес, B — скалы; маску делает tools/board3d_terrain_mask.py,
+//     позже её может перерисовать художник).
+import * as THREE from 'three';
+import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
+
+const WATER_FLOOR = -0.9;     // дно под водой
+const WATER_LEVEL = -0.3;     // поверхность воды
+const CLIFF_HEIGHT = 3.2;     // плато обрывов по краю карты
+const ROCK_HEIGHT = 2.4;      // отдельные скалы — тоже поднятая земля с нарисованной скалой сверху
+const CELL_CLEAR = 1.15;      // ствол не ближе к центру клетки: лес подходит к самым клеткам (не «городской парк»)
+const BRIDGE_WIDTH = 1.95;    // ширина дорожки: гекс от грани до грани (√3) + запас
+// Ёлки по концепту: высокие (≈2 роста фигурки и больше), редкие, ярусами.
+const PINE_MIN = 2.9, PINE_MAX = 4.1, TREE_STEP = 0.85;   // гуще — как в цели-арте   // −15% и гуще (20.10)
+
+// Детерминированный «случай», чтобы лес не менялся от перезагрузки.
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+async function loadMask(url) {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  return { w: img.width, h: img.height, data: ctx.getImageData(0, 0, img.width, img.height).data };
+}
+
+// Ближайшая клетка через сетку-корзины: 273 клетки × сотни тысяч запросов.
+function cellIndex(cells, bucket = 2) {
+  const map = new Map();
+  const key = (i, j) => `${i},${j}`;
+  for (const c of cells) {
+    const k = key(Math.floor(c.x / bucket), Math.floor(c.z / bucket));
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(c);
+  }
+  return (x, z, filter) => {
+    const bi = Math.floor(x / bucket), bj = Math.floor(z / bucket);
+    let best = 9;
+    for (let i = bi - 1; i <= bi + 1; i += 1) {
+      for (let j = bj - 1; j <= bj + 1; j += 1) {
+        for (const c of map.get(key(i, j)) ?? []) {
+          if (filter && !filter(c)) continue;
+          const d = Math.hypot(c.x - x, c.z - z);
+          if (d < best) best = d;
+        }
+      }
+    }
+    return best;
+  };
+}
+
+function pineGeometry() {
+  const parts = [];
+  const paint = (g, color) => {
+    g = g.toNonIndexed();
+    const col = new THREE.Color(color);
+    const arr = new Float32Array(g.attributes.position.count * 3);
+    for (let i = 0; i < arr.length; i += 3) col.toArray(arr, i);
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    g.deleteAttribute('uv');
+    return g;
+  };
+  // высота ёлки = 1, масштабируется при расстановке
+  parts.push(paint(new THREE.CylinderGeometry(0.028, 0.042, 0.2, 6).translate(0, 0.1, 0), '#5a3b22'));
+  const tiers = [
+    [0.30, 0.30, 0.31, '#163a1a'], [0.25, 0.27, 0.47, '#1c4520'], [0.2, 0.24, 0.62, '#235127'],
+    [0.14, 0.21, 0.76, '#2b5e2c'], [0.08, 0.18, 0.89, '#356b33'],
+  ];
+  for (const [r, h, y, c] of tiers) parts.push(paint(new THREE.ConeGeometry(r, h, 8).translate(0, y, 0), c));
+  return mergeGeometries(parts);
+}
+
+// Сказочное дерево (поляна феникса): изогнутый ствол и круглые кроны-шары; высота = 1.
+// Кроны белые в вершинных цветах — цвет (розовый/сиреневый/бирюзовый) задаётся инстансу.
+function fairyTreeGeometry() {
+  const paint = (g, color) => {
+    g = g.toNonIndexed();
+    const col = new THREE.Color(color);
+    const arr = new Float32Array(g.attributes.position.count * 3);
+    for (let i = 0; i < arr.length; i += 3) col.toArray(arr, i);
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    g.deleteAttribute('uv');
+    return g;
+  };
+  const trunkCol = '#7a5a8a';
+  const parts = [
+    paint(new THREE.CylinderGeometry(0.045, 0.07, 0.42, 6).translate(0, 0.21, 0), trunkCol),
+    paint(new THREE.CylinderGeometry(0.03, 0.045, 0.32, 6).rotateZ(0.45).translate(-0.07, 0.55, 0), trunkCol),
+    paint(new THREE.CylinderGeometry(0.02, 0.03, 0.22, 5).rotateZ(-0.6).translate(0.08, 0.5, 0.02), trunkCol),
+    paint(new THREE.IcosahedronGeometry(0.27, 1).translate(-0.14, 0.78, 0), '#ffffff'),
+    paint(new THREE.IcosahedronGeometry(0.17, 1).translate(0.17, 0.64, 0.04), '#ffffff'),
+    paint(new THREE.IcosahedronGeometry(0.12, 1).translate(0.02, 0.92, -0.12), '#ffffff'),
+  ];
+  return mergeGeometries(parts);
+}
+
+function rockGeometry(seed) {
+  const g = new THREE.IcosahedronGeometry(1, 0);
+  const r = rng(seed);
+  const p = g.attributes.position;
+  // Сдвигаем вершины, общие для граней, одинаково — иначе камень «треснет».
+  const moved = new Map();
+  for (let i = 0; i < p.count; i += 1) {
+    const k = `${p.getX(i).toFixed(3)},${p.getY(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
+    if (!moved.has(k)) moved.set(k, 0.78 + r() * 0.4);
+    const s = moved.get(k);
+    p.setXYZ(i, p.getX(i) * s, p.getY(i) * s * 0.8, p.getZ(i) * s);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+function plankTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#9a6234';
+  g.fillRect(0, 0, 64, 256);
+  for (let y = 0; y < 256; y += 32) {
+    g.fillStyle = y % 64 ? '#a86c3a' : '#8f5a2f';
+    g.fillRect(0, y + 2, 64, 28);
+    g.fillStyle = '#5b3519';
+    g.fillRect(0, y, 64, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function blobShadowTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+// Ворота дварфов: две деревянные башни с шатровыми крышами и створки между ними.
+// Стена вдоль локальной оси x, створки смотрят в +z (к своей клетке, как дверь домика).
+function dwarfGate(span) {
+  const wood = new THREE.MeshLambertMaterial({ color: 0x7a4a26 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x4f2c15 });
+  const roof = new THREE.MeshLambertMaterial({ color: 0x8a4a22 });
+  const gate = new THREE.Group();
+  for (const t of [-1, 1]) {
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(1.3, 4.2, 1.3), wood);
+    tower.position.set(t * span / 2, 2.1, 0);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.2, 4).rotateY(Math.PI / 4), roof);
+    top.position.set(t * span / 2, 4.8, 0);
+    gate.add(tower, top);
+  }
+  const doorW = span - 1.3;
+  for (const t of [-1, 1]) {
+    const door = new THREE.Mesh(new THREE.BoxGeometry(doorW / 2 - 0.05, 3.2, 0.3), wood);
+    door.position.set(t * doorW / 4, 1.6, 0);
+    gate.add(door);
+    for (const y of [0.7, 2.4]) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(doorW / 2 - 0.1, 0.18, 0.36), dark);
+      band.position.set(t * doorW / 4, y, 0);
+      gate.add(band);
+    }
+  }
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.4, 0.5), dark);
+  beam.position.set(0, 3.4, 0);
+  gate.add(beam);
+  for (let x = -doorW / 2 + 0.25; x < doorW / 2; x += 0.45) {
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 5), wood);
+    spike.position.set(x, 3.85, 0);
+    gate.add(spike);
+  }
+  gate.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return gate;
+}
+
+// Условные домики-ориентиры (клетки с marker: хижины колод «лес», «озеро», «тёмный лес»…).
+// Куб + двускатная крыша; цвет крыши — по классу колоды. Размер — чтобы фигурка (1.8) входила в дверь.
+const HOUSE_W = 1.7, HOUSE_D = 2.38, HOUSE_H = 1.87;  // −15% (20.10): фасад с дверью 1.7, боковые стены длиннее
+const HOUSE_ROOF = { forest: 0x6b8f3a, forest_trail: 0x4f7a3a, mixed: 0xa08a4a, lake: 0x3d5a78, dark_forest: 0x5a3d6b };
+function houseMesh(cls) {
+  const g = new THREE.Group();
+  const W = HOUSE_W, D = HOUSE_D, H = HOUSE_H;
+  const walls = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), new THREE.MeshLambertMaterial({ color: 0x9a7650 }));
+  walls.position.y = H / 2;
+  // треугольная крыша: конёк вдоль дома (от двери к задней стене), над дверью — фронтон
+  const shape = new THREE.Shape([new THREE.Vector2(-W / 2 - 0.15, 0), new THREE.Vector2(W / 2 + 0.15, 0), new THREE.Vector2(0, 1.1)]);
+  const roofGeo = new THREE.ExtrudeGeometry(shape, { depth: D + 0.3, bevelEnabled: false });
+  roofGeo.translate(0, 0, -(D + 0.3) / 2);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshLambertMaterial({ color: HOUSE_ROOF[cls] ?? 0x8a4a22, flatShading: true }));
+  roof.position.y = H;
+  // дверь на передней стене (+z — к клетке)
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.77, 1.62, 0.06), new THREE.MeshLambertMaterial({ color: 0x3b2414 }));
+  door.position.set(0, 0.81, D / 2 + 0.02);
+  g.add(walls, roof, door);
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+
+// Гнездо феникса (клетка fairy_glade): круглое кольцо из прутьев, внутри угли и пламя.
+function phoenixNest() {
+  const g = new THREE.Group();
+  const twigs = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.26, 7, 18).rotateX(Math.PI / 2),
+    new THREE.MeshLambertMaterial({ color: 0x5a3a20, flatShading: true }));
+  twigs.position.y = 0.26;
+  const embers = new THREE.Mesh(new THREE.CircleGeometry(0.62, 18).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xff6a1a }));
+  embers.position.y = 0.22;
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.9, 8), new THREE.MeshBasicMaterial({ color: 0xffb030 }));
+  flame.position.y = 0.65;
+  g.add(twigs, embers, flame);
+  return g;
+}
+// Камень кузнеца (клетка blueprints): низкая плоская плита.
+function smithStone() {
+  const g = new THREE.Group();
+  const slab = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.35, 7),
+    new THREE.MeshLambertMaterial({ color: 0x7a756d, flatShading: true }));
+  slab.position.y = 0.17;
+  g.add(slab);
+  return g;
+}
+
+// Водопад: полотно воды от края уступа (река на плато) вниз к заводи. Струи бегут вниз
+// (шейдер), края полупрозрачные, внизу пена. Анимация — через uniforms.time.
+function waterfallMesh(lipL, lipR, poolC, topY, bottomY) {
+  const width = lipL.distanceTo(lipR);
+  const top = lipL.clone().add(lipR).multiplyScalar(0.5);
+  const dir = new THREE.Vector3(poolC.x - top.x, 0, poolC.z - top.z);
+  const run = dir.length();
+  dir.normalize();
+  const side = new THREE.Vector3().subVectors(lipR, lipL).normalize();
+  const segs = 14;
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i <= segs; i += 1) {
+    const t = i / segs;
+    // вода срывается с края и падает почти отвесно: горизонтальный вынос — в начале
+    const out = run * Math.sin(t * Math.PI / 2) * 0.55 + 0.15;
+    const y = topY + (bottomY - topY) * t * t * 0.4 + (bottomY - topY) * t * 0.6;
+    for (const k of [-0.5, 0.5]) {
+      const p = top.clone().addScaledVector(side, k * width * (1 + t * 0.25)).addScaledVector(dir, out);
+      pos.push(p.x, y, p.z);
+      uv.push(k + 0.5, t);
+    }
+    if (i < segs) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { time: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform float time; varying vec2 vUv;
+      float h(float n){ return fract(sin(n) * 43758.5453); }
+      float n1(float x){ float i = floor(x), f = fract(x); return mix(h(i), h(i + 1.0), f * f * (3.0 - 2.0 * f)); }
+      void main(){
+        float cols = vUv.x * 18.0;
+        float speed = 1.6 + n1(floor(cols) * 3.1) * 0.8;
+        float streak = n1(cols * 1.3 + 7.0) * 0.6 + n1((vUv.y * 6.0 - time * speed) + floor(cols) * 1.7) * 0.4;
+        vec3 water = mix(vec3(0.20, 0.72, 0.80), vec3(0.92, 0.98, 1.0), smoothstep(0.45, 0.85, streak));
+        float foam = smoothstep(0.78, 1.0, vUv.y);
+        water = mix(water, vec3(1.0), foam * 0.8);
+        float edge = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
+        gl_FragColor = vec4(water, (0.72 + 0.25 * streak) * edge);
+      }`,
+  });
+  return new THREE.Mesh(g, mat);
+}
+
+function foamRing(center, radius) {
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { time: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform float time; varying vec2 vUv;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      void main(){
+        vec2 c = vUv - 0.5; float r = length(c) * 2.0; float a = atan(c.y, c.x);
+        float wave = fract(r * 2.5 - time * 0.6);
+        float blob = h(floor(vec2(a * 6.0, r * 8.0 - time * 2.0)));
+        float alpha = (1.0 - smoothstep(0.55, 1.0, r)) * (0.35 + 0.45 * step(0.55, blob)) * (0.6 + 0.4 * wave);
+        gl_FragColor = vec4(vec3(1.0), alpha * 0.85);
+      }`,
+  });
+  const m = new THREE.Mesh(new THREE.CircleGeometry(radius, 32).rotateX(-Math.PI / 2), mat);
+  m.position.copy(center);
+  return m;
+}
+
+// Террасная скала (data/rocks.json) выкладывается отдельными камнями, как в концепте:
+// каждый ярус контура заполняется крупными блоками со скруглёнными гранями, следующий
+// ярус лежит на предыдущем и уже его; у основания — отдельные валуны (часть в воде).
+const ROCK_TOP = new THREE.Color(0xc2baac), ROCK_SIDE = new THREE.Color(0x67625b);
+
+// Набор камней: из этих моделей собираются и скалы, и отдельные камни.
+// [пропорции x, y, z; радиус скругления; скос верха (клин); сид неровностей]
+const STONE_KIT = [
+  { name: 'плита', size: [1, 0.45, 0.9], R: 0.16, wedge: 0, seed: 11 },
+  { name: 'блок', size: [1, 0.7, 0.85], R: 0.2, wedge: 0, seed: 12 },
+  { name: 'высокий блок', size: [0.8, 1, 0.75], R: 0.18, wedge: 0, seed: 13 },
+  { name: 'валун', size: [1, 0.75, 0.95], R: 0.34, wedge: 0, seed: 14 },
+  { name: 'клин', size: [1, 0.7, 0.85], R: 0.18, wedge: 0.25, seed: 15 },
+  { name: 'камешек', size: [1, 0.6, 0.8], R: 0.3, wedge: 0, seed: 16 },
+];
+// Окраска камня по нормалям: верх светлее, бока и низ темнее.
+function paintStone(geo) {
+  geo = geo.index ? geo.toNonIndexed() : geo;
+  geo.computeVertexNormals();
+  const n = geo.attributes.normal, cols = new Float32Array(n.count * 3), col = new THREE.Color();
+  for (let i = 0; i < n.count; i += 1) {
+    col.copy(ROCK_SIDE).lerp(ROCK_TOP, THREE.MathUtils.smoothstep(n.getY(i), 0.25, 0.8)).toArray(cols, i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  return geo;
+}
+// Модели набора из Blender (models/stone-kit.glb, tools/blender/stone_kit.py): гексовые камни.
+// Имена объектов — в том же порядке, что STONE_KIT. Размер набора берём по габаритам модели.
+const KIT_NAMES = ['stone_slab', 'stone_block', 'stone_tall', 'stone_boulder', 'stone_wedge', 'stone_pebble'];
+async function loadStoneKit(url) {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  return KIT_NAMES.map((name, i) => {
+    const mesh = gltf.scene.getObjectByName(name);
+    if (!mesh?.geometry) return null;
+    const geo = mesh.geometry.clone();
+    geo.computeBoundingBox();
+    const b = geo.boundingBox;
+    geo.translate(-(b.max.x + b.min.x) / 2, -(b.max.y + b.min.y) / 2, -(b.max.z + b.min.z) / 2);   // центр в нуле (как у процедурных)
+    STONE_KIT[i].size = [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z];
+    // свои цвета из Blender (мох, тёмные швы) оставляем; если их нет — красим по нормалям
+    for (const key of Object.keys(geo.attributes)) if (!['position', 'normal', 'color'].includes(key)) geo.deleteAttribute(key);
+    return geo.attributes.color ? geo : paintStone(geo);
+  });
+}
+
+// Модель камня из набора: куб со скруглёнными рёбрами и неровными гранями; размер ~1.
+function stoneBlockGeometry(kit) {
+  const r = rng(kit.seed);
+  const g = new THREE.BoxGeometry(1, 1, 1, 4, 3, 4);
+  const p = g.attributes.position, v = new THREE.Vector3(), c = new THREE.Vector3();
+  const R = kit.R;                                   // радиус скругления
+  const jitter = new Map();
+  for (let i = 0; i < p.count; i += 1) {
+    v.fromBufferAttribute(p, i);
+    c.set(THREE.MathUtils.clamp(v.x, -0.5 + R, 0.5 - R), THREE.MathUtils.clamp(v.y, -0.5 + R, 0.5 - R), THREE.MathUtils.clamp(v.z, -0.5 + R, 0.5 - R));
+    v.sub(c).normalize().multiplyScalar(R).add(c);
+    const k = `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`;
+    if (!jitter.has(k)) jitter.set(k, [(r() - 0.5) * 0.08, (r() - 0.5) * 0.06, (r() - 0.5) * 0.08]);
+    const [jx, jy, jz] = jitter.get(k);
+    const wedgeDrop = v.y > 0 ? kit.wedge * (v.x + 0.5) : 0;      // клин: верх скошен к +x
+    p.setXYZ(i, (v.x + jx) * kit.size[0], (v.y + jy - wedgeDrop) * kit.size[1], (v.z + jz) * kit.size[2]);
+  }
+  const geo = g.toNonIndexed();
+  geo.computeVertexNormals();
+  const n = geo.attributes.normal, cols = new Float32Array(n.count * 3), col = new THREE.Color();
+  for (let i = 0; i < n.count; i += 1) {
+    col.copy(ROCK_SIDE).lerp(ROCK_TOP, THREE.MathUtils.smoothstep(n.getY(i), 0.25, 0.8)).toArray(cols, i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  return geo;
+}
+
+// Плавный шум 0..1 (для групп деревьев на уступах).
+function valueNoise2(x, y) {
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+function inPolygon(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+// Расстояние от точки до границы многоугольника.
+function edgeDist(x, z, poly) {
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, az] = poly[j], [bx, bz] = poly[i];
+    const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz || 1;
+    const t = THREE.MathUtils.clamp(((x - ax) * dx + (z - az) * dz) / L, 0, 1);
+    best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t));
+  }
+  return best;
+}
+
+// Каменные блоки одной скалы — список [x, y, z, sx, sy, sz, rotY, shade].
+// Отдельный камень по плану (x, y — пиксели арта, rad — радиус в единицах).
+function looseStone(st, toWorld, groundY, r) {
+  const [x, z] = toWorld(st.x, st.y);
+  const d = st.r * 2;
+  const kit = d < 0.6 ? 5 : [3, 0, 1, 4][Math.floor(r() * 4)];
+  const ks = STONE_KIT[kit].size;
+  const h = d * (0.55 + r() * 0.25);
+  const gy = Math.min(0, groundY(x, z));
+  return [x, gy + h * 0.35, z, d / ks[0], h / ks[1], d * (0.85 + r() * 0.2) / ks[2], r() * 6.28, 0.72 + r() * 0.16, kit];
+}
+
+function terraceStones(rock, toWorld, seed) {
+  const r = rng(seed);
+  const stones = [];
+  let base = -0.55;
+  rock.levels.forEach((lv, li) => {
+    const poly = lv.pts.map(([px, py]) => toWorld(px, py));
+    const step = 1.75 - li * 0.15;                   // крупные камни внизу, чуть меньше наверху
+    const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
+    const ox = r() * step, oz = r() * step;
+    const height = 0.85 + (lv.top - base - 0.85) * 0.5;
+    for (let x = Math.min(...xs) - ox; x < Math.max(...xs) + step; x += step) {
+      for (let z = Math.min(...zs) - oz; z < Math.max(...zs) + step; z += step * 0.92) {
+        const jx = x + (r() - 0.5) * step * 0.35, jz = z + (r() - 0.5) * step * 0.35;
+        if (!inPolygon(jx, jz, poly) || edgeDist(jx, jz, poly) < step * 0.28) continue;
+        const sx = step * (1.0 + r() * 0.25), sz = step * (0.9 + r() * 0.3);
+        const sy = Math.max(0.7, lv.top - base) * (0.95 + r() * 0.15);
+        const kit = [1, 1, 0, 4, 2][Math.floor(r() * 5)];          // в ярусах — блоки, плиты, валуны, высокие
+        const ks = STONE_KIT[kit].size;
+        stones.push([jx, base + sy / 2, jz, sx / ks[0], sy / ks[1], sz / ks[2], (r() - 0.5) * 0.9, 0.82 + li * 0.07 + (r() - 0.5) * 0.12, kit]);
+      }
+    }
+    base = lv.top - 0.12;
+  });
+  return stones;
+}
+
+// ── Цельная скала (монолит) ──
+// Ярусы по контуру плана, каждый — одна плита со скруглённой фаской (без деления на камни).
+// Вид сложенных плит даёт рисованная текстура: сверху — «верх скалы», по бокам — «бок скалы»
+// (двухплоскостная проекция в мировых координатах, UV не нужны), смешивание по наклону грани.
+function rockMaterial(topTex, sideTex) {
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  mat.onBeforeCompile = shader => {
+    shader.uniforms.rockTop = { value: topTex };
+    shader.uniforms.rockSide = { value: sideTex };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vRockPos;
+varying vec3 vRockNrm;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef USE_INSTANCING
+vRockPos = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;
+vRockNrm = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
+#else
+vRockPos = (modelMatrix * vec4(position, 1.0)).xyz;
+vRockNrm = normalize(mat3(modelMatrix) * normal);
+#endif`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform sampler2D rockTop;
+uniform sampler2D rockSide;
+varying vec3 vRockPos;
+varying vec3 vRockNrm;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  vec3 n = normalize(vRockNrm);
+  float topW = smoothstep(0.45, 0.8, n.y);
+  vec3 top = texture2D(rockTop, vRockPos.xz * 0.13).rgb;
+  // двухплоскостная проекция для боков: ось, ближе всего к нормали по горизонтали
+  vec2 uvX = vec2(vRockPos.z, vRockPos.y) * 0.19, uvZ = vec2(vRockPos.x, vRockPos.y) * 0.19;
+  float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
+  vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx));
+  {
+  // мох: пятнами на гранях, обращённых вверх и вбок (стиль домиков)
+  float mn = 0.5 + 0.5 * sin(vRockPos.x * 1.9 + sin(vRockPos.z * 1.3 + vRockPos.y) * 1.7) * sin(vRockPos.z * 1.7 - sin(vRockPos.x * 1.1) * 1.5 + vRockPos.y * 0.8);   // плавный шум, без клеток
+  float mn2 = sin(vRockPos.x * 1.3 + vRockPos.y * 2.1) * sin(vRockPos.z * 1.1 - vRockPos.y * 1.7);
+  float moss = smoothstep(0.15, 0.55, n.y + 0.25 * mn2) * smoothstep(0.35, 0.75, mn * 0.6 + 0.4 * (mn2 * 0.5 + 0.5));
+  vec3 mossCol = vec3(0.30, 0.42, 0.16) * (0.85 + 0.3 * mn);
+    top = mix(top, mossCol, moss * 0.22);      // в текстуре мох уже есть — свой только слегка
+    side = mix(side, mossCol, moss * 0.3);
+  }
+  diffuseColor.rgb *= mix(side, top, topW);
+}`);
+  };
+  return mat;
+}
+
+function rockMonolith(rock, toWorld, seed, material) {
+  const r = rng(seed);
+  const g = new THREE.Group();
+  let base = -0.6;
+  rock.levels.forEach((lv, li) => {
+    const shape = new THREE.Shape();
+    lv.pts.forEach(([px, py], i) => {
+      const [x, z] = toWorld(px, py);
+      const j = 0.06 * (r() - 0.5);
+      if (i === 0) shape.moveTo(x + j, -(z + j)); else shape.lineTo(x + j, -(z + j));
+    });
+    const top = lv.top + (r() - 0.5) * 0.1;
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: Math.max(0.3, top - base), bevelEnabled: true, bevelThickness: 0.28, bevelSize: 0.3, bevelSegments: 3, curveSegments: 1,
+    });
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0, base, 0);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+    base = top - 0.32;
+  });
+  return g;
+}
+
+// ── Модули обрыва хребта (models/cliff-kit.glb, tools/blender/cliff_kit.py) ──
+// Материал: бока — рисованная скала (двухплоскостная проекция), верх — трава «колпаком»
+// (по нормали в мировых координатах), всё в мировых координатах — UV не нужны.
+const CLIFF_NAMES = ['cliff_straight_a', 'cliff_straight_b', 'cliff_straight_c', 'cliff_corner', 'cliff_column', 'cliff_end'];
+function cliffMaterial(sideTex, grassTex) {
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+  mat.onBeforeCompile = shader => {
+    shader.uniforms.cliffSide = { value: sideTex };
+    shader.uniforms.cliffGrass = { value: grassTex };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vCPos;
+varying vec3 vCNrm;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef USE_INSTANCING
+vCPos = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;
+vCNrm = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
+#else
+vCPos = (modelMatrix * vec4(position, 1.0)).xyz;
+vCNrm = normalize(mat3(modelMatrix) * normal);
+#endif`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform sampler2D cliffSide;
+uniform sampler2D cliffGrass;
+varying vec3 vCPos;
+varying vec3 vCNrm;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  vec3 n = normalize(vCNrm);
+  vec2 uvX = vec2(vCPos.z, vCPos.y) * 0.17, uvZ = vec2(vCPos.x, vCPos.y) * 0.17;
+  float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
+  vec3 side = mix(texture2D(cliffSide, uvZ).rgb, texture2D(cliffSide, uvX).rgb, smoothstep(0.35, 0.65, wx));
+  side *= mix(0.78, 1.08, clamp(vCPos.y / 6.5, 0.0, 1.0));          // низ темнее, верх светлее
+  // верх уступа — камень с мхом и лишайником (tex-rocktop), не газон; редкие пятна травы
+  vec3 rtop = mix(texture2D(cliffGrass, vCPos.xz * 0.13).rgb,
+                  texture2D(cliffGrass, mat2(0.8, -0.6, 0.6, 0.8) * vCPos.xz * 0.071 + 0.37).rgb, 0.4);
+  float gp = smoothstep(0.6, 0.9, sin(vCPos.x * 0.43 + 1.3) * sin(vCPos.z * 0.37 + 0.7) * 0.5 + 0.5);
+  vec3 grass = mix(rtop, rtop * vec3(0.8, 1.05, 0.7), gp * 0.6);
+  float g = smoothstep(0.55, 0.8, n.y);
+  // мох: пятнами на гранях, обращённых вверх и вбок (стиль домиков)
+  float mn = 0.5 + 0.5 * sin(vCPos.x * 1.9 + sin(vCPos.z * 1.3 + vCPos.y) * 1.7) * sin(vCPos.z * 1.7 - sin(vCPos.x * 1.1) * 1.5 + vCPos.y * 0.8);   // плавный шум, без клеток
+  float mn2 = sin(vCPos.x * 1.3 + vCPos.y * 2.1) * sin(vCPos.z * 1.1 - vCPos.y * 1.7);
+  float moss = smoothstep(0.15, 0.55, n.y + 0.25 * mn2) * smoothstep(0.35, 0.75, mn * 0.6 + 0.4 * (mn2 * 0.5 + 0.5));
+  vec3 mossCol = vec3(0.30, 0.42, 0.16) * (0.85 + 0.3 * mn);
+  side = mix(side, mossCol, moss * (1.0 - g) * 0.35);
+  diffuseColor.rgb *= mix(side, grass, g);
+}`);
+  };
+  return mat;
+}
+async function loadCliffKit(url) {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  return CLIFF_NAMES.map(name => {
+    const m = gltf.scene.getObjectByName(name);
+    if (!m?.geometry) return null;
+    const g = m.geometry.clone();
+    for (const key of Object.keys(g.attributes)) if (!['position', 'normal'].includes(key)) g.deleteAttribute(key);
+    return g;
+  });
+}
+
+// ── Набор деревьев (models/tree-kit.glb, tools/blender/tree_kit.py) и биомы по колодам ──
+async function loadKitGeos(url) {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  const out = {};
+  gltf.scene.traverse(o => {
+    if (!o.isMesh) return;
+    const g = o.geometry.clone();
+    for (const key of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(key)) g.deleteAttribute(key);
+    // цвета в Blender заданы как sRGB — переводим в линейные, иначе деревья блёклые
+    const c = g.attributes.color;
+    if (c) for (let i = 0; i < c.count; i += 1) c.setXYZ(i, Math.pow(c.getX(i), 2.2), Math.pow(c.getY(i), 2.2), Math.pow(c.getZ(i), 2.2));
+    out[o.name] = g;
+  });
+  return out;
+}
+// Колода клетки -> биом леса вокруг неё (цель-арт: paintover-biomes-spires-v2-overview.png).
+const DECK_BIOME = { forest: 'forest', dark_forest: 'dark', forest_trail: 'birch', mixed: 'autumn', lake: 'lake', sheep: 'meadow', fairy_glade: 'fairy' };
+// Состав видов по биомам: [имя модели, вес]. Высоты видов — в TREE_H.
+const BIOME_MIX = {
+  forest: [['tree_spruce', 9], ['tree_pine', 2.5], ['tree_birch', 0.6], ['tree_autumn_yellow', 0.25], ['tree_autumn_orange', 0.3]],
+  dark: [['tree_spruce_dark', 6], ['tree_dead', 3], ['tree_spruce', 1]],
+  birch: [['tree_birch', 6], ['tree_pine', 2], ['tree_spruce', 2]],
+  autumn: [['tree_autumn_orange', 2], ['tree_autumn_red', 1.5], ['tree_autumn_yellow', 2], ['tree_spruce', 2], ['tree_birch', 1]],
+  lake: [['tree_willow', 3], ['tree_birch', 3], ['tree_spruce', 2]],
+  meadow: [['tree_autumn_yellow', 1], ['tree_birch', 2], ['tree_spruce', 2]],
+  fairy: [['tree_fairy_pink', 1], ['tree_fairy_violet', 1], ['tree_fairy_teal', 1], ['tree_fairy_gold', 1]],
+  ridge: [['tree_spruce', 6], ['tree_pine', 3], ['tree_birch', 0.4]],
+};
+const TREE_H = {
+  tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
+  tree_autumn_orange: [2.4, 3.2], tree_autumn_red: [2.4, 3.2], tree_autumn_yellow: [2.4, 3.2],
+  tree_willow: [2.4, 3.0], tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0],
+  tree_fairy_pink: [3.6, 5.0], tree_fairy_violet: [3.6, 5.0], tree_fairy_teal: [3.6, 5.0], tree_fairy_gold: [3.6, 5.0],
+};
+// Деревья-картинки (камера только спереди): рисованные Codex спрайты на плоскостях,
+// повёрнутых к камере вокруг вертикали. Атлас: data/tree-sprites.png + .json
+// (tools/board3d_tree_atlas.py): frames[{name, x, y, w, h}] в долях атласа.
+// Вид из набора моделей -> группа кадров атласа.
+const SPRITE_GROUP = {
+  tree_spruce: 'spruce', tree_spruce_dark: 'dark', tree_pine: 'pine', tree_birch: 'birch',
+  tree_autumn_orange: 'autumn_orange', tree_autumn_red: 'autumn_red', tree_autumn_yellow: 'autumn_yellow',
+  tree_willow: 'willow', tree_dead: 'dead', tree_bush: 'bush',
+  tree_fairy_pink: 'fairy_pink', tree_fairy_violet: 'fairy_violet', tree_fairy_teal: 'fairy_teal', tree_fairy_gold: 'fairy_gold',
+};
+function billboardTrees(list, atlasTex, frames) {
+  // list: [{x, y, z, h, group, tint}]
+  const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
+  const mesh = new THREE.InstancedMesh(geo, null, list.length);
+  const rects = new Float32Array(list.length * 4);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
+  const byGroup = {};
+  for (const f of frames) (byGroup[f.group] ??= []).push(f);
+  for (const t of list) {
+    const opts = byGroup[t.group] ?? byGroup.spruce ?? frames;
+    t.frame = opts[t.pick % opts.length];
+    t.aspect = (t.frame.w * atlasTex.image.width) / (t.frame.h * atlasTex.image.height);
+  }
+  const rectAttr = new THREE.InstancedBufferAttribute(rects, 4);
+  const tintArr = new Float32Array(list.length * 4);
+  const tintAttr = new THREE.InstancedBufferAttribute(tintArr, 4);
+  geo.setAttribute('uvRect', rectAttr);
+  geo.setAttribute('tint', tintAttr);
+  // Порядок отрисовки — от дальних к ближним по глубине вдоль взгляда камеры (с учётом высоты:
+  // деревья на хребте ближе к камере). Пересортировка, когда камера заметно сдвинулась.
+  const fwd = new THREE.Vector3(), last = new THREE.Vector3(Infinity, 0, 0), lastF = new THREE.Vector3();
+  mesh.userData.resort = camera => {
+    camera.getWorldDirection(fwd);
+    if (last.distanceTo(camera.position) < 0.5 && lastF.dot(fwd) > 0.9995) return;
+    last.copy(camera.position); lastF.copy(fwd);
+    for (const t of list) t.depth = (t.x - camera.position.x) * fwd.x + (t.y - camera.position.y) * fwd.y + (t.z - camera.position.z) * fwd.z;
+    list.sort((a, b) => b.depth - a.depth);
+    list.forEach((t, i) => {
+      m.compose(pos.set(t.x, t.y - 0.05, t.z), q, sc.set(t.h * t.aspect, t.h, 1));
+      mesh.setMatrixAt(i, m);
+      rects.set([t.frame.x, t.frame.y, t.frame.w, t.frame.h], i * 4);
+      tintArr.set([...t.tint, t.shade ?? 1], i * 4);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    rectAttr.needsUpdate = true;
+    tintAttr.needsUpdate = true;
+  };
+  mesh.material = new THREE.ShaderMaterial({
+    uniforms: { atlas: { value: atlasTex } },
+    // Алгоритм художника: деревья рисуются последними, от дальних к ближним (resort ниже),
+    // между собой глубину НЕ пишут — ближнее дерево целиком ложится поверх дальнего, не
+    // пересекаясь; с остальным миром (скалы, дома, мелочь) проверка глубины остаётся.
+    transparent: true, depthWrite: false, depthTest: true,
+    // Плоскость параллельна экрану (векторы «вправо»/«вверх» камеры) — нет наклона из-за
+    // перспективы и плоскости соседних деревьев не протыкают друг друга. Глубина всего дерева —
+    // глубина его основания: деревья перекрывают друг друга и склоны по месту, где стоят.
+    vertexShader: `attribute vec4 uvRect; attribute vec4 tint; varying vec2 vUv; varying vec4 vTint; varying float vH;
+      void main(){
+        vec3 base = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        float w = length(instanceMatrix[0].xyz), h = length(instanceMatrix[1].xyz);
+        // ось дерева — вертикаль мира (как у домов), все деревья смотрят в одну сторону —
+        // по направлению взгляда камеры (не на её точку: нет «веера» по краям экрана);
+        // высота компенсирует наклон камеры, чтобы дерево не сплющивалось
+        vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+        vec3 right = normalize(vec3(camRight.x, 0.0, camRight.z));
+        vec3 fwd = -vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+        float k = clamp(1.0 / max(length(fwd.xz), 0.55), 1.0, 1.6);
+        vec3 upv = vec3(0.0, 1.0, 0.0);
+        vec3 p = base + right * position.x * w + upv * position.y * h * k;
+        vUv = vec2(uvRect.x + uv.x * uvRect.z, uvRect.y + uv.y * uvRect.w);
+        vTint = tint; vH = uv.y;
+        // глубина дерева = глубина основания, сдвинутого к камере (~радиус кроны у земли):
+        // всё, что стоит за стволом, остаётся за деревом
+        vec4 cb = projectionMatrix * viewMatrix * vec4(base + normalize(cameraPosition - base) * 0.45, 1.0);   // одинаково для всех деревьев
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+        gl_Position.z = (cb.z / cb.w) * gl_Position.w;
+      }`,
+    fragmentShader: `uniform sampler2D atlas; varying vec2 vUv; varying vec4 vTint; varying float vH;
+      vec3 rgb2hsv(vec3 c){ vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0); vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r)); float d = q.x - min(q.w, q.y); float e = 1.0e-10;
+        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x); }
+      vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
+      void main(){ vec4 c = texture2D(atlas, vUv); if (c.a < 0.02) discard;
+        vec3 hsv = rgb2hsv(c.rgb);
+        hsv.x = fract(hsv.x + vTint.x); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= vTint.z;
+        // затенение: низ кроны и ствол темнее (окклюзия), в густой роще всё дерево темнее (vTint.w)
+        hsv.z *= mix(0.62, 1.0, smoothstep(0.0, 0.55, vH)) * vTint.w;
+        gl_FragColor = vec4(hsv2rgb(hsv), c.a);
+        #include <colorspace_fragment>
+      }`,
+  });
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 10;                      // последними: после земли, воды, скал, мелочи
+  return mesh;
+}
+
+// «Гиблиевский» дуб (tools/blender/ghibli_tree.py): листовые карточки с альфа-срезом,
+// нормали от центров облачков (мягкий объёмный свет), ветер в вершинном шейдере.
+// Рисуется как непрозрачный с записью глубины + alpha-to-coverage — без сортировки.
+const windUniform = { value: 0 };
+function addWind(mat, strength, vcScale = 1) {
+  // three.js кэширует программу по тексту onBeforeCompile — у разных strength/vcScale он одинаковый
+  mat.customProgramCacheKey = () => `wind:${strength}:${vcScale}`;
+  mat.onBeforeCompile = shader => {
+    shader.uniforms.time = windUniform;
+    // обратная сторона карточки не переворачивает нормаль: у кроны нормали «сферы» (руководство, подводные камни)
+    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>',
+      '#include <normal_fragment_begin>\n#ifndef FLAT_SHADED\nnormal = normalize( vNormal );\n#endif');
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float time;')
+      // цвет вершин хранится /vcScale — так глубина может и осветлять (до ×vcScale), не только темнить
+      .replace('#include <color_vertex>', vcScale !== 1 ? `#include <color_vertex>\n  vColor.rgb *= ${vcScale.toFixed(2)};` : '#include <color_vertex>')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        // фаза — от положения дерева, сила — от высоты точки в дереве
+        vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+        float ph = ip.x * 0.37 + ip.z * 0.53;
+        float hgt = max(position.y - 0.25, 0.0);
+        float sw = sin(time * 1.3 + ph) * 0.6 + sin(time * 2.1 + ph * 1.7 + position.x * 6.0) * 0.4;
+        transformed.x += sw * hgt * ${strength.toFixed(3)};
+        transformed.z += cos(time * 1.1 + ph) * hgt * ${(strength * 0.5).toFixed(3)};
+      }`);
+  };
+  return mat;
+}
+
+function pickWeighted(list, r) {
+  const total = list.reduce((a, [, w]) => a + w, 0);
+  let t = r() * total;
+  for (const [name, w] of list) { t -= w; if (t <= 0) return name; }
+  return list[list.length - 1][0];
+}
+
+export async function buildTerrain({ cells, cellById, groundX0, groundZ0, groundW, groundH, groundTex, maskUrl, cliffUrl, heightUrl, planUrl, upperRiverUrl, rocksUrl, modeledRocks = [], stoneKitUrl, rockStyle = 'stones', rockTopUrl, rockSideUrl, cliffKitUrl, cliffTexUrl, grassUrl, treeKitUrl, groundTextures, waterDistUrl, spireKitUrl, propKitUrl, treeSpritesUrl, treesUrl, leafAtlasUrl, kitTreesUrl, kitLodUrl }) {
+  // набор камней из Blender грузим первым: размеры набора нужны при расстановке
+  const kitGeos = stoneKitUrl ? await loadStoneKit(stoneKitUrl).catch(() => null) : null;
+  // рисованные текстуры камня (Codex): скалы, камни и стены хребта
+  const loadTex = async url => {
+    const t = await new THREE.TextureLoader().loadAsync(url);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 2;
+    return t;
+  };
+  const [rockTopTex, rockSideTex] = rockTopUrl && rockSideUrl ? await Promise.all([loadTex(rockTopUrl), loadTex(rockSideUrl)]) : [null, null];
+  const T = { start: performance.now() };
+  const mark = name => { T[name] = Math.round(performance.now() - T.start); };
+  const [mask, cliffMask, heightMap] = await Promise.all([loadMask(maskUrl), loadMask(cliffUrl), heightUrl ? loadMask(heightUrl) : null]);
+  mark('masks');
+  // билинейная выборка из маски — края воды и леса гладкие
+  const bilinear = (img, x, z, ch) => {
+    const u = THREE.MathUtils.clamp((x - groundX0) / groundW, 0, 0.9999);
+    const v = THREE.MathUtils.clamp((z - groundZ0) / groundH, 0, 0.9999);
+    const fx = u * (img.w - 1), fy = v * (img.h - 1);
+    const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    const at = (xx, yy) => img.data[(yy * img.w + xx) * 4 + ch] / 255;
+    const a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
+    return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+  };
+  const sampleMask = (x, z) => {
+    const u = THREE.MathUtils.clamp((x - groundX0) / groundW, 0, 0.9999);
+    const v = THREE.MathUtils.clamp((z - groundZ0) / groundH, 0, 0.9999);
+    const fx = u * (mask.w - 1), fy = v * (mask.h - 1);
+    const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    const at = (xx, yy, ch) => mask.data[(yy * mask.w + xx) * 4 + ch] / 255;
+    const lerp2 = ch => {
+      const a = at(x0, y0, ch), b = at(x0 + 1, y0, ch), c = at(x0, y0 + 1, ch), d = at(x0 + 1, y0 + 1, ch);
+      return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+    };
+    return { water: lerp2(0), forest: lerp2(1), rock: lerp2(2) };
+  };
+
+  // Направление тропы через клетку — по двум самым дальним соседям.
+  const pathDir = c => {
+    const ns = (c.neighbors ?? []).map(n => cellById.get(n)).filter(Boolean);
+    const dir = new THREE.Vector2(1, 0);
+    if (ns.length >= 2) {
+      let best = -1;
+      for (const a of ns) for (const b of ns) {
+        const d = Math.hypot(a.x - b.x, a.z - b.z);
+        if (d > best) { best = d; dir.set(b.x - a.x, b.z - a.z); }
+      }
+    } else if (ns.length === 1) dir.set(ns[0].x - c.x, ns[0].z - c.z);
+    return dir.normalize();
+  };
+  // Мостовая клетка: вода по обе стороны поперёк тропы (нарисованный мост на карте
+  // коричневый, поэтому сам центр клетки водой не считается).
+  const bridgeIds = new Set(cells.filter(c => {
+    const d = pathDir(c);
+    const px = -d.y, pz = d.x;
+    const side = k => Math.max(sampleMask(c.x + px * k, c.z + pz * k).water, sampleMask(c.x + px * k * 1.5, c.z + pz * k * 1.5).water);
+    return side(1.4) > 0.45 && side(-1.4) > 0.45;
+  }).map(c => c.id));
+  const bridgeCells = [...bridgeIds].map(id => cellById.get(id));
+  // Под мостом река продолжается: добавляем воду в маску вокруг мостовых клеток.
+  const sample = (x, z) => {
+    const m = sampleMask(x, z);
+    for (const c of bridgeCells) {
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < 1.6) m.water = Math.max(m.water, 1 - THREE.MathUtils.smoothstep(d, 1.1, 1.6));
+    }
+    return m;
+  };
+  const nearest = cellIndex(cells);
+  mark('bridges');
+  const nearestLand = (x, z) => nearest(x, z, c => !bridgeIds.has(c.id));
+
+  const group = new THREE.Group();
+
+  // ── Земля: плоско везде, кроме воды; у клеток всегда ровно ──
+  const seg = 200;
+  const groundGeo = new THREE.PlaneGeometry(groundW, groundH, seg, Math.round(seg * groundH / groundW));
+  groundGeo.rotateX(-Math.PI / 2);
+  groundGeo.translate(groundX0 + groundW / 2, 0, groundZ0 + groundH / 2);
+  // Обрыв (data/terrain-cliff.png — каменный массив у края карты): поднимаем саму
+  // землю в плато, нарисованные стены обрыва ложатся на склон. Узкие полоски
+  // (песок у берега) отсекаются средним по кольцу.
+  const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.5, Math.sin(i * Math.PI / 4) * 1.5]);
+  const cliffAt = (x, z) => {
+    const here = bilinear(cliffMask, x, z, 0);
+    if (here < 0.05) return 0;
+    let sum = here;
+    for (const [dx, dz] of RING) sum += bilinear(cliffMask, x + dx, z + dz, 0);
+    return THREE.MathUtils.smoothstep(here, 0.3, 0.7) * THREE.MathUtils.smoothstep(sum / 9, 0.55, 0.8)
+      * THREE.MathUtils.smoothstep(nearestLand(x, z), 1.6, 3.0);
+  };
+  const RING_ROCK = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.1, Math.sin(i * Math.PI / 4) * 1.1]);
+  // Карта высот (data/terrain-height.png): собрана скриптом
+  // tools/board3d_heightmap_from_zones.py из карты зон от Codex. Яркость = только высота:
+  // h = v / 255 * 8 - 1 (земля 0, вода до -0.9, хребет — три террасы 2.1 / 4.3 / 6.4).
+  const fromHeightMap = v => v * 8 - 1;
+  const heightFromMap = (x, z) => {
+    const m = sample(x, z);
+    let h = fromHeightMap(bilinear(heightMap, x, z, 0));
+    const dLand = nearestLand(x, z);
+    // у клеток всегда ровно (и не опускаем, и не поднимаем)
+    h *= THREE.MathUtils.smoothstep(dLand, 1.0, 1.5);
+    // под мостом — река (на карте высот мост нарисован полосой земли)
+    if (m.water > 0.5) h = Math.min(h, WATER_FLOOR * m.water * THREE.MathUtils.smoothstep(dLand, 0.95, 1.35));
+    return h;
+  };
+  const heightAt = (x, z) => {
+    if (heightMap) return heightFromMap(x, z);
+    const m = sample(x, z);
+    const cliff = cliffAt(x, z);
+    if (cliff > 0) return CLIFF_HEIGHT * cliff;
+    // Под скалой землю не опускаем: скала стоит на берегу, а не висит над ямой.
+    const w = THREE.MathUtils.smoothstep(m.water, 0.3, 0.65) * (1 - THREE.MathUtils.smoothstep(m.rock, 0.35, 0.6));
+    const dLand = nearestLand(x, z);
+    const keep = THREE.MathUtils.smoothstep(dLand, 0.95, 1.35);
+    let lift = 0;
+    if (m.rock > 0.35) {
+      // только сплошные скальные пятна: тонкая светлая кромка (песок у озера) не поднимается
+      let ring = 0;
+      for (const [dx, dz] of RING_ROCK) ring += sample(x + dx, z + dz).rock;
+      lift = ROCK_HEIGHT * THREE.MathUtils.smoothstep(m.rock, 0.35, 0.75)
+        * THREE.MathUtils.smoothstep(ring / RING_ROCK.length, 0.35, 0.6)
+        * THREE.MathUtils.smoothstep(dLand, 1.25, 1.9);
+    }
+    return WATER_FLOOR * w * keep + lift;
+  };
+  const pos = groundGeo.attributes.position;
+  for (let i = 0; i < pos.count; i += 1) pos.setY(i, heightAt(pos.getX(i), pos.getZ(i)));
+  groundGeo.computeVertexNormals();
+  mark('ground');
+  // Стены и уступы хребта — той же рисованной текстурой камня, что у скал (Codex):
+  // крутые грани — «бок скалы» (двухплоскостная проекция), верх террас хребта — «верх скалы».
+  // Земля: смешивание рисованных текстур Codex по картам data/splat-a/b.png (tools/board3d_splat.py):
+  // трава — основа; тропа, лесная подстилка, песок у воды, луг с цветами, мох тёмного леса.
+  const gt = groundTextures ?? null;
+  const gtex = gt ? Object.fromEntries(await Promise.all(Object.entries(gt).map(async ([k, url]) => {
+    const t = await loadTex(url);
+    if (k.startsWith('splat')) { t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.colorSpace = THREE.NoColorSpace; }
+    return [k, t];
+  }))) : null;
+  const groundMat = new THREE.MeshLambertMaterial({ map: groundTex });
+  groundMat.onBeforeCompile = shader => {
+    shader.uniforms.rockTop = { value: rockTopTex };
+    shader.uniforms.rockSide = { value: rockSideTex };
+    if (gtex) for (const [k, t] of Object.entries(gtex)) shader.uniforms['g_' + k] = { value: t };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vWorldPos;
+varying vec3 vNrm;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vWorldPos = position;
+vNrm = normal;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform sampler2D rockTop;
+uniform sampler2D rockSide;
+${gtex ? Object.keys(gtex).map(k => `uniform sampler2D g_${k};`).join('\n') : ''}
+varying vec3 vWorldPos;
+varying vec3 vNrm;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+${gtex ? `{
+  // тайлы ~4 единицы; лёгкий поворот второй выборки травы против повтора
+  vec2 tuv = vWorldPos.xz * 0.24;
+  vec3 grass = mix(texture2D(g_grass, tuv).rgb, texture2D(g_grass, tuv * 0.41 + 0.37).rgb, 0.35);
+  vec4 sa = texture2D(g_splatA, vMapUv);
+  vec4 sb = texture2D(g_splatB, vMapUv);
+  vec3 col = grass;
+  col = mix(col, texture2D(g_meadow, tuv).rgb, sb.r);
+  col = mix(col, texture2D(g_forest, tuv).rgb, sa.g);
+  col = mix(col, texture2D(g_dark, tuv).rgb, sb.g);
+  col = mix(col, texture2D(g_beach, tuv).rgb * vec3(0.95, 0.9, 0.82), sa.b);
+  // тропа без видимого повтора: две выборки в разном масштабе и под углом, смешаны шумовой маской
+  vec2 ruv = mat2(0.80, -0.60, 0.60, 0.80) * tuv * 0.47 + 0.31;
+  float pm = sin(vWorldPos.x * 0.37 + sin(vWorldPos.z * 0.29) * 2.0) * 0.5 + 0.5;
+  vec3 pth = mix(texture2D(g_path, tuv * 0.9).rgb, texture2D(g_path, ruv).rgb, 0.35 + 0.4 * pm);
+  pth = mix(vec3(dot(pth, vec3(0.3, 0.59, 0.11))), pth, 0.5) * vec3(0.86, 0.76, 0.62);   // утоптанная земля, не оранжевый песок
+  pth *= mix(0.9, 1.2, sb.b);                    // середина тропы светлее (протоптана), к краям темнее
+  col = mix(col, pth, sa.r);
+  // дно под водой: от песка у берега к глубокой бирюзе
+  float depth = clamp(-vWorldPos.y / 0.9, 0.0, 1.0);
+  col = mix(col, mix(vec3(0.55, 0.62, 0.45), vec3(0.04, 0.32, 0.38), smoothstep(0.1, 0.8, depth)), smoothstep(0.02, 0.15, depth));
+  diffuseColor.rgb = col;
+}` : ''}
+{
+  vec3 n = normalize(vNrm);
+  float steep = 1.0 - smoothstep(0.45, 0.8, n.y);
+  if (vWorldPos.y > -0.6) {
+    vec2 uvX = vec2(vWorldPos.z, vWorldPos.y) * 0.19, uvZ = vec2(vWorldPos.x, vWorldPos.y) * 0.19;
+    float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
+    vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx));
+    vec3 top = texture2D(rockTop, vWorldPos.xz * 0.13).rgb;
+    // верх террас хребта — камень с мхом и лишайником (не газон); вторая выборка под углом против повтора,
+    // пятна травы оставляем шумом; ниже 1.2 — обычная земля
+    vec3 top2 = texture2D(rockTop, mat2(0.8, -0.6, 0.6, 0.8) * vWorldPos.xz * 0.071 + 0.37).rgb;
+    vec3 rtop = mix(top, top2, 0.35 + 0.3 * sin(vWorldPos.x * 0.21 + sin(vWorldPos.z * 0.17) * 2.0));
+    float mossy = smoothstep(0.55, 0.85, sin(vWorldPos.x * 0.43 + 1.3) * sin(vWorldPos.z * 0.37 + 0.7) * 0.5 + 0.5);
+    rtop = mix(rtop, diffuseColor.rgb, mossy * 0.55);
+    float ridgeTop = smoothstep(1.0, 1.6, vWorldPos.y);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rtop, ridgeTop);
+    diffuseColor.rgb = mix(diffuseColor.rgb, side, steep);
+  }
+}`);
+  };
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.receiveShadow = true;
+  group.add(ground);
+
+  // ── Водная гладь (этап 3): цвет по глубине, пена у берегов, бегущая рябь и блики ──
+  // data/water-dist.png (tools/board3d_water.py): R — расстояние от берега внутрь воды.
+  const waterDist = waterDistUrl ? await loadTex(waterDistUrl) : null;
+  if (waterDist) { waterDist.wrapS = waterDist.wrapT = THREE.ClampToEdgeWrapping; waterDist.colorSpace = THREE.NoColorSpace; }
+  const waterMat = waterDist ? new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { time: { value: 0 }, dist: { value: waterDist } },
+    vertexShader: `varying vec2 vUv; varying vec3 vPos;
+      void main(){ vUv = uv; vPos = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0); }`,
+    fragmentShader: `uniform float time; uniform sampler2D dist; varying vec2 vUv; varying vec3 vPos;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+      void main(){
+        float d = texture2D(dist, vUv).r;                  // 0 у берега -> 1 на глубине
+        vec3 shallow = vec3(0.32, 0.86, 0.84), deep = vec3(0.02, 0.38, 0.52);
+        vec3 col = mix(shallow, deep, smoothstep(0.0, 0.75, d));
+        // рябь: две бегущие волны шума — светлые прожилки
+        float rip = n2(vPos.xz * 1.6 + vec2(time * 0.35, time * 0.2)) * n2(vPos.xz * 2.3 - vec2(time * 0.25, -time * 0.3));
+        col += smoothstep(0.42, 0.62, rip) * 0.22;
+        // пена у берега: полоса + бегущие волны прибоя, рваный край
+        float wave = sin((d * 26.0) - time * 2.2 + n2(vPos.xz * 1.3) * 4.0) * 0.5 + 0.5;
+        float foamBand = (1.0 - smoothstep(0.02, 0.14, d)) + (1.0 - smoothstep(0.08, 0.28, d)) * smoothstep(0.7, 0.95, wave) * 0.85;
+        foamBand *= 0.6 + 0.6 * n2(vPos.xz * 4.0 + time * 0.3);
+        col = mix(col, vec3(0.96, 0.98, 0.97), clamp(foamBand, 0.0, 1.0));
+        float a = mix(0.55, 0.88, smoothstep(0.0, 0.5, d));
+        a = max(a, clamp(foamBand, 0.0, 1.0) * 0.95);
+        gl_FragColor = vec4(col, a);
+      }`,
+  }) : new THREE.MeshLambertMaterial({ color: 0x35c6d6, transparent: true, opacity: 0.38, depthWrite: false });
+  const water = new THREE.Mesh(
+    new THREE.PlaneGeometry(groundW, groundH).rotateX(-Math.PI / 2)
+      .translate(groundX0 + groundW / 2, WATER_LEVEL, groundZ0 + groundH / 2),
+    waterMat,
+  );
+  water.renderOrder = 0;
+  group.add(water);
+
+  // ── Мосты: всё — от клеток ──
+  // Мостовые клетки рядом друг с другом — один мост. Ось — прямая между двумя клетками
+  // суши по обе стороны (соседи мостовых клеток); длина — от клетки до клетки суши;
+  // ширина — ровно ширина гекса поперёк оси, чтобы края моста совпадали с краями клеток.
+  const bridges = new THREE.Group();
+  const deckMat = new THREE.MeshLambertMaterial({ map: plankTexture() });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b4223 });
+  const groups = [];
+  for (const c of bridgeCells) {
+    const g = groups.find(gr => gr.some(o => (o.neighbors ?? []).includes(c.id) || Math.hypot(o.x - c.x, o.z - c.z) < 1.9));
+    if (g) g.push(c); else groups.push([c]);
+  }
+  // Ширина гекса (радиус 1, плоский верх) поперёк направления (dx, dz).
+  const hexWidthAcross = (dx, dz) => {
+    const nx = -dz, nz = dx;
+    let m = 0;
+    for (let i = 0; i < 6; i += 1) m = Math.max(m, Math.abs(Math.cos(i * Math.PI / 3) * nx + Math.sin(i * Math.PI / 3) * nz));
+    return 2 * m;
+  };
+  for (const g of groups) {
+    const ids = new Set(g.map(c => c.id));
+    const land = [...new Set(g.flatMap(c => c.neighbors ?? []))]
+      .filter(id => !ids.has(id)).map(id => cellById.get(id)).filter(Boolean);
+    let a = null, b = null, far = -1;
+    for (const p of land) for (const q of land) {
+      const d = Math.hypot(p.x - q.x, p.z - q.z);
+      if (d > far) { far = d; a = p; b = q; }
+    }
+    if (!a) { a = g[0]; b = g[g.length - 1]; far = Math.hypot(a.x - b.x, a.z - b.z) || 1.7; }
+    const dx = (b.x - a.x) / far, dz = (b.z - a.z) / far;
+    const axis = Math.atan2(dx, dz);
+    // Ширина — по всем полосам дорожки: к мостовым клеткам добавляем клетки соседнего ряда
+    // (рядом поперёк оси, в пределах пролёта) и берём крайние вершины их гексов.
+    const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+    const nx = -dz, nz = dx;
+    const lanes = cells.filter(c => {
+      const along = (c.x - mx) * dx + (c.z - mz) * dz, perp = (c.x - mx) * nx + (c.z - mz) * nz;
+      return ids.has(c.id) || (Math.abs(along) < 1.0 && Math.abs(perp) > 0.9 && Math.abs(perp) < 2.1);
+    });
+    let pMin = Infinity, pMax = -Infinity;
+    for (const c of lanes) for (let i = 0; i < 6; i += 1) {
+      const p = (c.x + Math.cos(i * Math.PI / 3) - mx) * nx + (c.z + Math.sin(i * Math.PI / 3) - mz) * nz;
+      pMin = Math.min(pMin, p); pMax = Math.max(pMax, p);
+    }
+    const BRIDGE_WIDTH = Number.isFinite(pMin) ? pMax - pMin : hexWidthAcross(dx, dz);
+    const sideShift = Number.isFinite(pMin) ? (pMax + pMin) / 2 : 0;
+    // от центра клетки суши до центра другой клетки суши (+ заход), как нарисованный мост
+    const len = far + 0.6;
+    const cx = mx + nx * sideShift, cz = mz + nz * sideShift, mid = 0;
+    const piece = new THREE.Group();
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(BRIDGE_WIDTH, 0.16, len), deckMat);
+    deck.position.y = -0.07;
+    piece.add(deck);
+    const half = BRIDGE_WIDTH / 2;
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, len - 0.3), woodMat);
+      rail.position.set(side * (half - 0.06), 0.45, 0);
+      piece.add(rail);
+      for (const end of [-1, 1]) {
+        // столбики с навершием по углам, как в концепте
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.75, 0.22), woodMat);
+        post.position.set(side * (half - 0.06), 0.22, end * (len / 2 - 0.15));
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), woodMat);
+        cap.position.set(side * (half - 0.06), 0.66, end * (len / 2 - 0.15));
+        piece.add(post, cap);
+      }
+      for (let t = -len / 2 + 0.9; t < len / 2 - 0.8; t += 1.1) {
+        const pile = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.1, 0.14), woodMat);
+        pile.position.set(side * (half - 0.25), -0.65, t);
+        piece.add(pile);
+      }
+    }
+    piece.position.set(cx + dx * mid, 0, cz + dz * mid);
+    piece.rotation.y = axis;
+    piece.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    bridges.add(piece);
+  }
+  group.add(bridges);
+
+  // ── Ёлки и скалы ──
+  const r = rng(20261019);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  const color = new THREE.Color();
+
+  // ── Домики: пристыкованы к своей клетке с «пустой» стороны, входом к клетке ──
+  // Сторона — одна из 6 граней гекса, за которой нет соседней клетки, воды и скал;
+  // из подходящих — самая дальняя от остальных клеток.
+  // Точка внутри гекса (радиус 1, плоский верх) — проверка соседних клеток.
+  const inHex = (px, pz, c) => {
+    const x = Math.abs(px - c.x), z = Math.abs(pz - c.z), h = Math.sqrt(3) / 2;
+    return z <= h && h * x + 0.5 * z <= h;
+  };
+  // Задевает ли прямоугольник (центр, ось d «клетка → постройка», полуразмеры) хоть одну клетку.
+  const hitsCells = (x, z, dx, dz, hw, hd) => {
+    const near = cells.filter(c => Math.hypot(c.x - x, c.z - z) < hw + hd + 1.2);
+    for (let a = -1; a <= 1.0001; a += 0.25) for (let b = -1; b <= 1.0001; b += 0.25) {
+      const px = x + dx * a * hd - dz * b * hw, pz = z + dz * a * hd + dx * b * hw;
+      if (near.some(c => inHex(px, pz, c))) return true;
+    }
+    return false;
+  };
+  const houses = new THREE.Group();
+  const houseSpots = [];
+  const footprints = [];
+  const glades = [];
+  for (const c of cells) {
+    const cls = c.marker?.class;
+    const isGate = c.pointClass === 'dwarf_entry';
+    const make = isGate ? () => dwarfGate(3.0)
+      : HOUSE_ROOF[cls] ? () => houseMesh(cls) : cls === 'fairy_glade' ? phoenixNest : cls === 'blueprints' ? smithStone : null;
+    if (!make) continue;
+    let best = null;
+    const isSmall = cls === 'fairy_glade' || cls === 'blueprints';
+    const halfW = isSmall ? 0.9 : HOUSE_W / 2, halfD = isSmall ? 0.9 : HOUSE_D / 2;
+    for (let i = 0; i < 6; i += 1) {
+      const ang = Math.PI / 6 + i * Math.PI / 3;           // направления на грани гекса (плоский верх)
+      const dx = Math.cos(ang), dz = Math.sin(ang);
+      // Отодвигаем от грани, пока прямоугольник постройки не перестанет задевать клетки.
+      let off = Math.sqrt(3) / 2 + (isGate ? 0.35 : halfD + 0.05);
+      if (!isGate) {
+        while (off < 4.5 && hitsCells(c.x + dx * off, c.z + dz * off, dx, dz, halfW + 0.05, halfD + 0.05)) off += 0.1;
+        if (off >= 4.5) continue;
+      }
+      const hx = c.x + dx * off, hz = c.z + dz * off;
+      const free = nearest(hx, hz);                         // до ближайшего центра клетки
+      const m = sample(hx, hz);
+      // ворота стоят в проходе обрыва: для них земля может быть и выше (стена рядом)
+      const ok = m.water < 0.3 && (isGate || Math.abs(heightAt(hx, hz)) < 0.2);
+      let score = (ok ? 10 : 0) - off;                      // ближе к своей клетке — лучше
+      if (isGate) {
+        // ворота — конец дорожки и стоят на её продолжении. Линию дороги берём по клеткам
+        // в 2–4 шагах от входа (ближайшие соседи — это и боковые клетки второй полосы).
+        const depth = new Map([[c.id, 0]]);
+        let front = [c.id];
+        for (let d = 1; d <= 4; d += 1) {
+          const next = [];
+          for (const id of front) for (const n of cellById.get(id)?.neighbors ?? []) if (!depth.has(n)) { depth.set(n, d); next.push(n); }
+          front = next;
+        }
+        const road = [...depth].filter(([, d]) => d >= 2).map(([id]) => cellById.get(id)).filter(Boolean);
+        const ax = road.reduce((a, o) => a + (c.x - o.x), 0), az = road.reduce((a, o) => a + (c.z - o.z), 0);
+        const al = Math.hypot(ax, az) || 1;
+        score = (dx * ax + dz * az) / al;              // грань, лучше всего продолжающая дорогу
+      }
+      if (!best || score > best.score) best = { score, hx, hz, dx, dz };
+    }
+    if (!best) continue;
+    let h = make();
+    if (isGate) {
+      // Дорога к воротам в несколько полос: берём клетку входа и клетки соседнего ряда рядом
+      // с ней поперёк дороги; ворота перекрывают все полосы и стоят за передней гранью.
+      const { dx, dz } = best, nx = -dz, nz = dx;
+      const lanes = cells.filter(o => {
+        const along = (o.x - c.x) * dx + (o.z - c.z) * dz, perp = (o.x - c.x) * nx + (o.z - c.z) * nz;
+        return o === c || (Math.abs(along) < 1.0 && Math.abs(perp) > 0.9 && Math.abs(perp) < 2.1 && (c.neighbors ?? []).includes(o.id));
+      });
+      let pMin = Infinity, pMax = -Infinity, front = -Infinity;
+      for (const o of lanes) for (let i = 0; i < 6; i += 1) {
+        const vx = o.x + Math.cos(i * Math.PI / 3) - c.x, vz = o.z + Math.sin(i * Math.PI / 3) - c.z;
+        const p = vx * nx + vz * nz, a = vx * dx + vz * dz;
+        pMin = Math.min(pMin, p); pMax = Math.max(pMax, p); front = Math.max(front, a);
+      }
+      // башни (1.3) стоят за краями дороги — проём на всю ширину полос
+      h = dwarfGate(pMax - pMin + 1.5);
+      const shift = (pMax + pMin) / 2, along = front + 0.3;
+      best.hx = c.x + dx * along + nx * shift;
+      best.hz = c.z + dz * along + nz * shift;
+      h.userData.lanes = lanes.map(o => o.id);
+    }
+    h.position.set(best.hx, 0, best.hz);
+    h.rotation.y = Math.atan2(-best.dx, -best.dz);         // +z дома (дверь) смотрит на клетку
+    h.userData.cell = c.id;
+    houses.add(h);
+    houseSpots.push([best.hx, best.hz]);
+    if (isGate) { h.userData.isGate = true; houseSpots.push([best.hx + best.dx * 1.2, best.hz + best.dz * 1.2]); }
+    // След постройки (прямоугольник) — под ним и вокруг земля ровная, скалы не залезают.
+    const isNest = cls === 'fairy_glade' || cls === 'blueprints';
+    footprints.push({
+      x: best.hx, z: best.hz, dx: best.dx, dz: best.dz,
+      hw: isGate ? h.children.find(m => m.geometry?.parameters?.height === 0.4).geometry.parameters.width / 2 : isNest ? 0.9 : HOUSE_W / 2,
+      hdFront: isGate ? 0.6 : isNest ? 0.9 : HOUSE_D / 2,
+      hdBack: isGate ? 2.0 : isNest ? 0.9 : HOUSE_D / 2,   // за воротами — проход в обрыве
+    });
+    if (cls === 'fairy_glade') glades.push({ x: c.x, z: c.z });
+  }
+  const nearHouse = (x, z, r) => houseSpots.some(([hx, hz]) => Math.hypot(hx - x, hz - z) < r);
+  // Расстояние до ближайшего следа постройки (0 — внутри).
+  const footprintDist = (x, z) => {
+    let best = Infinity;
+    for (const f of footprints) {
+      const a = (x - f.x) * f.dx + (z - f.z) * f.dz;           // вдоль оси «клетка → постройка»
+      const b = (x - f.x) * -f.dz + (z - f.z) * f.dx;
+      const da = a > 0 ? Math.max(0, a - f.hdBack) : Math.max(0, -a - f.hdFront);
+      const db = Math.max(0, Math.abs(b) - f.hw);
+      best = Math.min(best, Math.hypot(da, db));
+    }
+    return best;
+  };
+  // Скалы и обрывы у построек срезаются до уровня земли (плавно, на 1.5 вокруг следа).
+  const flatAt = (x, z) => THREE.MathUtils.smoothstep(footprintDist(x, z), 0.4, 1.9);
+  {
+    const pos = groundGeo.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      const y = pos.getY(i);
+      if (y > 0) pos.setY(i, y * flatAt(pos.getX(i), pos.getZ(i)));
+    }
+    pos.needsUpdate = true;
+    groundGeo.computeVertexNormals();
+  }
+  // Смоделированные террасные скалы: старый бугор из карты высот под ними убираем.
+  const toWorldXZ = (px, py) => [groundX0 + (px / 4096) * groundW, groundZ0 + (py / 3072) * groundH];
+  const rocksJson = rocksUrl ? await (await fetch(rocksUrl)).json() : { rocks: [], stones: [] };
+  // какие скалы моделировать: по точке на карте (пиксели арта) — номера скал меняются при пересборке
+  const rockData = modeledRocks === 'all' ? rocksJson.rocks : modeledRocks.map(([mx, my]) => rocksJson.rocks.reduce((b, rk) =>
+    (!b || (rk.x - mx) ** 2 + (rk.y - my) ** 2 < (b.x - mx) ** 2 + (b.y - my) ** 2 ? rk : b), null)).filter(Boolean);
+  const rockPolys = rockData.map(rk => {
+    const pts = rk.levels[0].pts.map(([px, py]) => toWorldXZ(px, py));
+    const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
+    pts.box = [Math.min(...xs) - 0.6, Math.max(...xs) + 0.6, Math.min(...zs) - 0.6, Math.max(...zs) + 0.6];
+    return pts;
+  });
+  const inPoly = (x, z, poly) => {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, zi] = poly[i], [xj, zj] = poly[j];
+      if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const underRock = (x, z) => rockPolys.some(poly => x > poly.box[0] && x < poly.box[1] && z > poly.box[2] && z < poly.box[3] && inPoly(x, z, poly));
+  if (rockPolys.length) {
+    const pos = groundGeo.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      // в контуре и на полклетки вокруг — земля ровная (скала сама даёт высоту)
+      if (pos.getY(i) > 0 && (underRock(x, z) || [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].some(([dx, dz]) => underRock(x + dx, z + dz)))) pos.setY(i, 0);
+    }
+    pos.needsUpdate = true;
+    groundGeo.computeVertexNormals();
+  }
+  const groundY = (x, z) => { const y = heightAt(x, z); return y > 0 ? (underRock(x, z) ? 0 : y * flatAt(x, z)) : y; };
+
+  // ── Модули обрыва вдоль стен хребта: где карта высот круто обрывается ──
+  const cliffs = new THREE.Group();
+  if (cliffKitUrl) {
+    const kit = await loadCliffKit(cliffKitUrl);
+    const [sideTex, grassTex] = await Promise.all([loadTex(cliffTexUrl ?? rockSideUrl), loadTex(rockTopUrl ?? grassUrl)]);   // верх уступов — камень с мхом
+    const cmat = cliffMaterial(sideTex, grassTex);
+    const cands = [];
+    const D = 0.4;
+    for (let z = groundZ0; z < groundZ0 + groundH; z += 0.5) {
+      for (let x = groundX0; x < groundX0 + groundW; x += 0.5) {
+        if (heightAt(x, z) < 0.3 && heightAt(x, z - 1) < 0.3) continue;
+        const gx = (heightAt(x + D, z) - heightAt(x - D, z)) / (2 * D), gz = (heightAt(x, z + D) - heightAt(x, z - D)) / (2 * D);
+        const mag = Math.hypot(gx, gz);
+        if (mag > 1.8) cands.push([x + (r() - 0.5) * 0.4, z + (r() - 0.5) * 0.4, gx / mag, gz / mag]);
+      }
+    }
+    // перемешать и оставить точки не ближе 3.2 единицы (модули 4.5–6 — с перекрытием, хребет одной массой)
+    for (let i = cands.length - 1; i > 0; i -= 1) { const j = Math.floor(r() * (i + 1)); [cands[i], cands[j]] = [cands[j], cands[i]]; }
+    const kept = [];
+    for (const c of cands) if (!kept.some(k => Math.hypot(k[0] - c[0], k[1] - c[1]) < 3.2)) kept.push(c);
+    // вода рядом (река на плато, водопад, заводь) — модули не ставим, чтобы не закрыть водопад
+    const nearWater = (x, z) => [[0, 0], [2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]]
+      .some(([ox, oz]) => sample(x + ox, z + oz).water > 0.3);
+    const lists = CLIFF_NAMES.map(() => []);
+    for (const [x, z, gx, gz] of kept) {
+      const dx = -gx, dz = -gz;                                      // наружу, вниз по склону
+      const top = Math.max(heightAt(x - dx * 0.8, z - dz * 0.8), heightAt(x - dx * 1.2, z - dz * 1.2));
+      const bottom = heightAt(x + dx * 1.0, z + dz * 1.0);
+      const H = top - bottom;
+      if (H < 0.8) continue;
+      if (nearWater(x, z) || nearHouse(x, z, 4) || nearest(x, z) < 1.4) continue;
+      const roll = r();
+      const type = roll < 0.72 ? Math.floor(r() * 3) : roll < 0.82 ? 4 : roll < 0.92 ? 5 : 3;
+      const len = 4.5 + r() * 1.5;
+      lists[type].push([x + dx * 0.25, Math.max(bottom, -0.3) - 0.4, z + dz * 0.25, len, (H + 0.45) * (0.98 + r() * 0.06), Math.atan2(dx, dz) + (r() - 0.5) * 0.35]);
+    }
+    kit.forEach((geo, i) => {
+      if (!geo || !lists[i].length) return;
+      const mesh = new THREE.InstancedMesh(geo, cmat, lists[i].length);
+      lists[i].forEach(([x, y, z, len, h, ry], k) => {
+        q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.08, ry, (r() - 0.5) * 0.08));
+        m4.compose(p.set(x, y, z), q, s.set(len, h, Math.min(len, 4.2) * (0.9 + r() * 0.2)));
+        mesh.setMatrixAt(k, m4);
+      });
+      mesh.castShadow = mesh.receiveShadow = true;
+      cliffs.add(mesh);
+    });
+    group.add(cliffs);
+  }
+
+  // Зоны биомов — клетки-колоды. Граница зоны «волнистая» (шум к расстоянию).
+  const zones = cells.filter(c => DECK_BIOME[c.deck] || c.marker?.class === 'fairy_glade')
+    .map(c => ({ x: c.x, z: c.z, biome: DECK_BIOME[c.deck] ?? 'fairy' }));
+  const biomeAt = (x, z) => {
+    const warp = (valueNoise2(x * 0.18, z * 0.18) - 0.5) * 4;
+    let best = null, bd = Infinity;
+    for (const zn of zones) {
+      const d = Math.hypot(zn.x - x, zn.z - z) * (zn.biome === 'fairy' ? 1.25 : 1) + warp;
+      if (d < bd) { bd = d; best = zn; }
+    }
+    return best && bd < 10 ? best.biome : 'forest';
+  };
+  // Деревья и мелочь не должны стоять внутри твёрдого: в скале (с запасом), у стены уступа
+  // (крутой склон рядом) — иначе любая отрисовка покажет дерево, растущее сквозь камень.
+  const RING08 = [[0.8, 0], [-0.8, 0], [0, 0.8], [0, -0.8], [0.57, 0.57], [-0.57, 0.57], [0.57, -0.57], [-0.57, -0.57]];
+  const blocked = (x, z) => {
+    if (underRock(x, z) || RING08.some(([dx, dz]) => underRock(x + dx, z + dz))) return true;
+    const y = groundY(x, z);
+    return RING08.some(([dx, dz]) => Math.abs(groundY(x + dx * 1.4, z + dz * 1.4) - y) > 0.45);
+  };
+  const treeSpots = [];
+  for (let z = groundZ0; z < groundZ0 + groundH; z += TREE_STEP) {
+    for (let x = groundX0; x < groundX0 + groundW; x += TREE_STEP) {
+      const jx = x + (r() - 0.5) * TREE_STEP * 0.9, jz = z + (r() - 0.5) * TREE_STEP * 0.9;
+      const m = sample(jx, jz);
+      // уступы и верх хребта: ёлки редкими группами на ровном месте, не у края
+      if (blocked(jx, jz)) continue;
+      const gyRidge = groundY(jx, jz);
+      if (gyRidge > 1.0) {
+        const flat = [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].every(([dx, dz]) => Math.abs(groundY(jx + dx, jz + dz) - gyRidge) < 0.25);
+        if (flat && valueNoise2(jx * 0.25, jz * 0.25) > 0.3 && r() < 0.85) treeSpots.push([jx, jz, 'ridge', false]);
+        continue;
+      }
+      const biome0 = biomeAt(jx, jz);
+      const special = (biome0 === 'lake' && [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([ox, oz]) => sample(jx + ox, jz + oz).water > 0.4))
+        || biome0 === 'fairy';
+      if (!special && m.forest < 0.5) continue;
+      if (m.water > 0.3 || m.rock > 0.45) continue;
+      const dCell = nearest(jx, jz);
+      if (dCell < CELL_CLEAR) continue;
+      if (nearHouse(jx, jz, 3.1)) continue;         // дом входит в биом: вокруг него поляна
+      if (groundY(jx, jz) < -0.05) continue;     // не на воде (кувшинки в озере зелёные)
+      const biome = biome0;
+      // ритм плотности: рощи и поляны (крупный шум), на лугу деревья редкие
+      const grove = valueNoise2(jx * 0.13 + 7.1, jz * 0.13 + 3.7);
+      if (grove < 0.2 && r() > 0.2) continue;
+      if (biome === 'meadow' && r() > 0.22) continue;
+      const edge = dCell < CELL_CLEAR + 0.9;            // опушка у тропы: кусты и молодые деревца
+      treeSpots.push([jx, jz, biome, edge]);
+    }
+  }
+  mark('treeSpots');
+  // Виды деревьев по биомам; на опушках — кусты и молодые деревца; редкие старые деревья-ориентиры.
+  const kit = treeKitUrl ? await loadKitGeos(treeKitUrl).catch(() => null) : null;
+  const byName = {};
+  const nearWaterT = (x, z) => [[1.8, 0], [-1.8, 0], [0, 1.8], [0, -1.8]].some(([ox, oz]) => sample(x + ox, z + oz).water > 0.4);
+  for (const [x, z, biome, edge] of treeSpots) {
+    let name;
+    if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
+    else if (biome === 'lake') name = nearWaterT(x, z) ? 'tree_willow' : pickWeighted(BIOME_MIX.forest, r);
+    else name = pickWeighted(BIOME_MIX[biome] ?? BIOME_MIX.forest, r);
+    (byName[name] ??= []).push([x, z, edge && name !== 'tree_bush' ? 0.65 : r() < 0.03 ? 1.45 : 1]);
+  }
+  const trees = new THREE.Group();
+  const billboards = [];
+  const sprites = treeSpritesUrl ? await (async () => {
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + '.png'), (await fetch(treeSpritesUrl + '.json')).json()]);
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    return { tex, frames: meta.frames };
+  })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
+  // Готовые деревья Quaternius «Stylized Nature MegaKit» (CC0), models/megakit/*.gltf.
+  // Вид поля -> [модель, варианты, оттенок листвы (instanceColor), текстура листвы]. Остальные виды — наши.
+  const KIT_SPECIES = {
+    tree_spruce: ['Pine', [1, 2, 3, 4, 5]],
+    tree_spruce_dark: ['Pine', [1, 2, 3, 4, 5], [0.62, 0.7, 0.72]],
+    tree_pine: ['Pine', [3, 5], [1.05, 1.05, 0.9]],
+    tree_birch: ['CommonTree', [3, 4, 5], [1.18, 1.18, 1.0]],
+    tree_autumn_orange: ['CommonTree', [1, 2, 3, 4, 5], null, 'Leaves_NormalTree_Orange'],
+    tree_autumn_yellow: ['CommonTree', [1, 2, 3, 4, 5], null, 'Leaves_NormalTree_Yellow'],
+    tree_autumn_red: ['TwistedTree', [1, 2, 3, 4, 5], [0.85, 0.8, 0.8]],
+    tree_dead: ['DeadTree', [1, 2, 3, 4, 5]],
+    tree_willow: ['CommonTree', [1, 2, 5], [1.1, 1.12, 0.85]],      // ивы пока нет (готовой не нашли, наша не подходит)
+    tree_bush: ['Bush_Common', [0], null, 'Leaves_TwistedTree_Green'],     // в наборе куст красный
+  };
+  // рисованные Codex текстуры (tools/board3d_kit_paint.py): хвоя по родному силуэту лапы, кора с мхом
+  const KIT_PAINTED = { Leaves_Pine: 'Leaf_Pine_Painted', Bark_NormalTree: 'Bark_NormalTree_Painted' };
+  // упрощённые модели (tools/blender/kit_decimate.py): только геометрия и имена материалов,
+  // текстуры подставляются по имени материала
+  const KIT_TEX = {
+    Bark_NormalTree: ['Bark_NormalTree', 'Bark_NormalTree_Normal'], Bark_DeadTree: ['Bark_DeadTree', 'Bark_DeadTree_Normal'],
+    Bark_TwistedTree: ['Bark_TwistedTree', 'Bark_TwistedTree_Normal'],
+    Leaves_Pine: ['Leaf_Pine_C'], Leaves_NormalTree: ['Leaves_NormalTree_C'], Leaves_TwistedTree: ['Leaves_TwistedTree_C'],
+    Leaves_PineCards: ['Leaf_Pine_Painted'],     // гибридная ель (tools/blender/kit_hybrid_spruce.py)
+  };
+  const kitTexCache = {};
+  const kitTex = (file, srgb = true) => {
+    if (kitTexCache[file]) return kitTexCache[file];
+    const t = new THREE.TextureLoader().load(`${kitTreesUrl}${file}.webp?v=9`);
+    t.flipY = false; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return (kitTexCache[file] = t);
+  };
+  if (kitTreesUrl) {
+    const loader = new GLTFLoader();
+    const models = {};       // 'Pine_3' -> [{ geo, mat }] (геометрия приведена к высоте 1, основание в 0)
+    const needed = new Set();
+    for (const [name, [model, vars]] of Object.entries(KIT_SPECIES)) if (byName[name]) for (const v of vars) needed.add(v ? `${model}_${v}` : model);
+    await Promise.all([...needed].map(async id => {
+      const g = await loader.loadAsync(kitLodUrl ? `${kitLodUrl}${id}.glb?v=25` : `${kitTreesUrl}${id}.gltf`).catch(e => { console.warn('kit tree', id, e); return null; });
+      if (!g) return;
+      g.scene.updateMatrixWorld(true);
+      const parts = [];
+      g.scene.traverse(o => { if (o.isMesh) parts.push({ geo: o.geometry.clone().applyMatrix4(o.matrixWorld), mat: o.material }); });
+      const box = new THREE.Box3();
+      for (const pt of parts) { pt.geo.computeBoundingBox(); box.union(pt.geo.boundingBox); }
+      const k = 1 / (box.max.y - box.min.y), cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2;
+      for (const pt of parts) pt.geo.translate(-cx, -box.min.y, -cz).scale(k, k, k);
+      models[id] = parts;
+    }));
+    // материалы: Ламберт (дешевле Standard), листва — альфа-срез + A2C + ветер, нормаль не переворачивается
+    const kitMats = new Map();
+    const kitMat = (src, leafVar) => {
+      const key = src.name + '/' + (leafVar ?? '');
+      if (kitMats.has(key)) return kitMats.get(key);
+      const leaf = src.name.startsWith('Leaves');
+      // своя текстура (перекраска листвы, рисованные хвоя/кора) или родная по имени материала
+      const file = leaf && leafVar ? leafVar : KIT_PAINTED[src.name] ?? KIT_TEX[src.name]?.[0];
+      const map = file ? kitTex(file) : src.map;
+      const normalFile = KIT_TEX[src.name]?.[1];
+      const m = new THREE.MeshLambertMaterial({
+        map, normalMap: leaf ? null : normalFile ? kitTex(normalFile, false) : src.normalMap, side: leaf ? THREE.DoubleSide : THREE.FrontSide,
+        alphaTest: leaf ? 0.5 : 0, alphaToCoverage: leaf,
+        vertexColors: src.name === 'Leaves_PineCards',          // запечённая глубина кроны гибридной ели
+      });
+      const out = leaf ? addWind(m, 0.03, src.name === 'Leaves_PineCards' ? 1.6 : 1) : m;
+      kitMats.set(key, out);
+      return out;
+    };
+    const groups = new Map();        // модель/материал -> { geo, mat, list: [[matrix, color]] }
+    const kitAll = [];
+    for (const [name, [model, vars, tint, leafVar]] of Object.entries(KIT_SPECIES)) {
+      const spots = byName[name];
+      if (!spots) continue;
+      const [h0, h1] = TREE_H[name] ?? [PINE_MIN, PINE_MAX];
+      for (const [x, z, mul] of spots) {
+        const v = vars[Math.floor(r() * vars.length)];
+        const id = v ? `${model}_${v}` : model;
+        const parts = models[id];
+        if (!parts) continue;
+        const h = (h0 + r() * (h1 - h0)) * mul * 1.1;
+        // у ели карточки развёрнуты к камере (kit_hybrid_spruce.py) — поворот только ±23°, иначе встанут ребром
+        q.setFromAxisAngle(up, model === 'Pine' ? (r() - 0.5) * 0.8 : r() * Math.PI * 2);
+        const m = m4.compose(p.set(x, groundY(x, z) - 0.05, z), q, s.set(h * (0.92 + r() * 0.16), h, h * (0.92 + r() * 0.16))).clone();
+        const t = (0.86 + r() * 0.28) * (biomeAt(x, z) === 'dark' ? 0.82 : 1);
+        // у каждого дерева свой тон: от тёмного сине-зелёного до светлого жёлто-зелёного
+        const warm = r() - 0.5, lt = 0.62 + r() * 0.62;
+        const jit = [lt * (1 + warm * 0.9), lt * (1 + warm * 0.25), lt * (1 - warm * 1.1)];
+        for (const pt of parts) {
+          const leaf = pt.mat.name.startsWith('Leaves');
+          const c = leaf ? (tint ?? [1, 1, 1]).map((v, k) => v * jit[k]) : [1, 1, 1];
+          const key = id + '/' + pt.mat.name + '/' + (leaf ? leafVar ?? '' : '');
+          if (!groups.has(key)) groups.set(key, { geo: pt.geo, mat: kitMat(pt.mat, leaf ? leafVar : null), list: [] });
+          groups.get(key).list.push([m, [t * c[0] * (0.96 + r() * 0.08), t * c[1] * (0.95 + r() * 0.1), t * c[2]]]);
+        }
+        kitAll.push({ x, y: groundY(x, z), z, h });
+      }
+      delete byName[name];
+    }
+    for (const g of groups.values()) {
+      const mesh = new THREE.InstancedMesh(g.geo, g.mat, g.list.length);
+      g.list.forEach(([m, c], i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, color.setRGB(...c)); });
+      mesh.castShadow = true;
+      trees.add(mesh);
+    }
+    addBlobs(kitAll);
+    T.kitTrees = kitAll.length;
+    T.kitDraws = groups.size;
+  }
+  // «Гиблиевские» деревья всех видов (tools/blender/ghibli_trees.py): ствол + крона из листовых
+  // карточек с альфа-срезом и alpha-to-coverage — непрозрачные, пишут глубину, сортировка не нужна.
+  const treesGltf = treesUrl ? await new GLTFLoader().loadAsync(treesUrl).catch(e => { console.warn('trees', e); return null; }) : null;
+  if (treesGltf) {
+    const leafTex = await loadTex(leafAtlasUrl);
+    leafTex.wrapS = leafTex.wrapT = THREE.ClampToEdgeWrapping;
+    // UV в Blender заданы «v от верха картинки»; экспорт glTF переворачивает v, flipY=true возвращает обратно
+    leafTex.anisotropy = 4;
+    const part = name => treesGltf.scene.getObjectByName(name)?.geometry;
+    const trunkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    const leafMats = {};
+    const leafMat = (wind, glow) => leafMats[wind + '/' + glow] ??= addWind(new THREE.MeshLambertMaterial({
+      map: leafTex, vertexColors: true, side: THREE.DoubleSide, alphaTest: 0.5, alphaToCoverage: true,
+      ...(glow ? { emissive: 0xffffff, emissiveMap: leafTex, emissiveIntensity: glow } : {}),
+    }), wind);
+    // вид -> [объект ствола, объект кроны, сила ветра, свечение, оттенок]
+    const SPECIES = {
+      tree_spruce: ['spruce_trunk', 'spruce_leaves', 0.02],
+      tree_spruce_dark: ['spruce_dark_trunk', 'spruce_dark_leaves', 0.02],
+      tree_pine: ['pine_trunk', 'pine_leaves', 0.025],
+      tree_birch: ['birch_trunk', 'birch_leaves', 0.04],
+      tree_willow: ['willow_trunk', 'willow_leaves', 0.05],
+      tree_bush: [null, 'bush_leaves', 0.015],
+      tree_dead: ['dead_trunk', null, 0],
+      tree_autumn_orange: ['oak_orange_trunk', 'oak_orange_leaves', 0.035],
+      tree_autumn_red: ['oak_orange_trunk', 'oak_orange_leaves', 0.035, 0, [1.0, 0.78, 0.74]],
+      tree_autumn_yellow: ['oak_yellow_trunk', 'oak_yellow_leaves', 0.035],
+      tree_fairy_pink: ['fairy_trunk', 'fairy_leaves_pink', 0.03, 0.35],
+      tree_fairy_violet: ['fairy_trunk', 'fairy_leaves_violet', 0.03, 0.35],
+      tree_fairy_teal: ['fairy_trunk', 'fairy_leaves_teal', 0.03, 0.35],
+      tree_fairy_gold: ['fairy_trunk', 'fairy_leaves_gold', 0.03, 0.35],
+    };
+    const all = [];
+    for (const [name, spots] of Object.entries(byName)) {
+      const sp = SPECIES[name];
+      if (!sp) continue;
+      const [h0, h1] = TREE_H[name] ?? [PINE_MIN, PINE_MAX];
+      for (const [x, z, mul] of spots) {
+        // разброс тона у каждого дерева; в тёмном лесу — темнее
+        const t = (0.84 + r() * 0.3) * (biomeAt(x, z) === 'dark' ? 0.8 : 1);
+        const tint = sp[4] ?? [1, 1, 1];
+        all.push({ name, x, y: groundY(x, z), z, h: (h0 + r() * (h1 - h0)) * mul * 1.1,
+          tone: [t * tint[0] * (0.96 + r() * 0.08), t * tint[1] * (0.95 + r() * 0.1), t * tint[2] * (0.9 + r() * 0.12)] });
+      }
+      delete byName[name];
+    }
+    // густота рощи: в гуще темнее, на опушке светлее
+    const cellOf = new Map(), key = (x, z) => `${Math.floor(x / 2)},${Math.floor(z / 2)}`;
+    for (const t of all) { const k = key(t.x, t.z); if (!cellOf.has(k)) cellOf.set(k, []); cellOf.get(k).push(t); }
+    for (const t of all) {
+      let n = 0;
+      const cx = Math.floor(t.x / 2), cz = Math.floor(t.z / 2);
+      for (let i = -1; i <= 1; i += 1) for (let j = -1; j <= 1; j += 1)
+        for (const o of cellOf.get(`${cx + i},${cz + j}`) ?? []) if (o !== t && Math.hypot(o.x - t.x, o.z - t.z) < 2.2) n += 1;
+      const k = 1.08 - Math.min(n, 8) * 0.04;
+      t.tone = t.tone.map(v => v * k);
+      q.setFromAxisAngle(up, (r() - 0.5) * 0.8);          // карточки развёрнуты к камере — поворачиваем чуть-чуть
+      t.m = m4.compose(p.set(t.x, t.y - 0.05, t.z), q, s.set(t.h * (0.93 + r() * 0.14), t.h, t.h * (0.93 + r() * 0.14))).clone();
+    }
+    // меши по объектам: один InstancedMesh на объект glb (стволы сказочных общие на 4 цвета)
+    const groups = {};
+    for (const t of all) {
+      const [trunk, leaves, wind, glow] = SPECIES[t.name];
+      if (trunk) (groups['T:' + trunk] ??= { geo: trunk, mat: trunkMat, list: [] }).list.push(t);
+      if (leaves) (groups['L:' + leaves] ??= { geo: leaves, mat: leafMat(wind, glow ?? 0), list: [] }).list.push(t);
+    }
+    for (const g of Object.values(groups)) {
+      const geo = part(g.geo);
+      if (!geo) { console.warn('нет объекта дерева', g.geo); continue; }
+      const mesh = new THREE.InstancedMesh(geo, g.mat, g.list.length);
+      g.list.forEach((t, i) => { mesh.setMatrixAt(i, t.m); mesh.setColorAt(i, color.setRGB(...t.tone)); });
+      mesh.castShadow = true;
+      mesh.userData.species = g.geo;
+      trees.add(mesh);
+    }
+    addBlobs(all);
+    T.treeCount = all.length;
+  }
+  if (sprites && !treesGltf) {
+    const list = [];
+    for (const [name, spots] of Object.entries(byName)) {
+      const [h0, h1] = TREE_H[name] ?? [PINE_MIN, PINE_MAX];
+      for (const [x, z, mul] of spots) {
+        // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
+        const darkB = biomeAt(x, z) === 'dark';
+        const tone = [(r() - 0.5) * 0.05 + (darkB ? 0.03 : 0), 0.82 + r() * 0.3, (0.82 + r() * 0.3) * (darkB ? 0.78 : 1)];
+        list.push({ x, y: groundY(x, z), z, h: (h0 + r() * (h1 - h0)) * mul * 1.1, group: SPRITE_GROUP[name] ?? 'spruce', pick: Math.floor(r() * 99), tint: tone });
+      }
+    }
+    // дальние — сначала: альфа-срез и так корректен по глубине, но так меньше перерисовки
+    // густота рощи: сколько деревьев рядом — в гуще темнее, на опушке светлее
+    const cellOf = new Map(), key = (x, z) => `${Math.floor(x / 2)},${Math.floor(z / 2)}`;
+    for (const t of list) { const k = key(t.x, t.z); if (!cellOf.has(k)) cellOf.set(k, []); cellOf.get(k).push(t); }
+    for (const t of list) {
+      let n = 0;
+      const cx = Math.floor(t.x / 2), cz = Math.floor(t.z / 2);
+      for (let i = -1; i <= 1; i += 1) for (let j = -1; j <= 1; j += 1)
+        for (const o of cellOf.get(`${cx + i},${cz + j}`) ?? []) if (o !== t && Math.hypot(o.x - t.x, o.z - t.z) < 2.2) n += 1;
+      t.shade = 1.08 - Math.min(n, 8) * 0.045;
+    }
+    const bb = billboardTrees(list, sprites.tex, sprites.frames);
+    trees.add(bb);
+    billboards.push(bb);
+    addBlobs(list);
+  }
+  function addBlobs(list) {
+    // тени-пятна под деревьями (на земле, одним вызовом)
+    const blobC = document.createElement('canvas'); blobC.width = blobC.height = 64;
+    const bg2 = blobC.getContext('2d'), grd = bg2.createRadialGradient(32, 32, 3, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(0,0,0,0.5)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    bg2.fillStyle = grd; bg2.fillRect(0, 0, 64, 64);
+    const blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(blobC), transparent: true, depthWrite: false }), list.length);
+    list.forEach((t, i) => {
+      const d = t.h * 0.55;
+      m4.compose(p.set(t.x + 0.25, t.y + 0.03, t.z + 0.15), q.identity(), s.set(d, 1, d * 0.8));
+      blobs.setMatrixAt(i, m4);
+    });
+    blobs.renderOrder = 1;
+    trees.add(blobs);
+  }
+  const treeMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const fairyMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x2a1238 });
+  for (const [name, list] of Object.entries(sprites || treesGltf ? {} : byName)) {
+    const geo = kit?.[name] ?? pineGeometry();
+    const mesh = new THREE.InstancedMesh(geo, name.startsWith('tree_fairy') ? fairyMat : treeMat, list.length);
+    const [h0, h1] = TREE_H[name] ?? [PINE_MIN, PINE_MAX];
+    list.forEach(([x, z, mul], i) => {
+      const k = (h0 + r() * (h1 - h0)) * mul;
+      q.setFromAxisAngle(up, r() * Math.PI * 2);
+      m4.compose(p.set(x, groundY(x, z), z), q, s.set(k * (0.9 + r() * 0.2), k, k * (0.9 + r() * 0.2)));
+      mesh.setMatrixAt(i, m4);
+      const t = 0.88 + r() * 0.24;
+      mesh.setColorAt(i, color.setRGB(t * (0.95 + r() * 0.1), t, t * (0.92 + r() * 0.12)));
+    });
+    mesh.castShadow = true;
+    mesh.userData.species = name;
+    trees.add(mesh);
+  }
+  const fairy = new THREE.Group();     // сказочные деревья теперь в общем наборе
+
+  // ── Мелочь биома (этап 5): папоротник, грибы, пни, брёвна, цветы, камыш, кувшинки, ограды, овцы ──
+  const props = new THREE.Group();
+  const propKit = propKitUrl ? await loadKitGeos(propKitUrl).catch(() => null) : null;
+  const propCounts = {};
+  if (propKit) {
+    const items = {};                       // имя -> [[x, y, z, scale, rotY]]
+    const add = (name, x, y, z, k, ry = r() * Math.PI * 2) => (items[name] ??= []).push([x, y, z, k, ry]);
+    const STEP = 0.6;
+    for (let z = groundZ0; z < groundZ0 + groundH; z += STEP) {
+      for (let x = groundX0; x < groundX0 + groundW; x += STEP) {
+        const jx = x + (r() - 0.5) * STEP, jz = z + (r() - 0.5) * STEP;
+        const dC = nearest(jx, jz);
+        if (dC < 1.05 || nearHouse(jx, jz, 2.2)) continue;
+        if (blocked(jx, jz)) continue;
+        const gy = groundY(jx, jz);
+        if (gy > 1.0) continue;                                    // хребет — отдельная история
+        const m = sample(jx, jz), biome = biomeAt(jx, jz);
+        const waterNear = [[0.8, 0], [-0.8, 0], [0, 0.8], [0, -0.8]].some(([ox, oz]) => sample(jx + ox, jz + oz).water > 0.5);
+        if (m.water > 0.5) {
+          // кувшинки — у берегов озера
+          if (biome === 'lake' && [[1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]].some(([ox, oz]) => sample(jx + ox, jz + oz).water < 0.3) && r() < 0.35)
+            add('prop_lily', jx, WATER_LEVEL + 0.01, jz, 1 + r() * 0.6);
+          continue;
+        }
+        if (waterNear && gy > -0.25) { if (r() < 0.32) add('prop_reeds', jx, gy, jz, 1 + r() * 0.5); continue; }
+        if (m.forest > 0.5) {
+          if (biome === 'dark') {
+            if (r() < 0.07) add('prop_mush_glow', jx, gy, jz, 1.2 + r() * 0.6);
+            else if (r() < 0.14) add('prop_fern', jx, gy, jz, 1.1 + r() * 0.6);
+          } else if (r() < 0.13) add('prop_fern', jx, gy, jz, 1 + r() * 0.7);
+          else if (r() < 0.035) add('prop_mush_red', jx, gy, jz, 1 + r() * 0.6);
+          else if (r() < 0.02) add('prop_stump', jx, gy, jz, 0.9 + r() * 0.4);
+          else if (r() < 0.016) add('prop_log', jx, gy + 0.02, jz, 0.8 + r() * 0.4);
+        } else if (dC < 2.2) {
+          // опушка у тропы
+          if (r() < 0.06) add('prop_fern', jx, gy, jz, 0.9 + r() * 0.5);
+          else if (r() < 0.02) add('prop_stump', jx, gy, jz, 0.9 + r() * 0.3);
+        }
+        if (biome === 'meadow' && m.forest < 0.5 && r() < 0.28) add('prop_flowers', jx, gy, jz, 1 + r() * 0.5);
+        else if (m.forest < 0.4 && r() < 0.05) add('prop_flowers', jx, gy, jz, 0.9 + r() * 0.4);
+      }
+    }
+    // овцы и ограды — у клеток колоды «овцы»
+    for (const zn of zones.filter(zz => zz.biome === 'meadow')) {
+      let sheepN = 0;
+      for (let k = 0; k < 60 && sheepN < 3; k += 1) {
+        const a = r() * Math.PI * 2, d = 1.6 + r() * 2;
+        const x = zn.x + Math.cos(a) * d, z = zn.z + Math.sin(a) * d;
+        if (nearest(x, z) < 1.1 || nearHouse(x, z, 2) || sample(x, z).water > 0.2 || sample(x, z).forest > 0.6 || Math.abs(groundY(x, z)) > 0.3) continue;
+        add('prop_sheep', x, groundY(x, z), z, 0.9 + r() * 0.2); sheepN += 1;
+      }
+      let fenceN = 0;
+      for (let k = 0; k < 40 && fenceN < 2; k += 1) {
+        const a = r() * Math.PI * 2, d = 2.4 + r() * 0.8;
+        const x = zn.x + Math.cos(a) * d, z = zn.z + Math.sin(a) * d;
+        if (nearest(x, z) < 1.4 || nearHouse(x, z, 2) || sample(x, z).water > 0.2 || Math.abs(groundY(x, z)) > 0.3) continue;
+        add('prop_fence', x, groundY(x, z), z, 1, -a);    // вдоль окружности вокруг клетки
+        fenceN += 1;
+      }
+    }
+    const propMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide });
+    const glowMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x6a3cff, emissiveIntensity: 0.6 });
+    for (const [name, list] of Object.entries(items)) {
+      if (!propKit[name]) continue;
+      const mesh = new THREE.InstancedMesh(propKit[name], name === 'prop_mush_glow' ? glowMat : propMat, list.length);
+      list.forEach(([x, y, z, k, ry], i) => {
+        q.setFromAxisAngle(up, ry);
+        m4.compose(p.set(x, y, z), q, s.set(k, k, k));
+        mesh.setMatrixAt(i, m4);
+      });
+      mesh.castShadow = name === 'prop_sheep' || name === 'prop_fence' || name === 'prop_log';
+      props.add(mesh);
+      propCounts[name] = list.length;
+    }
+    group.add(props);
+  }
+
+  // ── Шпили (этап 4): мало и точечно — вертикальный ритм как в цели-арте ──
+  const spires = new THREE.Group();
+  const spireKit = spireKitUrl ? await loadKitGeos(spireKitUrl).catch(() => null) : null;
+  if (spireKit) {
+    const freeAt = (x, z, rr) => nearest(x, z) > rr && !nearHouse(x, z, 3) && sample(x, z).water < 0.2 && Math.abs(groundY(x, z)) < 0.4;
+    const findSpot = (cx, cz, r0, r1, pred = () => true) => {
+      for (let k = 0; k < 400; k += 1) {
+        const a = r() * Math.PI * 2, d = r0 + r() * (r1 - r0);
+        const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d;
+        if (freeAt(x, z, 1.6) && pred(x, z)) return [x, z];
+      }
+      return null;
+    };
+    const place = []; // [name, x, z, height, color?]
+    // 1) тёмные шпили у тёмного леса (2–3), со стороны хребта
+    const darkZone = zones.find(zn => zn.biome === 'dark');
+    if (darkZone) for (let i = 0; i < 3; i += 1) {
+      const sp = findSpot(darkZone.x, darkZone.z, 2.5, 6, (x, z) => groundY(x, z - 3) > 1 || r() < 0.3);
+      if (sp) place.push(['spire_dark', ...sp, i === 0 ? 5.2 : 3.2 + r() * 1.2]);
+    }
+    // 2) группа каменных шпилей у подножия хребта слева
+    let foot = null;
+    for (let k = 0; k < 2000 && !foot; k += 1) {
+      const x = groundX0 + 6 + r() * (groundW * 0.4), z = groundZ0 + 8 + r() * 14;
+      if (freeAt(x, z, 2) && groundY(x, z - 2.5) > 1.5) foot = [x, z];
+    }
+    if (foot) for (let i = 0; i < 3; i += 1) {
+      const sp = i ? findSpot(foot[0], foot[1], 0.9, 1.8) : foot;
+      if (sp) place.push([i % 2 ? 'spire_stone_b' : 'spire_stone', ...sp, i === 0 ? 4.6 : 2.6 + r() * 1.2]);
+    }
+    // 3) одиночный «палец» в лесу слева от центра — дальше всего от клеток
+    let finger = null, fd = 0;
+    for (let k = 0; k < 1500; k += 1) {
+      const x = -22 + r() * 16, z = -2 + r() * 14;
+      const d = nearest(x, z);
+      if (d > fd && freeAt(x, z, 2) && sample(x, z).forest > 0.5) { fd = d; finger = [x, z]; }
+    }
+    if (finger) place.push(['spire_stone', ...finger, 4.2]);
+    // 4) кристаллы на сказочной поляне (3)
+    const glade = zones.find(zn => zn.biome === 'fairy');
+    const CRYSTAL = [0xff7ad0, 0xa47bff, 0x5fe8d8];
+    if (glade) for (let i = 0; i < 3; i += 1) {
+      const sp = findSpot(glade.x, glade.z, 2.0, 3.5);
+      if (sp) place.push(['crystal_cluster', ...sp, 1.0 + r() * 0.5, CRYSTAL[i]]);
+    }
+    const byS = {};
+    for (const it of place) (byS[it[0]] ??= []).push(it);
+    const spireMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    const crystalMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x3a2050, transparent: true, opacity: 0.92 });
+    for (const [name, list] of Object.entries(byS)) {
+      const mesh = new THREE.InstancedMesh(spireKit[name], name === 'crystal_cluster' ? crystalMat : spireMat, list.length);
+      list.forEach(([, x, z, h, col], i) => {
+        q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.12, r() * Math.PI * 2, (r() - 0.5) * 0.12));
+        const w = name === 'crystal_cluster' ? h : h * 0.32;
+        m4.compose(p.set(x, groundY(x, z) - 0.15, z), q, s.set(w, h, w));
+        mesh.setMatrixAt(i, m4);
+        mesh.setColorAt(i, col ? color.setHex(col) : color.setRGB(1, 1, 1));
+      });
+      mesh.castShadow = true;
+      spires.add(mesh);
+    }
+    group.add(spires);
+    // деревья, попавшие в шпили, убираем
+    const tmpM2 = new THREE.Matrix4(), tmpP2 = new THREE.Vector3(), zero2 = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (const mesh of trees.children) {
+      for (let i = 0; i < mesh.count; i += 1) {
+        mesh.getMatrixAt(i, tmpM2); tmpP2.setFromMatrixPosition(tmpM2);
+        if (place.some(([, x, z]) => Math.hypot(tmpP2.x - x, tmpP2.z - z) < 1.2)) mesh.setMatrixAt(i, zero2);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  // Россыпь валунов у подножия скал и обрывов (сами скалы — поднятая земля, см. heightAt).
+  const rockGeos = [rockGeometry(1), rockGeometry(2), rockGeometry(3)];
+  const rockSpots = [[], [], []];
+  const ROCK_STEP = 0.7;
+  for (let z = groundZ0; z < groundZ0 + groundH; z += ROCK_STEP) {
+    for (let x = groundX0; x < groundX0 + groundW; x += ROCK_STEP) {
+      const jx = x + (r() - 0.5) * ROCK_STEP * 0.9, jz = z + (r() - 0.5) * ROCK_STEP * 0.9;
+      const m = sample(jx, jz);
+      if (m.rock < 0.2 || m.rock > 0.45 || r() > 0.55) continue;      // только кромка скального пятна
+      if (nearest(jx, jz) < CELL_CLEAR) continue;
+      if (nearHouse(jx, jz, 1.9)) continue;
+      const size = 0.22 + r() * 0.3;
+      const gy = groundY(jx, jz);
+      if (gy > 0.3 || gy < -0.5) continue;      // россыпь только у подножия, не на скале и не в глубокой воде
+      if (underRock(jx, jz)) continue;
+      rockSpots[0].push([jx, gy, jz, size * 2]);
+    }
+  }
+  mark('rockSpots');
+  // старые камни-многогранники убраны: россыпь ставится камнями из набора Blender (ниже)
+  const rocks = new THREE.Group();
+
+  const gate = houses.children.find(h => h.userData.isGate) ?? null;
+  const terraces = new THREE.Group();
+  let monolithMat = null;
+  {
+    const geos = STONE_KIT.map((kit, i) => kitGeos?.[i] ?? stoneBlockGeometry(kit));
+    const lists = STONE_KIT.map(() => []);
+    if (rockStyle === 'monolith') {
+      const mat = rockMaterial(rockTopTex, rockSideTex);
+      monolithMat = mat;
+      // все скалы — одной сеткой: один вызов отрисовки
+      const parts = [];
+      rockData.forEach((rk, i) => rockMonolith(rk, toWorldXZ, 900 + i, mat).children.forEach(m => parts.push(m.geometry)));
+      if (parts.length) {
+        const merged = new THREE.Mesh(mergeGeometries(parts.map(g => (g.index ? g.toNonIndexed() : g))), mat);
+        merged.castShadow = merged.receiveShadow = true;
+        terraces.add(merged);
+      }
+    } else {
+      rockData.forEach((rk, i) => terraceStones(rk, toWorldXZ, 900 + i).forEach(st => lists[st[8]].push(st)));
+    }
+    // отдельные камни: свои у каждой скалы и все мелкие пятна плана
+    const allStones = modeledRocks === 'all' ? rocksJson.stones : rockData.flatMap(rk => {
+      const [cx, cz] = toWorldXZ(rk.x, rk.y);
+      return rocksJson.stones.filter(st => { const [x, z] = toWorldXZ(st.x, st.y); return Math.hypot(x - cx, z - cz) < 7; });
+    });
+    for (const st of [...rockData.flatMap(rk => rk.stones ?? []), ...allStones]) {
+      const [sx, sz] = toWorldXZ(st.x, st.y);
+      if (nearest(sx, sz) < 1.25 || nearHouse(sx, sz, 1.6)) continue;     // не на клетках и не у домов
+      const one = looseStone(st, toWorldXZ, groundY, r); lists[one[8]].push(one);
+    }
+    // россыпь у подножия скал (кромка скальных пятен маски) — камешки и мелкие валуны
+    for (const [x, gy, z, d] of rockSpots[0]) {
+      const kit = d < 0.7 ? 5 : 3, ks = STONE_KIT[kit].size, h = d * 0.6;
+      lists[kit].push([x, gy + h * 0.3, z, d / ks[0], h / ks[1], d * 0.9 / ks[2], r() * 6.28, 0.75 + r() * 0.15, kit]);
+    }
+    // отдельные камни — тем же рисованным материалом, что и скала (единый стиль)
+    const stoneMat = monolithMat ?? new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    geos.forEach((geo, gi) => {
+      const list = lists[gi];
+      const mesh = new THREE.InstancedMesh(geo, stoneMat, Math.max(1, list.length));
+      mesh.count = list.length;
+      list.forEach(([x, y, z, sx, sy, sz, ry, shade], i) => {
+        q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.12, ry, (r() - 0.5) * 0.12));
+        m4.compose(p.set(x, y, z), q, s.set(sx, sy, sz));
+        mesh.setMatrixAt(i, m4);
+        mesh.setColorAt(i, color.setRGB(shade, shade * 0.98, shade * 0.95));
+      });
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      terraces.add(mesh);
+    });
+  }
+  group.add(trees, fairy, rocks, houses, terraces);
+
+  // ── Река на плато и водопад (данные — data/plan.json → waterfall) ──
+  const animated = [];
+  const plan = planUrl ? await (await fetch(planUrl)).json() : null;
+  const wf = plan?.waterfall;
+  if (wf) {
+    const toW = (px, py, y = 0) => new THREE.Vector3(groundX0 + (px / 4096) * groundW, y, groundZ0 + (py / 3072) * groundH);
+    if (upperRiverUrl) {
+      const alpha = await new THREE.TextureLoader().loadAsync(upperRiverUrl);
+      const upper = new THREE.Mesh(
+        new THREE.PlaneGeometry(groundW, groundH).rotateX(-Math.PI / 2).translate(groundX0 + groundW / 2, wf.topH + 0.12, groundZ0 + groundH / 2),
+        new THREE.MeshLambertMaterial({ color: 0x35c6d6, transparent: true, opacity: 0.6, alphaMap: alpha, depthWrite: false }),
+      );
+      group.add(upper);
+    }
+    const fall = waterfallMesh(toW(wf.lipX[0], wf.lipY), toW(wf.lipX[1], wf.lipY),
+      toW((wf.poolX[0] + wf.poolX[1]) / 2, wf.poolY), wf.topH + 0.12, WATER_LEVEL);
+    const poolCenter = fall.geometry.attributes.position;
+    const last = poolCenter.count - 1;
+    const foam = foamRing(new THREE.Vector3((poolCenter.getX(last) + poolCenter.getX(last - 1)) / 2, WATER_LEVEL + 0.02,
+      (poolCenter.getZ(last) + poolCenter.getZ(last - 1)) / 2), 1.6);
+    group.add(fall, foam);
+    animated.push(fall.material, foam.material);
+    // туман и брызги у подножия водопада: мягкие белые частицы поднимаются и тают
+    const mistTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    const N = 140;
+    const mp = new Float32Array(N * 3), seeds = new Float32Array(N);
+    for (let i = 0; i < N; i += 1) seeds[i] = Math.random();
+    const mistGeo = new THREE.BufferGeometry();
+    mistGeo.setAttribute('position', new THREE.BufferAttribute(mp, 3));
+    mistGeo.setAttribute('seed', new THREE.BufferAttribute(seeds, 1));
+    const fc = foam.position;
+    const mistMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: { time: { value: 0 }, tex: { value: mistTex }, base: { value: fc.clone() } },
+      vertexShader: `uniform float time; uniform vec3 base; attribute float seed; varying float vA;
+        void main(){
+          float t = fract(time * (0.18 + seed * 0.12) + seed);
+          float ang = seed * 40.0;
+          vec3 p = base + vec3(cos(ang) * (0.4 + t * 1.6), t * (1.2 + seed * 1.8), sin(ang) * (0.3 + t * 1.2));
+          vA = sin(t * 3.14159) * (0.7 + 0.3 * seed);
+          vec4 mv = viewMatrix * vec4(p, 1.0);
+          gl_PointSize = (700.0 + 900.0 * t) / -mv.z;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `uniform sampler2D tex; varying float vA;
+        void main(){ vec4 c = texture2D(tex, gl_PointCoord); gl_FragColor = vec4(c.rgb, c.a * vA); }`,
+    });
+    // у заводи водопада деревья не растут — чтобы водопад и туман не закрывались
+    const tmpM = new THREE.Matrix4(), tmpP = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (const mesh of trees.children) {
+      for (let i = 0; i < mesh.count; i += 1) {
+        mesh.getMatrixAt(i, tmpM);
+        tmpP.setFromMatrixPosition(tmpM);
+        if (Math.hypot(tmpP.x - fc.x, tmpP.z - fc.z) < 3.4) mesh.setMatrixAt(i, zero);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    const mist = new THREE.Points(mistGeo, mistMat);
+    mist.frustumCulled = false;
+    mist.renderOrder = 3;
+    group.add(mist);
+    animated.push(mistMat);
+  }
+  if (waterDist) animated.push(waterMat);
+  const update = (dt, camera) => {
+    windUniform.value += dt;
+    for (const m of animated) m.uniforms.time.value += dt;
+    if (camera) for (const bb of billboards) bb.userData.resort(camera);
+  };
+  return {
+    group, trees, fairy, rocks, bridges, bridgeIds, heightAt: groundY, gate, houses, update, terraces, cliffs,
+    blobShadowTexture,
+    stats: { timings: T, props: propCounts, trees: treeSpots.length, species: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, v.length])), rocks: rockSpots.reduce((a, l) => a + l.length, 0), bridges: bridgeIds.size },
+  };
+}

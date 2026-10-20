@@ -1,0 +1,106 @@
+:root {
+  --bg: #1b1712;
+  --panel: rgba(24, 19, 14, .82);
+  --text: #f1e6d2;
+  --muted: #b9a888;
+  --accent: #e0a64b;
+  --border: rgba(224, 166, 75, .35);
+}
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.35 system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#stage, #stage canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  background: var(--bg);
+  z-index: 5;
+}
+#loading[hidden] { display: none; }
+#stats, #hint, #toolbar {
+  position: fixed;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  z-index: 2;
+}
+#stats {
+  top: 12px;
+  left: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#stats b { color: var(--accent); font-size: 18px; }
+#hint {
+  top: 12px;
+  right: 12px;
+  max-width: 300px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+#hint span { display: block; margin-top: 4px; }
+.touch { display: none !important; }
+@media (pointer: coarse) {
+  .desk { display: none !important; }
+  .touch { display: block !important; }
+}
+#toolbar {
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+}
+#toolbar button {
+  min-width: 42px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #2c241b;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+#toolbar button[aria-pressed="true"] {
+  background: #5a3f1c;
+  border-color: var(--accent);
+}
+@media (max-width: 600px) {
+  #hint { left: 12px; right: 12px; top: auto; bottom: 68px; max-width: none; }
+  #toolbar {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    max-width: none;
+  }
+  #toolbar button { flex: none; padding: 0 8px; font-size: 13px; }
+}

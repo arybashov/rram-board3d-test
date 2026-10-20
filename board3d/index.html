@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>RRaM — прототип 3D-поля</title>
+  <link rel="stylesheet" href="./board3d.css?v=5">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div id="loading">Загрузка поля…</div>
+
+  <div id="stats" aria-live="off">
+    <div><b id="fps">—</b> FPS</div>
+    <div>вызовов отрисовки: <span id="calls">—</span></div>
+    <div>треугольников: <span id="tris">—</span></div>
+    <div>загрузка: <span id="loadtime">—</span></div>
+  </div>
+
+  <div id="hint">
+    Нажмите на фигурку, затем на подсвеченную клетку.
+    <span class="desk">Левая кнопка — тянуть карту, правая — наклон, колесо — зум к курсору.</span>
+    <span class="touch">Один палец — тянуть карту. Два пальца: развести — зум, вместе вверх-вниз — наклон.</span>
+  </div>
+
+  <div id="toolbar">
+            <button data-act="reset" title="Вся карта">⌂</button>
+    <button data-act="bridge">К мосту</button>
+    <button data-act="forest" aria-pressed="true">Ёлки</button>
+    <button data-act="shadows" aria-pressed="false">Тени</button>
+    <button data-act="sprites" aria-pressed="false">2D-фигурки</button>
+    <button data-act="quality">Чёткость: 1.5</button>
+    <button data-act="bench">Тест FPS</button>
+  </div>
+
+  <script type="module" src="./board3d.js?v=148"></script>
+</body>
+</html>
