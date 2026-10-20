@@ -613,20 +613,22 @@ async function loadKitGeos(url) {
 const DECK_BIOME = { forest: 'forest', dark_forest: 'dark', forest_trail: 'birch', mixed: 'autumn', lake: 'lake', sheep: 'meadow', fairy_glade: 'fairy' };
 // Состав видов по биомам: [имя модели, вес]. Высоты видов — в TREE_H.
 const BIOME_MIX = {
-  forest: [['tree_spruce', 9], ['tree_pine', 2.5], ['tree_birch', 0.6], ['tree_autumn_yellow', 0.25], ['tree_autumn_orange', 0.3]],
-  dark: [['tree_spruce_dark', 6], ['tree_dead', 3], ['tree_spruce', 1]],
+  forest: [['tree_spruce', 9], ['tree_pine', 2.5], ['tree_birch', 0.6], ['tree_oak_green', 0.6], ['tree_autumn_yellow', 0.25], ['tree_autumn_orange', 0.3]],
+  dark: [['tree_spruce_dark', 3], ['tree_dead', 2.5], ['tree_snag', 5.5], ['tree_spruce', 0.5]],   // коряги — только тёмный лес, их больше, елей меньше
   birch: [['tree_birch', 6], ['tree_pine', 2], ['tree_spruce', 2]],
   autumn: [['tree_autumn_orange', 2], ['tree_autumn_red', 1.5], ['tree_autumn_yellow', 2], ['tree_spruce', 2], ['tree_birch', 1]],
-  lake: [['tree_willow', 3], ['tree_birch', 3], ['tree_spruce', 2]],
-  meadow: [['tree_autumn_yellow', 1], ['tree_birch', 2], ['tree_spruce', 2]],
-  fairy: [['tree_fairy_pink', 1], ['tree_fairy_violet', 1], ['tree_fairy_teal', 1], ['tree_fairy_gold', 1]],
+  lake: [['tree_willow', 5], ['tree_birch', 3], ['tree_oak_green', 1.5], ['tree_spruce', 1.5]],
+  meadow: [['tree_autumn_yellow', 1], ['tree_birch', 2], ['tree_oak_green', 2], ['tree_spruce', 2]],
+  fairy: [['tree_fairy_pink', 1], ['tree_fairy_violet', 1], ['tree_fairy_teal', 1], ['tree_fairy_gold', 1],
+    ['tree_fairy_mushroom', 1], ['tree_fairy_crystal', 0.8], ['tree_fairy_willow', 0.8], ['tree_fairy_lantern', 0.8]],
   ridge: [['tree_spruce', 6], ['tree_pine', 3], ['tree_birch', 0.4]],
 };
 const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
   tree_autumn_orange: [2.4, 3.2], tree_autumn_red: [2.4, 3.2], tree_autumn_yellow: [2.4, 3.2],
-  tree_willow: [2.4, 3.0], tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0],
+  tree_willow: [2.4, 3.0], tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0], tree_snag: [0.75, 1.1], tree_oak_green: [2.6, 3.4],
   tree_fairy_pink: [3.6, 5.0], tree_fairy_violet: [3.6, 5.0], tree_fairy_teal: [3.6, 5.0], tree_fairy_gold: [3.6, 5.0],
+  tree_fairy_mushroom: [2.2, 3.2], tree_fairy_crystal: [3.0, 4.2], tree_fairy_willow: [3.0, 4.0], tree_fairy_lantern: [3.2, 4.4],
 };
 // Деревья-картинки (камера только спереди): рисованные Codex спрайты на плоскостях,
 // повёрнутых к камере вокруг вертикали. Атлас: data/tree-sprites.png + .json
@@ -635,10 +637,39 @@ const TREE_H = {
 const SPRITE_GROUP = {
   tree_spruce: 'spruce', tree_spruce_dark: 'dark', tree_pine: 'pine', tree_birch: 'birch',
   tree_autumn_orange: 'autumn_orange', tree_autumn_red: 'autumn_red', tree_autumn_yellow: 'autumn_yellow',
-  tree_willow: 'willow', tree_dead: 'dead', tree_bush: 'bush',
+  tree_willow: 'willow', tree_dead: 'dead', tree_bush: 'bush', tree_snag: 'snag', tree_oak_green: 'oak_green',
   tree_fairy_pink: 'fairy_pink', tree_fairy_violet: 'fairy_violet', tree_fairy_teal: 'fairy_teal', tree_fairy_gold: 'fairy_gold',
+  tree_fairy_mushroom: 'fairy_mushroom', tree_fairy_crystal: 'fairy_crystal', tree_fairy_willow: 'fairy_willow', tree_fairy_lantern: 'fairy_lantern',
 };
-function billboardTrees(list, atlasTex, frames) {
+// Плоские картинки, лежащие на поверхности (кувшинки): квадрат по XZ, кадр атласа, альфа-срез.
+function flatDecals(list, atlasTex, frames) {
+  const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const mesh = new THREE.InstancedMesh(geo, null, list.length);
+  const rects = new Float32Array(list.length * 4);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+  list.forEach((t, i) => {
+    const f = frames[t.pick % frames.length];
+    const aspect = (f.w * atlasTex.image.width) / (f.h * atlasTex.image.height);
+    m.compose(pos.set(t.x, t.y, t.z), q.setFromAxisAngle(up, t.rot), sc.set(t.size * aspect, 1, t.size));
+    mesh.setMatrixAt(i, m);
+    rects.set([f.x, f.y, f.w, f.h], i * 4);
+  });
+  geo.setAttribute('uvRect', new THREE.InstancedBufferAttribute(rects, 4));
+  mesh.material = new THREE.ShaderMaterial({
+    uniforms: { atlas: { value: atlasTex } },
+    vertexShader: `attribute vec4 uvRect; varying vec2 vUv;
+      void main(){ vUv = vec2(uvRect.x + uv.x * uvRect.z, uvRect.y + uv.y * uvRect.w);
+        gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform sampler2D atlas; varying vec2 vUv;
+      void main(){ vec4 c = texture2D(atlas, vUv); if (c.a < 0.5) discard; gl_FragColor = vec4(c.rgb, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+  mesh.renderOrder = 3;
+  return mesh;
+}
+
+function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   // list: [{x, y, z, h, group, tint}]
   const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
   const mesh = new THREE.InstancedMesh(geo, null, list.length);
@@ -680,7 +711,7 @@ function billboardTrees(list, atlasTex, frames) {
     // Алгоритм художника: деревья рисуются последними, от дальних к ближним (resort ниже),
     // между собой глубину НЕ пишут — ближнее дерево целиком ложится поверх дальнего, не
     // пересекаясь; с остальным миром (скалы, дома, мелочь) проверка глубины остаётся.
-    transparent: true, depthWrite: false, depthTest: true,
+    transparent: !writeDepth, depthWrite: writeDepth, depthTest: true,
     // Плоскость параллельна экрану (векторы «вправо»/«вверх» камеры) — нет наклона из-за
     // перспективы и плоскости соседних деревьев не протыкают друг друга. Глубина всего дерева —
     // глубина его основания: деревья перекрывают друг друга и склоны по месту, где стоят.
@@ -710,7 +741,7 @@ function billboardTrees(list, atlasTex, frames) {
         vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r)); float d = q.x - min(q.w, q.y); float e = 1.0e-10;
         return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x); }
       vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
-      void main(){ vec4 c = texture2D(atlas, vUv); if (c.a < 0.02) discard;
+      void main(){ vec4 c = texture2D(atlas, vUv); if (c.a < ALPHA_CUT) discard;
         vec3 hsv = rgb2hsv(c.rgb);
         hsv.x = fract(hsv.x + vTint.x); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= vTint.z;
         // затенение: низ кроны и ствол темнее (окклюзия), в густой роще всё дерево темнее (vTint.w)
@@ -719,8 +750,11 @@ function billboardTrees(list, atlasTex, frames) {
         #include <colorspace_fragment>
       }`,
   });
+  mesh.material.defines = { ALPHA_CUT: writeDepth ? '0.5' : '0.02' };
   mesh.frustumCulled = false;
-  mesh.renderOrder = 10;                      // последними: после земли, воды, скал, мелочи
+  // деревья — последними; папоротники пишут глубину (по основанию) и рисуются раньше — так деревья
+  // и папоротники перекрывают друг друга правильно, хотя это разные сетки
+  mesh.renderOrder = writeDepth ? 9 : 10;
   return mesh;
 }
 
@@ -947,6 +981,18 @@ ${gtex ? `{
   pth = mix(vec3(dot(pth, vec3(0.3, 0.59, 0.11))), pth, 0.5) * vec3(0.86, 0.76, 0.62);   // утоптанная земля, не оранжевый песок
   pth *= mix(0.9, 1.2, sb.b);                    // середина тропы светлее (протоптана), к краям темнее
   col = mix(col, pth, sa.r);
+  }
+  // поляна (splat-b.a = 1 - поляна): не газон — пятнами трава, вытоптанная земля и мшистый камень
+  float gld = 1.0 - sb.a;
+  if (gld > 0.01) {
+    float n1 = sin(vWorldPos.x * 0.9 + sin(vWorldPos.z * 0.7) * 1.6) * sin(vWorldPos.z * 0.8 - vWorldPos.x * 0.3);
+    float n2 = sin(vWorldPos.x * 0.53 - 1.7 + sin(vWorldPos.z * 0.41) * 2.0) * sin(vWorldPos.z * 0.61 + 0.9);
+    vec3 trod = texture2D(g_path, tuv * 0.9).rgb;
+    trod = mix(vec3(dot(trod, vec3(0.3, 0.59, 0.11))), trod, 0.5) * vec3(0.84, 0.76, 0.62);
+    vec3 stone = texture2D(rockTop, vWorldPos.xz * 0.13).rgb;
+    vec3 gcol = mix(col * vec3(0.9, 0.92, 0.8), trod, smoothstep(-0.1, 0.45, n1) * 0.75);
+    gcol = mix(gcol, stone, smoothstep(0.25, 0.7, n2) * 0.8);
+    col = mix(col, gcol, gld);
   }
   // дно под водой: от песка у берега к глубокой бирюзе
   float depth = clamp(-vWorldPos.y / 0.9, 0.0, 1.0);
@@ -1369,14 +1415,14 @@ ${gtex ? `{
   for (const [x, z, biome, edge] of treeSpots) {
     let name;
     if (edge && biome !== 'fairy' && r() < 0.35) name = 'tree_bush';
-    else if (biome === 'lake') name = nearWaterT(x, z) ? 'tree_willow' : pickWeighted(BIOME_MIX.forest, r);
+    else if (biome === 'lake') name = nearWaterT(x, z) || r() < 0.45 ? 'tree_willow' : pickWeighted(BIOME_MIX.lake, r);   // у озера больше ив
     else name = pickWeighted(BIOME_MIX[biome] ?? BIOME_MIX.forest, r);
     (byName[name] ??= []).push([x, z, edge && name !== 'tree_bush' ? 0.65 : r() < 0.03 ? 1.45 : 1]);
   }
   const trees = new THREE.Group();
   const billboards = [];
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + '.png'), (await fetch(treeSpritesUrl + '.json')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=6' : '.png')), (await fetch(treeSpritesUrl + '.json?v=6')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -1391,6 +1437,7 @@ ${gtex ? `{
     tree_autumn_yellow: ['CommonTree', [1, 2, 3, 4, 5], null, 'Leaves_NormalTree_Yellow'],
     tree_autumn_red: ['TwistedTree', [1, 2, 3, 4, 5], [0.85, 0.8, 0.8]],
     tree_dead: ['DeadTree', [1, 2, 3, 4, 5]],
+    tree_snag: ['DeadTree', [2, 4], [1, 1, 1]], tree_oak_green: ['CommonTree', [1, 2, 5]],
     tree_willow: ['CommonTree', [1, 2, 5], [1.1, 1.12, 0.85]],      // ивы пока нет (готовой не нашли, наша не подходит)
     tree_bush: ['Bush_Common', [0], null, 'Leaves_TwistedTree_Green'],     // в наборе куст красный
   };
@@ -1511,6 +1558,7 @@ ${gtex ? `{
       tree_birch: ['birch_trunk', 'birch_leaves', 0.04],
       tree_willow: ['willow_trunk', 'willow_leaves', 0.05],
       tree_bush: [null, 'bush_leaves', 0.015],
+      tree_snag: ['dead_trunk', null, 0], tree_oak_green: ['oak_trunk', 'oak_leaves', 0.035],
       tree_dead: ['dead_trunk', null, 0],
       tree_autumn_orange: ['oak_orange_trunk', 'oak_orange_leaves', 0.035],
       tree_autumn_red: ['oak_orange_trunk', 'oak_orange_leaves', 0.035, 0, [1.0, 0.78, 0.74]],
@@ -1566,6 +1614,29 @@ ${gtex ? `{
     addBlobs(all);
     T.treeCount = all.length;
   }
+  // Насколько высоким может быть дерево в (x, z), чтобы не закрыть клетки поля за собой.
+  // Камера спереди-сверху (+z к зрителю), наклон ~55° от вертикали: верх дерева высоты h ложится на
+  // экране поверх земли на h·tan(55°) дальше от камеры. Клетка за деревом (меньше z) в этой полосе
+  // и в пределах ширины кроны — закрыта.
+  const CELL_R = (() => {
+    let d = Infinity;
+    for (let i = 0; i < Math.min(cells.length, 60); i += 1) for (const c of cells) {
+      if (c === cells[i]) continue;
+      d = Math.min(d, Math.hypot(c.x - cells[i].x, c.z - cells[i].z));
+    }
+    return d / 2;
+  })();
+  const TAN_V = Math.tan(THREE.MathUtils.degToRad(55));
+  const coverLimit = (x, z, halfW) => {
+    let lim = Infinity;
+    for (const c of cells) {
+      const dz = z - c.z;
+      if (dz <= 0 || Math.abs(c.x - x) > halfW + CELL_R * 0.7) continue;
+      const hMax = (dz - CELL_R * 0.4) / TAN_V;
+      if (hMax < lim) lim = hMax;
+    }
+    return lim;
+  };
   if (sprites && !treesGltf) {
     const list = [];
     for (const [name, spots] of Object.entries(byName)) {
@@ -1574,7 +1645,15 @@ ${gtex ? `{
         // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
         const darkB = biomeAt(x, z) === 'dark';
         const tone = [(r() - 0.5) * 0.05 + (darkB ? 0.03 : 0), 0.82 + r() * 0.3, (0.82 + r() * 0.3) * (darkB ? 0.78 : 1)];
-        list.push({ x, y: groundY(x, z), z, h: (h0 + r() * (h1 - h0)) * mul * 1.1, group: SPRITE_GROUP[name] ?? 'spruce', pick: Math.floor(r() * 99), tint: tone });
+        let h = (h0 + r() * (h1 - h0)) * mul * 1.1, group = SPRITE_GROUP[name] ?? 'spruce';
+        // дерево не закрывает клетки за собой: ниже до допустимой высоты, а если совсем низко — куст
+        const lim = coverLimit(x, z, h * 0.35);
+        if (h > lim) {
+          if (lim >= 1.4) h = lim;
+          else if (lim >= 0.55 && group !== 'snag') { group = 'bush'; h = Math.min(0.95, lim); }
+          else continue;
+        }
+        list.push({ x, y: groundY(x, z), z, h, group, pick: Math.floor(r() * 99), tint: tone });
       }
     }
     // дальние — сначала: альфа-срез и так корректен по глубине, но так меньше перерисовки
@@ -1688,6 +1767,24 @@ ${gtex ? `{
         add('prop_fence', x, groundY(x, z), z, 1, -a);    // вдоль окружности вокруг клетки
         fenceN += 1;
       }
+    }
+    // плоский режим: папоротники — картинками из атласа деревьев (группа fern), как деревья
+    if (sprites && !treesGltf && sprites.frames.some(f => f.group === 'fern') && items.prop_fern) {
+      const ferns = items.prop_fern.map(([x, y, z, k]) => ({ x, y, z, h: 0.55 * k, group: 'fern', pick: Math.floor(r() * 99),
+        tint: [(r() - 0.5) * 0.04, 0.85 + r() * 0.25, 0.8 + r() * 0.3] }));
+      const fb = billboardTrees(ferns, sprites.tex, sprites.frames, { writeDepth: true });
+      props.add(fb);
+      billboards.push(fb);
+      propCounts.fern_sprites = ferns.length;
+      delete items.prop_fern;
+    }
+    // плоский режим: кувшинки — плоские картинки на воде (без толщины), из того же атласа (группа lily)
+    if (sprites && sprites.frames.some(f => f.group === 'lily') && items.prop_lily) {
+      const lilies = flatDecals(items.prop_lily.map(([x, y, z, k, ry]) => ({ x, y, z, size: 0.55 * k, rot: ry, pick: Math.floor(r() * 99) })),
+        sprites.tex, sprites.frames.filter(f => f.group === 'lily'));
+      props.add(lilies);
+      propCounts.lily_decals = items.prop_lily.length;
+      delete items.prop_lily;
     }
     const propMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide });
     const glowMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x6a3cff, emissiveIntensity: 0.6 });
