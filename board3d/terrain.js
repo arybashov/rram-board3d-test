@@ -1320,11 +1320,9 @@ ${gtex ? `{
     return false;
   };
   let wallSeed = 5; const wallRnd = () => (wallSeed = (wallSeed * 16807) % 2147483647) / 2147483647;
-  const wallMat = (() => {                    // грубая кладка (Codex, data/gate/wall-rough.webp)
-    const t = new THREE.TextureLoader().load('./data/gate/wall-rough.webp?v=1');
-    t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    return new THREE.MeshLambertMaterial({ map: t, color: 0xb4b4b8 });
-  })();
+  const wallGeo = await new GLTFLoader().loadAsync('./models/gate-wall.glb?v=1').then(gl => { let g0 = null; gl.scene.traverse(o => { if (o.isMesh && !g0) g0 = o.geometry; }); return g0; }).catch(() => null);
+  const wallCliffMat = cliffMaterial(...await Promise.all([loadTex(cliffTexUrl ?? rockSideUrl), loadTex(rockTopUrl ?? grassUrl)]));
+  wallCliffMat.side = THREE.DoubleSide;                     // слева стена отражена (масштаб −1)
   const houses = new THREE.Group();
   const houseSpots = [];
   const footprints = [];
@@ -1432,30 +1430,16 @@ ${gtex ? `{
       // весь этот выровненный участок, иначе между рамой и скалой остаётся проём
       len = Math.max(len, g.userData.span / 2 + 1.2 - start);
       len += 0.8;                                                           // заходит в скалу
-      // стена дугой заворачивает назад, в гору: цепочка блоков вдоль дуги, каждый следующий повёрнут
-      // сильнее (до ~75°), высота к концу чуть падает, верх неровный — грубая крепостная кладка
-      const SEG = 0.7, n = Math.max(2, Math.ceil(len / SEG)), turn = THREE.MathUtils.degToRad(85);
-      let px = side * start, pz = -cy, ang = 0;
-      for (let i = 0; i < n; i += 1) {
-        const t = (i + 0.5) / n;
-        ang = turn * Math.pow(t, 0.8);                                       // дуга: заворачивает назад сразу от рамы
-        const dx = Math.cos(ang) * side, dz = -Math.sin(ang);               // направление вдоль стены (назад = −Z)
-        const h = H * (1 - 0.18 * t) + (wallRnd() - 0.5) * 0.35;
-        const geo = new THREE.BoxGeometry(SEG + 0.12, h, D * (1 + (wallRnd() - 0.5) * 0.15));
-        const uv = geo.attributes.uv, pos = geo.attributes.position, nrm = geo.attributes.normal;
-        const off = i * SEG;
-        for (let j = 0; j < uv.count; j += 1) {                             // тайл кладки ~1.5 м, непрерывно по длине
-          const q = Math.abs(nrm.getX(j)) > 0.5 ? [pos.getZ(j), pos.getY(j)] : Math.abs(nrm.getY(j)) > 0.5 ? [pos.getX(j) + off, pos.getZ(j)] : [pos.getX(j) + off, pos.getY(j)];
-          uv.setXY(j, q[0] * 0.5, q[1] * 0.5);
-        }
-        const w = new THREE.Mesh(geo, wallMat ?? stoneMat);
-        w.position.set(px + dx * SEG / 2, FLOOR_WALL_Y + h / 2, pz + dz * SEG / 2);
-        w.rotation.y = side * ang;
-        w.castShadow = w.receiveShadow = true;
-        w.name = 'gate_wall';
-        g.add(w);
-        px += dx * SEG; pz += dz * SEG;
-      }
+      // стена — один цельный меш из Blender (tools/blender/dwarf_wall.py): дуга 4 м, заворачивает назад в гору;
+      // справа как есть, слева — зеркально. Материал — как у модулей скал (тот же камень, светлый и грубый)
+      if (!wallGeo) continue;
+      const sc = Math.max(0.8, len / 3.2);                    // хорда дуги ~3.2 м — растягиваем по месту
+      const w = new THREE.Mesh(wallGeo, wallCliffMat);
+      w.scale.set(side * sc * k / 1.0, k, sc * k);
+      w.position.set(side * start, FLOOR_WALL_Y + 0.3 * k, -1.2 * k);
+      w.castShadow = w.receiveShadow = true;
+      w.name = 'gate_wall';
+      g.add(w);
     }
   }
   const nearHouse = (x, z, r) => houseSpots.some(([hx, hz]) => Math.hypot(hx - x, hz - z) < r);
