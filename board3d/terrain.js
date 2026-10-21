@@ -565,7 +565,7 @@ varying vec3 vCNrm;`)
   vec2 uvX = vec2(vCPos.z, vCPos.y) * 0.17, uvZ = vec2(vCPos.x, vCPos.y) * 0.17;
   // трёхплоскостная проекция с весами по нормали: на косых гранях нет растянутых полос
   vec3 tw = pow(abs(n), vec3(4.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
-  vec3 side = (texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z) * 1.6;   // светлее (концепт v6b)
+  vec3 side = (texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z) * 1.85 * vec3(0.95, 0.98, 1.04);   // светлее и холоднее (реф)
   side = mix(vec3(dot(side, vec3(0.3, 0.59, 0.11))), side, 0.6);   // серее
   side *= mix(0.78, 1.08, clamp(vCPos.y / 6.5, 0.0, 1.0));          // низ темнее, верх светлее
   // верх уступа — камень с мхом и лишайником (tex-rocktop), не газон; редкие пятна травы
@@ -579,7 +579,7 @@ varying vec3 vCNrm;`)
   float mn2 = sin(vCPos.x * 1.3 + vCPos.y * 2.1) * sin(vCPos.z * 1.1 - vCPos.y * 1.7);
   float moss = smoothstep(0.15, 0.55, n.y + 0.25 * mn2) * smoothstep(0.35, 0.75, mn * 0.6 + 0.4 * (mn2 * 0.5 + 0.5));
   vec3 mossCol = vec3(0.30, 0.42, 0.16) * (0.85 + 0.3 * mn);
-  side = mix(side, mossCol, moss * (1.0 - g) * 0.35);
+  side = mix(side, mossCol, moss * (1.0 - g) * 0.17);   // реф: мха на вертикалях вдвое меньше
   diffuseColor.rgb *= mix(side, grass, g);
 }`);
   };
@@ -624,7 +624,7 @@ const BIOME_MIX = {
   meadow: [['tree_spruce', 7], ['tree_birch', 2], ['tree_autumn_red', 1.5], ['tree_autumn_orange', 1.5]],
   fairy: [['tree_fairy_pink', 1], ['tree_fairy_violet', 1], ['tree_fairy_teal', 1], ['tree_fairy_gold', 1],
     ['tree_fairy_mushroom', 1], ['tree_fairy_crystal', 0.8], ['tree_fairy_willow', 0.8], ['tree_fairy_lantern', 0.8]],
-  ridge: [['tree_spruce', 9], ['tree_spruce_dark', 3], ['tree_pine', 0.3]],      // реф v6b: хребет — тёмные ели
+  ridge: [['tree_spruce', 7], ['tree_spruce_dark', 3]],      // реф v6b (answer-ridge.md): густые тёмные ели, без тонких сосен
 };
 // доля мест, где дерево остаётся (замеры v6b: деревьев в 1,3–2 раза меньше)
 const BIOME_KEEP = { forest: 0.75, dark: 1, birch: 1, autumn: 1, lake: 0.85, meadow: 1, fairy: 1, ridge: 1 };
@@ -677,6 +677,7 @@ function flatDecals(list, atlasTex, frames) {
 
 // грейд пород под концепт v6b: [сдвиг оттенка, насыщенность ×, яркость ×]
 const SPRITE_GRADE = {   // новые породы (sheet6b-*) уже в цветах рефа — правим только старые
+  spruce: [0.0, 0.8, 0.72], dark: [0.0, 0.75, 0.6],   // реф: ели темнее и глуше
   autumn_red: [0.03, 0.95, 0.85], autumn_orange: [0.015, 1.0, 0.9],
   birch: [0.0, 1.0, 1.0],      // берёзы v3 уже в тоне рефа   // реф: тёплый красно-оранжевый, не малиновый
   pine: [0.02, 0.9, 0.66], oak_green: [0.0, 0.9, 0.7], autumn_yellow: [-0.02, 1.2, 0.95],
@@ -1439,13 +1440,14 @@ ${gtex ? `{
       if (blocked(jx, jz)) continue;
       const gyRidge = groundY(jx, jz);
       if (gyRidge > 1.0) {
-        const flat = [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]].every(([dx, dz]) => Math.abs(groundY(jx + dx, jz + dz) - gyRidge) < 0.35);
+        const flat = [[0.55, 0], [-0.55, 0], [0, 0.55], [0, -0.55]].every(([dx, dz]) => Math.abs(groundY(jx + dx, jz + dz) - gyRidge) < 0.45);   // и узкие средние уступы
         // уступы: лес КУЧНЫМИ рощами (крупный шум, внутри рощи — каждое место), между рощами пусто;
         // кустов на уступах нет. Порода — по биому соседних колод (тёмный лес -> тёмные ели и т. д.)
         const rg = valueNoise2(jx * 0.11 + 2.3, jz * 0.11 + 9.1);
         if (flat && rg > 0.18) {          // хребет густо в елях (реф v6b)          // рощи крупные, между ними — меньше голого камня
           const b = biomeAt(jx, jz);
-          treeSpots.push([jx, jz, b === 'autumn' ? 'autumn' : 'ridge', false]);   // на хребте ели; осень — только справа
+          const uR = (jx - groundX0) / groundW;
+          treeSpots.push([jx, jz, b === 'autumn' || (uR > 0.62 && r() < 0.3) ? 'autumn' : 'ridge', false]);   // на хребте ели; справа (зона C) ~30% осенних
         } else if (r() < 0.16) treeSpots.push([jx, jz, 'ridge_dry', false]);     // между рощами — сухой кустарник
         continue;
       }
@@ -1515,7 +1517,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=14' : '.png')), (await fetch(treeSpritesUrl + '.json?v=14')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=15' : '.png')), (await fetch(treeSpritesUrl + '.json?v=15')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -1738,7 +1740,7 @@ ${gtex ? `{
         // разброс тона у каждого дерева: [сдвиг оттенка, насыщенность, яркость]
         const darkB = biomeAt(x, z) === 'dark';
         const tone = [(r() - 0.5) * 0.018 + (darkB ? 0.03 : 0), 0.95 + r() * 0.15, (0.8 + r() * 0.32) * (darkB ? 0.78 : 1)];   // оттенок почти не сдвигаем — охра уходила в лосось; разнотонность — яркостью   // разнотонность — как было (возврат 20.10)
-        let h = (h0 + r() * (h1 - h0)) * mul * 1.0, group = SPRITE_GROUP[name] ?? 'spruce';   // мельче — как на рефе v6b
+        let h = (h0 + r() * (h1 - h0)) * mul * (groundY(x, z) > 1.0 && r() < 0.25 ? 1.3 : 1.0), group = SPRITE_GROUP[name] ?? 'spruce';   // мельче — как на рефе v6b
         // дерево не закрывает клетки за собой: ниже до допустимой высоты, а если совсем низко — куст
         const lim = coverLimit(x, z, h * 0.35);
         if (h > lim) {
@@ -1755,6 +1757,19 @@ ${gtex ? `{
     };
     addSprites(byName, r);
     addSprites(extraByName, r2);      // добавочные деревья — своим генератором, прежние не сдвигаются
+    // зона B рефа: у домика тёмного леса — 3 выразительных сухих дерева за домом и по бокам
+    {
+      const hc = cells.filter(c => c.deck === 'dark_forest').sort((a, b) => a.z - b.z)[0];   // домик у хребта (верхний)
+      if (hc) {
+        const [d0, d1] = TREE_H.tree_dead;
+        for (const [dx, dz, k] of [[2.0, -1.6, 1.35], [-2.0, -1.2, 0.9], [0.9, -2.4, 1.1]]) {
+          const x = hc.x + dx, z = hc.z + dz;
+          if (nearest(x, z) < 0.7) continue;
+          T.hutDead = (T.hutDead ?? 0) + 1;
+          list.push({ x, y: groundY(x, z), z, h: (d0 + d1) / 2 * k * 1.2, group: 'dead', pick: Math.floor(r() * 99), tint: [0, 0.9, 0.85] });
+        }
+      }
+    }
     // зона E рефа: ивы кольцом по берегу озера (обычная посадка берег отсекает — там перепад высоты)
     {
       const lakeCells = cells.filter(c => c.deck === 'lake');
