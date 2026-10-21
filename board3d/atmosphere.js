@@ -119,14 +119,14 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
     const big = !!post.userData.firePoint;
     const sc = big ? new THREE.Vector3().setFromMatrixScale(post.matrixWorld).x : 1;
     const base = big ? p.y : p.y + 0.78;
-    s.position.set(p.x, base + (big ? 0.35 * sc : -0.03), p.z);
-    s.scale.setScalar(big ? 2.4 * sc : 1.6);
+    s.position.set(p.x, base + (big ? 0.55 * sc : -0.03), p.z);   // свечение над огнём, а не поверх чаши
+    s.scale.setScalar(big ? 1.3 * sc : 1.6);
     s.renderOrder = 22;
     // язычок пламени над чашей (реф: факелы на углах мостов), мерцает
     const f = new THREE.Sprite(flameMat);
     f.position.set(p.x, base, p.z);
     f.center.set(0.5, 0.05);
-    f.userData.w = big ? 0.55 * sc : 0.32; f.userData.h = big ? 0.75 * sc : 0.5;     // огонь чаши: высота ~0.55–0.65 м (инженерка §6)
+    f.userData.w = big ? 0.36 * sc : 0.32; f.userData.h = big ? 0.7 * sc : 0.5;     // огонь чаши: высота ~0.55–0.65 м (инженерка §6)
     f.scale.set(f.userData.w, f.userData.h, 1);
     f.renderOrder = 23;
     f.userData.phase = Math.random() * 6.28;
