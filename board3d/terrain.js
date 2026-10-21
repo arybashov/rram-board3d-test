@@ -1554,10 +1554,14 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=1' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=2' };
   const houseModels = {};
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
-    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    g.scene.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = true; o.receiveShadow = true;
+      if (o.material?.name === 'net') Object.assign(o.material, { alphaTest: 0.5, transparent: false, depthWrite: true, side: THREE.DoubleSide });   // сеть — вырез по альфе
+    });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const HM = { hw: 1.05, hd: 1.40 };   // габарит модели с пропсами и свесом (инженерка: 2.10 × 2.80)
