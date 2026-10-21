@@ -110,7 +110,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   const flames = [];
   const glowMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
   const lights = [];
-  terrain.bridges?.traverse(o => { if (o.isMesh && o.userData.torch) lights.push(o); });
+  for (const g of [terrain.bridges, terrain.houses]) g?.traverse(o => { if (o.isMesh && o.userData.torch) lights.push(o); });
   for (const post of lights) {
     const s = new THREE.Sprite(glowMat);
     post.updateWorldMatrix(true, false);

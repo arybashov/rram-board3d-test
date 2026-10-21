@@ -170,37 +170,68 @@ function blobShadowTexture() {
 
 // Ворота дварфов: две деревянные башни с шатровыми крышами и створки между ними.
 // Стена вдоль локальной оси x, створки смотрят в +z (к своей клетке, как дверь домика).
+// Ворота дварфов (как в игровом ролике): каменный портал в скале — пилоны с рунами, перемычка,
+// утопленные железные двери, ступени, жаровни. Фасадные грани — текстуры из рисунка Codex
+// (outputs/board3d-concept/sprites2/sheet-gate.png → data/gate-*.webp), руны светятся (gate-*-glow).
+const gateTex = {};
+function gateMat(name, repeat) {
+  if (!gateTex[name]) {
+    const l = new THREE.TextureLoader();
+    const map = l.load(`./data/gate-${name}.webp?v=1`); map.colorSpace = THREE.SRGBColorSpace;
+    const glow = l.load(`./data/gate-${name}-glow.webp?v=1`);
+    gateTex[name] = new THREE.MeshLambertMaterial({ map, emissive: 0x6fe8ff, emissiveMap: glow, emissiveIntensity: 1.6 });
+  }
+  return gateTex[name];
+}
 function dwarfGate(span) {
-  const wood = new THREE.MeshLambertMaterial({ color: 0x7a4a26 });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x4f2c15 });
-  const roof = new THREE.MeshLambertMaterial({ color: 0x8a4a22 });
   const gate = new THREE.Group();
+  const stoneTex = new THREE.TextureLoader().load('./data/tex-rockside-v6b.webp?v=1'); stoneTex.colorSpace = THREE.SRGBColorSpace; stoneTex.wrapS = stoneTex.wrapT = THREE.RepeatWrapping; stoneTex.repeat.set(0.6, 0.6);
+  const stone = new THREE.MeshLambertMaterial({ map: stoneTex, color: 0xc8c8c8 });
+  const iron = new THREE.MeshLambertMaterial({ color: 0x2e2c2a });
+  const W = Math.max(3.2, span * 0.9);              // ширина портала
+  const doorW = W * 0.56, doorH = 3.0, pilW = W * 0.13, depth = 0.7;
+  const face = (mat) => [stone, stone, stone, stone, mat, stone];     // +z — лицевая грань (к клетке)
+  // скальный массив не моделируем коробками — за порталом стоит настоящий обрыв хребта
+  // пилоны с рунами
   for (const t of [-1, 1]) {
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(1.3, 4.2, 1.3), wood);
-    tower.position.set(t * span / 2, 2.1, 0);
-    const top = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.2, 4).rotateY(Math.PI / 4), roof);
-    top.position.set(t * span / 2, 4.8, 0);
-    gate.add(tower, top);
+    const pil = new THREE.Mesh(new THREE.BoxGeometry(pilW, doorH + 0.5, depth), face(gateMat('pillar')));
+    pil.position.set(t * (doorW / 2 + pilW / 2), (doorH + 0.5) / 2, 0);
+    gate.add(pil);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(pilW * 1.25, 0.28, depth * 1.15), stone);
+    cap.position.set(t * (doorW / 2 + pilW / 2), doorH + 0.6, 0);
+    gate.add(cap);
   }
-  const doorW = span - 1.3;
+  // перемычка (с камнем-ромбом по центру — на текстуре)
+  const lin = new THREE.Mesh(new THREE.BoxGeometry(doorW + pilW * 2.3, 0.95, depth * 1.05), face(gateMat('lintel')));
+  lin.position.set(0, doorH + 0.95 / 2 + 0.15, 0.02);
+  gate.add(lin);
+  // двери — утоплены в проём; скосы верхних углов — на текстуре
+  const doors = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.2), face(gateMat('doors')));
+  doors.position.set(0, doorH / 2, -depth / 2 + 0.05);
+  gate.add(doors);
+  // откосы проёма
   for (const t of [-1, 1]) {
-    const door = new THREE.Mesh(new THREE.BoxGeometry(doorW / 2 - 0.05, 3.2, 0.3), wood);
-    door.position.set(t * doorW / 4, 1.6, 0);
-    gate.add(door);
-    for (const y of [0.7, 2.4]) {
-      const band = new THREE.Mesh(new THREE.BoxGeometry(doorW / 2 - 0.1, 0.18, 0.36), dark);
-      band.position.set(t * doorW / 4, y, 0);
-      gate.add(band);
-    }
+    const j = new THREE.Mesh(new THREE.BoxGeometry(0.08, doorH, depth * 0.9), iron);
+    j.position.set(t * (doorW / 2 - 0.04), doorH / 2, 0);
+    gate.add(j);
   }
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.4, 0.5), dark);
-  beam.position.set(0, 3.4, 0);
-  gate.add(beam);
-  for (let x = -doorW / 2 + 0.25; x < doorW / 2; x += 0.45) {
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 5), wood);
-    spike.position.set(x, 3.85, 0);
-    gate.add(spike);
+  // ступени к клетке
+  for (let i = 0; i < 3; i += 1) {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(doorW + pilW * 2 - i * 0.25, 0.16, 0.45), i === 0 ? face(gateMat('steps')) : stone);
+    st.position.set(0, 0.08 + (2 - i) * 0.14 - 0.14 * 2 + 0.28 - 0.14 * 0, depth / 2 + 0.2 + i * 0.4);
+    st.position.y = 0.36 - i * 0.14;
+    gate.add(st);
   }
+  // жаровни по бокам ступеней (огонь — atmosphere.js по userData.torch)
+  for (const t of [-1, 1]) {
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.55, 0.42), stone);
+    base.position.set(t * (doorW / 2 + pilW / 2), 0.28, depth / 2 + 0.35);
+    const cage = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.3, 0.36), iron);
+    cage.position.set(t * (doorW / 2 + pilW / 2), 0.7, depth / 2 + 0.35);
+    cage.userData.torch = true;
+    gate.add(base, cage);
+  }
+  gate.userData.span = W;
   gate.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return gate;
 }
@@ -1210,6 +1241,9 @@ ${gtex ? `{
     bridges.add(piece);
   }
   group.add(bridges);
+  // габариты мостов (с запасом) — на мост не ставим ни деревья, ни кусты, ни камыш
+  const bridgeBoxes = bridges.children.map(pc => { pc.updateMatrixWorld(true); return new THREE.Box3().setFromObject(pc).expandByScalar(0.6); });
+  const onBridge = (x, z) => bridgeBoxes.some(b => x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z);
 
   // ── Ёлки и скалы ──
   const r = rng(20261019);
@@ -1312,7 +1346,7 @@ ${gtex ? `{
     const isNest = cls === 'fairy_glade' || cls === 'blueprints';
     footprints.push({
       x: best.hx, z: best.hz, dx: best.dx, dz: best.dz,
-      hw: isGate ? h.children.find(m => m.geometry?.parameters?.height === 0.4).geometry.parameters.width / 2 : isNest ? 0.9 : HOUSE_W / 2,
+      hw: isGate ? h.userData.span / 2 + 1.2 : isNest ? 0.9 : HOUSE_W / 2,
       hdFront: isGate ? 0.6 : isNest ? 0.9 : HOUSE_D / 2,
       hdBack: isGate ? 2.0 : isNest ? 0.9 : HOUSE_D / 2,   // за воротами — проход в обрыве
     });
@@ -1852,6 +1886,7 @@ ${gtex ? `{
         for (const o of cellOf.get(`${cx + i},${cz + j}`) ?? []) if (o !== t && Math.hypot(o.x - t.x, o.z - t.z) < 2.2) n += 1;
       t.shade = 1.08 - Math.min(n, 8) * 0.045;
     }
+    for (let i = list.length - 1; i >= 0; i -= 1) if (onBridge(list[i].x, list[i].z)) list.splice(i, 1);   // ивы, кусты — не на мосту
     const bb = billboardTrees(list, sprites.tex, sprites.frames);
     trees.add(bb);
     billboards.push(bb);
@@ -1938,8 +1973,7 @@ ${gtex ? `{
           if (r() < 0.06) add('prop_fern', jx, gy, jz, 0.9 + r() * 0.5);
           else if (r() < 0.02) add('prop_stump', jx, gy, jz, 0.9 + r() * 0.3);
         }
-        if (biome === 'meadow' && m.forest < 0.5 && r() < 0.28) add('prop_flowers', jx, gy, jz, 1 + r() * 0.5);
-        else if (m.forest < 0.4 && r() < 0.05) add('prop_flowers', jx, gy, jz, 0.9 + r() * 0.4);
+        // 3D-цветочки убраны (20.10: «не нужны») — цветы на земле дают текстуры луга
       }
     }
     // овцы и ограды — у клеток колоды «овцы»
@@ -1972,7 +2006,7 @@ ${gtex ? `{
             if (Math.hypot(t.x - x, t.z - z) < 0.35 * t.h + 0.3) return true;
         return false;
       };
-      items.prop_fern = items.prop_fern.filter(([x, , z]) => !underCrown(x, z));
+      items.prop_fern = items.prop_fern.filter(([x, , z]) => !underCrown(x, z) && !onBridge(x, z));
       const ferns = items.prop_fern.map(([x, y, z, k]) => ({ x, y, z, h: 0.55 * k, group: 'fern', pick: Math.floor(r() * 99),
         tint: [(r() - 0.5) * 0.04, 0.85 + r() * 0.25, 0.8 + r() * 0.3] }));
       // в ОДИН отсортированный список с деревьями — иначе две сетки сравниваются по глубине от камеры
@@ -1993,23 +2027,9 @@ ${gtex ? `{
       propCounts.fern_sprites = ferns.length;
       delete items.prop_fern;
     }
-    // плоский режим: ворота дварфов — картинка Codex по игровому ролику вместо деревянной крепости
-    if (sprites && treeBillboard && sprites.frames.some(f => f.group === 'gate')) {
-      const g3 = houses.children.find(h => h.userData.isGate);
-      if (g3) {
-        const f = footprints.find(fp => Math.hypot(fp.x - g3.position.x, fp.z - g3.position.z) < 0.01);
-        const w = (f ? f.hw * 2 : 4) * 1.15;
-        g3.visible = false;
-        const all = treeBillboard.list.concat([{ x: g3.position.x, y: groundY(g3.position.x, g3.position.z), z: g3.position.z + 0.2, h: w, group: 'gate', pick: 0, tint: [0, 1, 1] }]);
-        const nb = billboardTrees(all, sprites.tex, sprites.frames);
-        trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
-        trees.add(nb); billboards.push(nb);
-        treeBillboard = { list: all, mesh: nb };
-      }
-    }
     // плоский режим: камыш — картинками атласа (группа reeds), сортируется вместе с деревьями
     if (sprites && treeBillboard && sprites.frames.some(f => f.group === 'reeds') && items.prop_reeds) {
-      const reeds = items.prop_reeds.map(([x, y, z, k]) => ({ x, y, z, h: 1.35 * k, group: 'reeds', pick: Math.floor(r() * 99), tint: [0, 0.9 + r() * 0.2, 0.85 + r() * 0.3] }));
+      const reeds = items.prop_reeds.filter(([x, , z]) => !onBridge(x, z)).map(([x, y, z, k]) => ({ x, y, z, h: 1.35 * k, group: 'reeds', pick: Math.floor(r() * 99), tint: [0, 0.9 + r() * 0.2, 0.85 + r() * 0.3] }));
       const all = treeBillboard.list.concat(reeds);
       const nb = billboardTrees(all, sprites.tex, sprites.frames);
       trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
