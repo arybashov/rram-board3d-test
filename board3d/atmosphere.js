@@ -215,7 +215,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
     const zoneAt = (x, z, h) => {
       if (Math.hypot(x - pool[0], z - pool[1]) < 4.2 && h < 0.5) return 'pool';
       if (h < -0.2 && lakeCells.some(c => Math.hypot(c.x - x, c.z - z) < 8)) return 'lake';
-      if (hut && Math.hypot(x - hut.x, z - hut.z) < 6.5 && z < hut.z + 1.2 && h < 1.2) return 'dark';   // только лес за домиком, не поле
+      if (hut && Math.hypot(x - hut.x, z - hut.z) < 7.5 && z < hut.z - 3.0 && h < 1.6) return 'dark';   // за домиком (21.10), не перед ним
       if (h > 1.4 && x < groundX0 + groundW * 0.47 && z < groundZ0 + groundH * 0.36) return 'ridge';
       return null;
     };
