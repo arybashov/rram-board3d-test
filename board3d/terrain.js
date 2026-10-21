@@ -1319,6 +1319,12 @@ ${gtex ? `{
     }
     return false;
   };
+  let wallSeed = 5; const wallRnd = () => (wallSeed = (wallSeed * 16807) % 2147483647) / 2147483647;
+  const wallMat = (() => {                    // грубая кладка (Codex, data/gate/wall-rough.webp)
+    const t = new THREE.TextureLoader().load('./data/gate/wall-rough.webp?v=1');
+    t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return new THREE.MeshLambertMaterial({ map: t, color: 0xb4b4b8 });
+  })();
   const houses = new THREE.Group();
   const houseSpots = [];
   const footprints = [];
@@ -1426,18 +1432,30 @@ ${gtex ? `{
       // весь этот выровненный участок, иначе между рамой и скалой остаётся проём
       len = Math.max(len, g.userData.span / 2 + 1.2 - start);
       len += 0.8;                                                           // заходит в скалу
-      const geo = new THREE.BoxGeometry(len, H, D);
-      const uv = geo.attributes.uv, pos = geo.attributes.position, nrm = geo.attributes.normal;
-      for (let i = 0; i < uv.count; i += 1) {                               // тайл кладки ~1.5 м
-        const ax2 = Math.abs(nrm.getX(i)) > 0.5 ? [pos.getZ(i), pos.getY(i)] : Math.abs(nrm.getY(i)) > 0.5 ? [pos.getX(i), pos.getZ(i)] : [pos.getX(i), pos.getY(i)];
-        uv.setXY(i, ax2[0] * 0.67, ax2[1] * 0.67);
+      // стена дугой заворачивает назад, в гору: цепочка блоков вдоль дуги, каждый следующий повёрнут
+      // сильнее (до ~75°), высота к концу чуть падает, верх неровный — грубая крепостная кладка
+      const SEG = 0.7, n = Math.max(2, Math.ceil(len / SEG)), turn = THREE.MathUtils.degToRad(85);
+      let px = side * start, pz = -cy, ang = 0;
+      for (let i = 0; i < n; i += 1) {
+        const t = (i + 0.5) / n;
+        ang = turn * Math.pow(t, 0.8);                                       // дуга: заворачивает назад сразу от рамы
+        const dx = Math.cos(ang) * side, dz = -Math.sin(ang);               // направление вдоль стены (назад = −Z)
+        const h = H * (1 - 0.18 * t) + (wallRnd() - 0.5) * 0.35;
+        const geo = new THREE.BoxGeometry(SEG + 0.12, h, D * (1 + (wallRnd() - 0.5) * 0.15));
+        const uv = geo.attributes.uv, pos = geo.attributes.position, nrm = geo.attributes.normal;
+        const off = i * SEG;
+        for (let j = 0; j < uv.count; j += 1) {                             // тайл кладки ~1.5 м, непрерывно по длине
+          const q = Math.abs(nrm.getX(j)) > 0.5 ? [pos.getZ(j), pos.getY(j)] : Math.abs(nrm.getY(j)) > 0.5 ? [pos.getX(j) + off, pos.getZ(j)] : [pos.getX(j) + off, pos.getY(j)];
+          uv.setXY(j, q[0] * 0.5, q[1] * 0.5);
+        }
+        const w = new THREE.Mesh(geo, wallMat ?? stoneMat);
+        w.position.set(px + dx * SEG / 2, FLOOR_WALL_Y + h / 2, pz + dz * SEG / 2);
+        w.rotation.y = side * ang;
+        w.castShadow = w.receiveShadow = true;
+        w.name = 'gate_wall';
+        g.add(w);
+        px += dx * SEG; pz += dz * SEG;
       }
-      const w = new THREE.Mesh(geo, stoneMat ?? new THREE.MeshLambertMaterial({ color: 0x55575a }));
-      w.position.set(side * (start + len / 2), FLOOR_WALL_Y + H / 2, -cy);
-      w.position.applyMatrix4(new THREE.Matrix4().makeScale(1, 1, 1));
-      w.castShadow = w.receiveShadow = true;
-      w.name = 'gate_wall';
-      g.add(w);                                                             // в локальных осях ворот
     }
   }
   const nearHouse = (x, z, r) => houseSpots.some(([hx, hz]) => Math.hypot(hx - x, hz - z) < r);
