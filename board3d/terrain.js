@@ -1199,7 +1199,7 @@ ${gtex ? `{
       rapids: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
       rbox: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) },
       impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1.0 },
-      flowTex: { value: (() => { const t = new THREE.TextureLoader().load('./data/water-flow.png?v=2'); t.colorSpace = THREE.NoColorSpace; return t; })() } },
+      flowTex: { value: (() => { const t = new THREE.TextureLoader().load('./data/water-flow.png?v=3'); t.colorSpace = THREE.NoColorSpace; return t; })() } },
     vertexShader: `varying vec2 vUv; varying vec3 vPos;
       void main(){ vUv = uv; vPos = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0); }`,
     fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform vec4 rbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
@@ -2527,7 +2527,7 @@ ${gtex ? `{
           rap[j * RES + i] = Math.max(rap[j * RES + i], amp * Math.exp(-(u * u + v * v) * 1.6));
         }
       };
-      const flowImg = await loadMask('./data/water-flow.png?v=2').catch(() => null);
+      const flowImg = await loadMask('./data/water-flow.png?v=3').catch(() => null);
       const flowAt = (x, z) => {
         if (!flowImg) return null;
         const i = Math.min(flowImg.w - 1, Math.max(0, Math.floor((x - groundX0) / groundW * flowImg.w)));
