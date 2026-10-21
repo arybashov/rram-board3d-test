@@ -1198,10 +1198,11 @@ ${gtex ? `{
       poolC: { value: new THREE.Vector2(9999, 9999) },
       rapids: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
       rbox: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) },
-      impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1.0 } },
+      impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1.0 },
+      flowTex: { value: (() => { const t = new THREE.TextureLoader().load('./data/water-flow.png?v=1'); t.colorSpace = THREE.NoColorSpace; return t; })() } },
     vertexShader: `varying vec2 vUv; varying vec3 vPos;
       void main(){ vUv = uv; vPos = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0); }`,
-    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform vec4 rbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
+    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform vec4 rbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -1226,37 +1227,48 @@ ${gtex ? `{
         d = clamp(d * mix(3.2, 1.0, lakeK), 0.0, 1.0);   // узкие русла и чаша — расстояние до берега мало, но вода не мелкая
         vec3 col = mix(sh, md, smoothstep(0.0, 0.18, d));
         col = mix(col, dp, smoothstep(0.18, 0.65, d));
-        // два слоя Вороного разного масштаба, бегут навстречу — светлые прожилки на гранях ячеек
-        // координаты искривлены шумом — ячейки не ровные «плитки», а живая каустика
-        vec2 wp = vPos.xz + vec2(n2(vPos.xz * 0.7 + time * 0.05), n2(vPos.xz * 0.7 + 5.3 - time * 0.04)) * 1.4;
-        float v1 = vor(wp * 1.0 + vec2(time * 0.10, time * 0.06), time * 0.7);
-        float v2 = vor(wp * 2.1 - vec2(time * 0.08, -time * 0.11), time * 0.9 + 1.7);
-        // гребни, не сетка: границы ячеек рвутся шумом (остаётся ~30%), вытянуты, светлый тон — не белый
-        float br1 = smoothstep(0.55, 0.8, n2(wp * 2.3 + 7.1)), br2 = smoothstep(0.6, 0.85, n2(wp * 3.7 - 2.9));
-        float lines = (1.0 - smoothstep(0.0, 0.05, v1)) * br1 * 0.6 + (1.0 - smoothstep(0.0, 0.035, v2)) * br2 * 0.4;
+        // ── течение (карта data/water-flow.png, tools/board3d_flowmap.py): рябь и пена сносятся по руслу,
+        // две фазы со сдвигом в полпериода и плавной сменой — без «прыжка» рисунка
+        vec3 fl = texture2D(flowTex, vUv).rgb;
+        vec2 F = fl.rg * 2.0 - 1.0;
+        float sp = fl.b * (1.0 - lakeK * 0.85);
+        float ph0 = fract(time * 0.12), ph1 = fract(time * 0.12 + 0.5);
+        float fw = abs(ph0 * 2.0 - 1.0);                                 // вес второй фазы
+        vec2 o0 = F * sp * ph0 * 2.6, o1 = F * sp * ph1 * 2.6;
+        // гребни ряби: Вороной с разорванными гранями (не сетка), в каждой фазе свой сдвиг
+        vec2 wb = vPos.xz + vec2(n2(vPos.xz * 0.7 + time * 0.05), n2(vPos.xz * 0.7 + 5.3 - time * 0.04)) * 1.2;
+        vec2 wp0 = wb - o0, wp1 = wb - o1 + 3.7;
+        float l0 = (1.0 - smoothstep(0.0, 0.05, vor(wp0 * 1.1, time * 0.5))) * smoothstep(0.55, 0.8, n2(wp0 * 2.3 + 7.1));
+        float l1 = (1.0 - smoothstep(0.0, 0.05, vor(wp1 * 1.1, time * 0.5 + 1.3))) * smoothstep(0.55, 0.8, n2(wp1 * 2.3 + 7.1));
+        float lines = mix(l0, l1, fw);
         lines *= smoothstep(0.2, 0.7, n2(vPos.xz * 0.45 + time * 0.03));
-        col = mix(col, pow(vec3(0.459, 0.616, 0.651), vec3(2.2)), clamp(lines * mix(0.30, 0.14, lakeK), 0.0, 1.0));
-        // пена у берега: полоса + бегущие волны прибоя, рваный край
-        float wave = sin((d * 26.0) - time * 2.2 + n2(vPos.xz * 1.3) * 4.0) * 0.5 + 0.5;
-        float foamBand = (1.0 - smoothstep(0.0, 0.05, d)) * 0.7 + (1.0 - smoothstep(0.03, 0.12, d)) * smoothstep(0.8, 0.97, wave) * 0.5;   // тонкая рваная кромка, не белая полоса
-        foamBand *= 0.6 + 0.6 * n2(vPos.xz * 4.0 + time * 0.3);
-        foamBand *= mix(1.0, 0.15, lakeK);                          // на озере пены почти нет
-        // белая вода (разбор Codex, шаг 2): пороги у камней в руслах и ядро под водопадом — пятнами, не кольцом
+        col = mix(col, pow(vec3(0.459, 0.616, 0.651), vec3(2.2)), clamp(lines * mix(0.26, 0.12, lakeK), 0.0, 1.0));
+        // прибой: мягкие волны, бегущие к берегу (на озере едва заметно), тонкая мокрая кромка
+        float wave = sin(d * 34.0 - time * 1.7 + n2(vPos.xz * 1.1) * 3.0) * 0.5 + 0.5;
+        float foamBand = (1.0 - smoothstep(0.0, 0.035, d)) * 0.45
+                       + (1.0 - smoothstep(0.02, 0.16, d)) * smoothstep(0.82, 0.97, wave) * 0.35;
+        foamBand *= (0.55 + 0.6 * n2(vPos.xz * 4.0 + time * 0.3)) * mix(1.0, 0.35, lakeK);
+        // белая вода: пороги у камней (шлейф сносится по течению) и ядро под водопадом; приглушённая, клочьями
         float rap = texture2D(rapids, (vPos.xz - rbox.xy) / rbox.zw).r;
-        float wn1 = n2(vPos.xz * 3.1 + vec2(time * 0.9, -time * 0.6)), wn2 = n2(vPos.xz * 9.3 - vec2(time * 1.4, time * 0.8));
-        float white = smoothstep(0.38, 0.62, rap * (0.5 + 0.75 * wn1) + (wn2 - 0.5) * 0.35);   // рваные клочья, не облака
+        float a0 = n2((vPos.xz - o0 * 1.4) * 3.1), a1 = n2((vPos.xz - o1 * 1.4) * 3.1 + 4.1);
+        float wn1 = mix(a0, a1, fw), wn2 = n2(vPos.xz * 9.3 - F * time * 0.9);
+        float white = smoothstep(0.45, 0.7, rap * (0.45 + 0.7 * wn1) + (wn2 - 0.5) * 0.3) * 0.7;
         float ri = length(vPos.xz - impactC) / impactR;
         float core = (1.0 - smoothstep(0.35, 1.1, ri + (wn1 - 0.5) * 0.45));
-        float arcs = smoothstep(0.7, 0.95, sin(ri * 9.0 - time * 2.6 + wn2 * 3.0) * 0.5 + 0.5) * (1.0 - smoothstep(1.0, 2.2, ri)) * smoothstep(0.5, 0.9, wn1 + 0.2);
-        white = max(white, max(core * smoothstep(0.2, 0.6, wn1 * 0.6 + 0.5), arcs * 0.8));
+        float arcs = smoothstep(0.72, 0.95, sin(ri * 9.0 - time * 2.6 + wn2 * 3.0) * 0.5 + 0.5) * (1.0 - smoothstep(1.0, 2.2, ri)) * smoothstep(0.5, 0.9, wn1 + 0.2);
+        white = max(white, max(core * smoothstep(0.2, 0.6, wn1 * 0.6 + 0.5) * 0.9, arcs * 0.55));
+        // струи течения: вытянуты вдоль F, бегут по течению, только где течёт быстро
+        vec2 Fn = normalize(F + vec2(1e-4)), Fp = vec2(-Fn.y, Fn.x);
+        vec2 sq0 = vec2(dot(vPos.xz - o0 * 1.6, Fp) * 2.4, dot(vPos.xz - o0 * 1.6, Fn) * 0.6);
+        vec2 sq1 = vec2(dot(vPos.xz - o1 * 1.6, Fp) * 2.4, dot(vPos.xz - o1 * 1.6, Fn) * 0.6) + 5.3;
+        float streak = mix(smoothstep(0.8, 0.95, n2(sq0)), smoothstep(0.8, 0.95, n2(sq1)), fw);
         float riverK = (1.0 - lakeK) * (1.0 - poolK * smoothstep(1.4, 2.4, ri));
-        float streak = smoothstep(0.78, 0.95, n2(vec2(vPos.x * 2.2 + vPos.z * 0.7, vPos.z * 2.2 - vPos.x * 0.7) * vec2(1.0, 0.35) + time * vec2(0.0, 0.5)));
-        white = max(white, streak * riverK * smoothstep(0.15, 0.5, d) * 0.55);
+        white = max(white, streak * riverK * sp * smoothstep(0.15, 0.5, d) * 0.4);
         foamBand = max(foamBand, white);
-        col = mix(col, pow(vec3(0.773, 0.867, 0.878), vec3(2.2)), clamp(foamBand, 0.0, 1.0));
+        col = mix(col, pow(vec3(0.70, 0.80, 0.82), vec3(2.2)), clamp(foamBand, 0.0, 1.0));   // пена серо-голубая, не белая
         col = pow(col, vec3(1.0 / 2.2));                            // обратно в вывод (шейдер пишет как есть)
         float a = mix(0.55, 0.96, smoothstep(0.0, 0.14, d));
-        a = max(a, clamp(foamBand, 0.0, 1.0) * 0.95);
+        a = max(a, clamp(foamBand, 0.0, 1.0) * 0.9);
         gl_FragColor = vec4(col, a);
       }`,
   }) : new THREE.MeshLambertMaterial({ color: 0x35c6d6, transparent: true, opacity: 0.38, depthWrite: false });
@@ -2515,6 +2527,14 @@ ${gtex ? `{
           rap[j * RES + i] = Math.max(rap[j * RES + i], amp * Math.exp(-(u * u + v * v) * 1.6));
         }
       };
+      const flowImg = await loadMask('./data/water-flow.png?v=1').catch(() => null);
+      const flowAt = (x, z) => {
+        if (!flowImg) return null;
+        const i = Math.min(flowImg.w - 1, Math.max(0, Math.floor((x - groundX0) / groundW * flowImg.w)));
+        const j = Math.min(flowImg.h - 1, Math.max(0, Math.floor((z - groundZ0) / groundH * flowImg.h)));
+        const o = (j * flowImg.w + i) * 4;
+        return [flowImg.data[o] / 127.5 - 1, flowImg.data[o + 1] / 127.5 - 1];
+      };
       const riverAxis = (x, z) => {   // направление русла: где вдоль линии больше воды
         let best = 0, bw = -1;
         for (let a = 0; a < 180; a += 15) { const ux = Math.cos(a * Math.PI / 180), uz = Math.sin(a * Math.PI / 180); let w = 0;
@@ -2535,7 +2555,12 @@ ${gtex ? `{
           const kit = big ? 3 : 5, ks = STONE_KIT[kit].size, h = d * (0.55 + rq() * 0.3);
           if (sampleMask(sx, sz).water < 0.68) continue;
           lists[kit].push([sx, WATER_LEVEL - h * 0.32, sz, d / ks[0], h / ks[1], d * 0.9 / ks[2], rq() * 6.28, 0.5 + rq() * 0.12, kit]);   // мокрые — темнее
-          blob(sx, sz, ax, az, d * 1.7 + 0.18, d * 0.75 + 0.08, big ? 1.0 : 0.55);
+          const fv = flowAt(sx, sz);
+          if (fv && Math.hypot(fv[0], fv[1]) > 0.3) {   // шлейф ниже по течению: пятно у камня + хвост
+            const fn = Math.hypot(fv[0], fv[1]), fx2 = fv[0] / fn, fz2 = fv[1] / fn;
+            blob(sx, sz, fx2, fz2, d * 0.9 + 0.12, d * 0.7 + 0.08, big ? 1.0 : 0.55);
+            blob(sx + fx2 * (d * 1.4 + 0.3), sz + fz2 * (d * 1.4 + 0.3), fx2, fz2, d * 1.8 + 0.3, d * 0.55 + 0.06, big ? 0.75 : 0.4);
+          } else blob(sx, sz, ax, az, d * 1.7 + 0.18, d * 0.75 + 0.08, big ? 1.0 : 0.55);
           nr += 1;
         }
       }
@@ -2594,7 +2619,7 @@ ${gtex ? `{
         col = mix(col, vec3(0.42, 0.60, 0.65) + lines * 0.12, lipK * 0.9);
         a = mix(a, 0.85, lipK);
         gl_FragColor = vec4(col, a * smoothstep(0.02, 0.5, m));`);
-        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) },
+        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) }, rapids: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, rbox: waterMat.uniforms.rbox, impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1 }, flowTex: { value: new THREE.DataTexture(new Uint8Array([128, 128, 0, 255]), 1, 1) },
             lipC: { value: new THREE.Vector2((lipW0.x + lipW1.x) / 2, (lipW0.z + lipW1.z) / 2) }, lipR: { value: lipW0.distanceTo(lipW1) * 0.75 } },
           vertexShader: waterMat.vertexShader, fragmentShader: fs });
         animated.push(upperMat);
