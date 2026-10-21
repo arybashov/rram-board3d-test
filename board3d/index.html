@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>RRaM — прототип 3D-поля</title>
-  <link rel="stylesheet" href="./board3d.css?v=5">
+  <link rel="stylesheet" href="./board3d.css?v=6">
   <script type="importmap">
     { "imports": { "three": "./vendor/three/three.module.min.js" } }
   </script>
@@ -12,7 +12,13 @@
 <body>
   <div id="stage"></div>
 
-  <div id="loading">Загрузка поля…</div>
+  <div id="loading">
+    <div class="ld-card">
+      <img class="ld-logo" src="../assets/ui/brand/rram-wordmark-v1-alpha.png" alt="RRaM">
+      <div class="ld-bar"><i id="ld-fill"></i></div>
+      <div class="ld-stage" id="ld-stage">Загрузка поля…</div>
+    </div>
+  </div>
 
   <div id="stats" aria-live="off">
     <div><b id="fps">—</b> FPS</div>
@@ -37,6 +43,6 @@
     <button data-act="bench">Тест FPS</button>
   </div>
 
-  <script type="module" src="./board3d.js?v=317"></script>
+  <script type="module" src="./board3d.js?v=322"></script>
 </body>
 </html>

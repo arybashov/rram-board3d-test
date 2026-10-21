@@ -30,9 +30,17 @@ html, body {
   display: grid;
   place-items: center;
   font-size: 18px;
-  background: var(--bg);
+  background: #121416 url('./data/splash-bg.webp') center / cover no-repeat;
   z-index: 5;
+  transition: opacity .5s;
 }
+#loading::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(10,12,14,.35), rgba(10,12,14,.85)); }
+#loading.done { opacity: 0; pointer-events: none; }
+.ld-card { position: relative; width: min(420px, 80vw); display: grid; gap: 14px; justify-items: center; color: #e8e2d2; }
+.ld-logo { width: min(320px, 70vw); filter: drop-shadow(0 4px 18px rgba(0,0,0,.6)); }
+.ld-bar { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+.ld-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #c88a3a, #f0c070); transition: width .25s; }
+.ld-stage { font-size: 14px; opacity: .85; text-shadow: 0 1px 6px #000; min-height: 1.2em; }
 #loading[hidden] { display: none; }
 #stats, #hint, #toolbar {
   position: fixed;

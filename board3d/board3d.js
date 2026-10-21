@@ -9,7 +9,7 @@ import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
 import { buildAtmosphere } from './atmosphere.js?v=28';
-import { buildTerrain } from './terrain.js?v=254';
+import { buildTerrain } from './terrain.js?v=258';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -57,6 +57,14 @@ const SUN_OFFSET = new THREE.Vector3(-30, 55, 25);
 const controls = new MapControls(camera, renderer.domElement);
 
 // ─── Карта ────────────────────────────────────────────────────────────────
+// заставка: этапы постройки поля (terrain.js сообщает через window.__loadStage) + число загруженных файлов three
+const ldFill = document.getElementById('ld-fill'), ldStage = document.getElementById('ld-stage');
+const STAGES = { masks: ['Карта и рельеф', 10], bridges: ['Мосты', 18], ground: ['Земля', 28], treeSpots: ['Лес', 55], rockSpots: ['Скалы', 70], props: ['Кусты и травы', 80], done: ['Персонажи', 92] };
+let ldPct = 2, ldFiles = 0;
+const ldSet = (pct, text) => { ldPct = Math.max(ldPct, pct); if (ldFill) ldFill.style.width = ldPct + '%'; if (text && ldStage) ldStage.textContent = text === 'Готово' ? text : text + '…'; };
+window.__loadStage = name => { const st = STAGES[name]; if (st) ldSet(st[1], st[0]); };
+THREE.DefaultLoadingManager.onProgress = () => { ldFiles += 1; ldSet(Math.min(ldPct + 0.6, 90)); };
+ldSet(3, 'Загрузка поля');
 const boardMap = await (await fetch('../assets/board-map.json')).json();
 const { width: VBW, height: VBH, radius: HEX_R } = mapGeometry(boardMap);
 const art = boardMap.art || {};
@@ -217,6 +225,7 @@ const forest = terrain.trees;   // (автотест выключает част
 // ─── Фигурки ──────────────────────────────────────────────────────────────
 const SIDE_COLORS = { green: 0x35c77b, red: 0xef554f, beast: 0xb07a3c };
 const loader = new GLTFLoader();
+window.__loadStage('done');
 const [robotGltf, foxGltf] = await Promise.all([
   loader.loadAsync('./models/RobotExpressive.glb'),
   loader.loadAsync('./models/Fox.glb'),
@@ -663,7 +672,8 @@ renderer.setAnimationLoop(() => {
   }
 });
 
-document.getElementById('loading').hidden = true;
+ldSet(100, 'Готово');
+setTimeout(() => { const el = document.getElementById('loading'); el.classList.add('done'); setTimeout(() => { el.hidden = true; }, 600); }, 150);
 const loadSeconds = (performance.now() - t0) / 1000;
 document.getElementById('loadtime').textContent = `${loadSeconds.toFixed(1)} с`;
 

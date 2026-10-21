@@ -715,7 +715,7 @@ const BIOME_KEEP = { forest: 0.75, dark: 1, birch: 1, autumn: 1, lake: 0.85, mea
 const TREE_H = {
   tree_spruce: [2.9, 4.1], tree_spruce_dark: [3.0, 4.4], tree_pine: [3.4, 4.4], tree_birch: [2.6, 3.4],
   tree_autumn_orange: [2.4, 3.2], tree_autumn_red: [2.4, 3.2], tree_autumn_yellow: [2.4, 3.2],
-  tree_willow: [2.4, 3.0], tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0], tree_snag: [0.75, 1.1], tree_dry_bush: [0.6, 0.95], tree_oak_green: [2.6, 3.4],
+  tree_willow: [3.2, 4.0],   /* 21.10: ива заметно выше камыша */ tree_dead: [2.2, 3.2], tree_bush: [0.7, 1.0], tree_snag: [0.75, 1.1], tree_dry_bush: [0.6, 0.95], tree_oak_green: [2.6, 3.4],
   tree_fairy_pink: [2.6, 3.6], tree_fairy_violet: [2.6, 3.6], tree_fairy_teal: [2.6, 3.6], tree_fairy_gold: [2.6, 3.6],
   tree_fairy_mushroom: [1.8, 2.6], tree_fairy_crystal: [2.3, 3.2], tree_fairy_willow: [2.3, 3.1], tree_fairy_lantern: [2.4, 3.3],
 };
@@ -918,7 +918,7 @@ export async function buildTerrain({ cells, cellById, groundX0, groundZ0, ground
   };
   const [rockTopTex, rockSideTex] = rockTopUrl && rockSideUrl ? await Promise.all([loadTex(rockTopUrl), loadTex(rockSideUrl)]) : [null, null];
   const T = { start: performance.now() };
-  const mark = name => { T[name] = Math.round(performance.now() - T.start); };
+  const mark = name => { T[name] = Math.round(performance.now() - T.start); window.__loadStage?.(name); };
   const [mask, cliffMask, heightMap] = await Promise.all([loadMask(maskUrl), loadMask(cliffUrl), heightUrl ? loadMask(heightUrl) : null]);
   mark('masks');
   // билинейная выборка из маски — края воды и леса гладкие
@@ -2042,7 +2042,7 @@ ${gtex ? `{
       T.shoreWillows = shore.length;
       const [w0, w1] = TREE_H.tree_willow;
       for (const [x, z] of shore) {
-        list.push({ x, y: Math.max(groundY(x, z), -0.25), z, h: (w0 + r() * (w1 - w0)) * 0.8, group: r() < 0.8 ? 'willow' : 'bush', pick: Math.floor(r() * 99),
+        list.push({ x, y: Math.max(groundY(x, z), -0.25), z, h: (w0 + r() * (w1 - w0)), group: r() < 0.8 ? 'willow' : 'bush', pick: Math.floor(r() * 99),
           tint: [(r() - 0.5) * 0.04, 0.85 + r() * 0.25, 0.85 + r() * 0.25] });
       }
     }
@@ -2053,7 +2053,7 @@ ${gtex ? `{
         if (!lakeC.some(c => Math.hypot(c.x - t.x, c.z - t.z) < 6)) continue;
         const nearLake = [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([dx, dz]) => groundY(t.x + dx, t.z + dz) < -0.25);
         if (!nearLake) continue;
-        if (r() < 0.6) { t.group = 'bush'; t.h = 0.7 + r() * 0.3; } else { t.group = 'willow'; t.h = 2.0 + r() * 0.6; }
+        if (r() < 0.6) { t.group = 'bush'; t.h = 0.7 + r() * 0.3; } else { t.group = 'willow'; t.h = 3.2 + r() * 0.8; }
       }
     }
     // не кучей: между кронами зазор (сказочные — шире); на уступах хребта рощи плотнее
@@ -2266,7 +2266,7 @@ ${gtex ? `{
     }
     // плоский режим: камыш — картинками атласа (группа reeds), сортируется вместе с деревьями
     if (sprites && treeBillboard && sprites.frames.some(f => f.group === 'reeds') && items.prop_reeds) {
-      const reeds = items.prop_reeds.filter(([x, , z]) => !onBridge(x, z)).map(([x, y, z, k]) => ({ x, y, z, h: 1.35 * k, group: 'reeds', pick: Math.floor(r() * 99), tint: [0, 0.9 + r() * 0.2, 0.85 + r() * 0.3] }));
+      const reeds = items.prop_reeds.filter(([x, , z]) => !onBridge(x, z)).map(([x, y, z, k]) => ({ x, y, z, h: 1.05 * k, group: 'reeds', pick: Math.floor(r() * 99), tint: [0, 0.9 + r() * 0.2, 0.85 + r() * 0.3] }));
       const all = treeBillboard.list.concat(reeds);
       const nb = billboardTrees(all, sprites.tex, sprites.frames);
       trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
@@ -2593,8 +2593,8 @@ ${gtex ? `{
       if (n >= 2 && rr() < 0.32) {                                                  // сушняк у основания
         const a = rr() * Math.PI * 2, d = 0.7 + rr() * 1.1, x = t.x + Math.cos(a) * d, z = t.z + Math.sin(a) * d;
         const gy = groundY(x, z);
-        if (nearest(x, z) < 1.25 || onBridge(x, z) || gy < -0.2 || gy > 1.0 || sample(x, z).water > 0.3) continue;
-        extra.push({ x, y: gy, z, h: 0.55 + rr() * 0.35, group: 'brush', pick: Math.floor(rr() * 99), tint: [0, 0.85 + rr() * 0.2, 0.8 + rr() * 0.25] });
+        if (nearest(x, z) < 1.6 || onBridge(x, z) || gy < -0.2 || gy > 1.0 || sample(x, z).water > 0.3) continue;   // спрайт широкий — дальше от клеток
+        extra.push({ x, y: gy, z, h: 0.32 + rr() * 0.16, group: 'brush', pick: Math.floor(rr() * 99), tint: [0, 0.85 + rr() * 0.2, 0.8 + rr() * 0.25] });
         brush += 1;
       }
     }
@@ -2608,6 +2608,41 @@ ${gtex ? `{
     trees.add(nb); billboards.push(nb);
     treeBillboard = { list: all, mesh: nb };
     propCounts.deadstand = dead; propCounts.brushwood = brush;
+  }
+  // Нижний предел размера (21.10: «ёлки не должны быть меньше определённого значения… и иву измельчил»):
+  // взрослое дерево не бывает уменьшенной копией. Ниже 85% своего минимума — либо молодняк (свои спрайты
+  // young_*), либо убираем. Кусты, коряги, сушняк, папоротники, камыш — не трогаем.
+  if (treeBillboard) {
+    const FLOOR = {};
+    for (const [nm, [h0]] of Object.entries(TREE_H)) if (h0 >= 1.8) FLOOR[SPRITE_GROUP[nm]] = h0 * 0.85;
+    FLOOR.deadstand = 2.2 * 0.85;
+    const YOUNG = { spruce: 'young_spruce', dark: 'young_spruce', pine: 'young_spruce', birch: 'young_birch', willow: 'young_willow',
+      autumn_red: 'young_birch', autumn_orange: 'young_birch', autumn_yellow: 'young_birch', oak_green: 'young_birch' };
+    const hasYoung = g => sprites?.frames.some(f => f.group === g);
+    let young = 0, cut = 0;
+    const kept = [];
+    const rr2 = rng(20261022);
+    for (const t of treeBillboard.list) {
+      const fl = FLOOR[t.group];
+      if (fl && t.h < fl) {
+        const yg = YOUNG[t.group];
+        if (t.group === 'willow' && nearest(t.x, t.z) > 0.42 * TREE_H.tree_willow[0] + 0.9) {   // иву — до взрослой, если клетки не закроет
+          t.h = TREE_H.tree_willow[0] * (1 + rr2() * 0.2); kept.push(t); continue;
+        }
+        if (yg && hasYoung(yg)) { t.group = yg; t.h = Math.min(Math.max(t.h, 1.0), 1.7); young += 1; kept.push(t); }
+        else cut += 1;
+        continue;
+      }
+      kept.push(t);
+    }
+    if (young || cut) {
+      kept.sorted = false;
+      const nb = billboardTrees(kept, sprites.tex, sprites.frames);
+      trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
+      trees.add(nb); billboards.push(nb);
+      treeBillboard = { list: kept, mesh: nb };
+    }
+    propCounts.young = young; propCounts.tooSmallRemoved = cut;
   }
   // маска полога: плотность крон взрослых деревьев (гауссово пятно на каждое), порог — только группа
   // даёт сплошное основание, одиночка почти нет; вне клеток, на суше ниже хребта
