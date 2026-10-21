@@ -219,7 +219,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
       if (h > 1.4 && x < groundX0 + groundW * 0.47 && z < groundZ0 + groundH * 0.36) return 'ridge';
       return null;
     };
-    const DENS = { pool: 0.75, lake: 0.8, dark: 0.55, ridge: 0.22 };
+    const DENS = { pool: 0.35, lake: 0.12, dark: 0.55, ridge: 0.22 };   // разбор воды: молочная вуаль над озером/чашей гасила цвет воды
     const spots = [];
     for (let z = groundZ0; z < groundZ0 + groundH; z += 1.2) for (let x = groundX0; x < groundX0 + groundW; x += 1.2) {
       const jx = x + (Math.random() - 0.5) * 1.2, jz = z + (Math.random() - 0.5) * 1.2;
