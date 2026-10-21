@@ -580,7 +580,13 @@ varying vec3 vRockNrm;`)
     top = mix(top, mossCol, moss * 0.22);      // в текстуре мох уже есть — свой только слегка
     side = mix(side, mossCol, moss * 0.3);
   }
-  diffuseColor.rgb *= mix(side, top, topW);
+  // реф v6b: верх и кромки камней — светлый серый камень, мох лишь пятнами (замечание 21.10)
+  float tl = dot(top, vec3(0.3, 0.59, 0.11));
+  top = mix(top, vec3(tl) * vec3(1.02, 1.0, 0.95) * 1.45, 0.5);
+  float rim = smoothstep(0.22, 0.5, n.y) * (1.0 - smoothstep(0.72, 0.92, n.y));
+  vec3 lightStone = vec3(dot(side, vec3(0.3, 0.59, 0.11))) * vec3(1.05, 1.03, 0.97) * 1.5 + 0.06;
+  vec3 rc = mix(side, top, topW);
+  diffuseColor.rgb *= mix(rc, lightStone, rim * 0.75);
 }`);
   };
   return mat;
@@ -664,7 +670,12 @@ varying vec3 vCNrm;`)
   float moss = smoothstep(0.15, 0.55, n.y + 0.25 * mn2) * smoothstep(0.35, 0.75, mn * 0.6 + 0.4 * (mn2 * 0.5 + 0.5));
   vec3 mossCol = vec3(0.30, 0.42, 0.16) * (0.85 + 0.3 * mn);
   side = mix(side, mossCol, moss * (1.0 - g) * 0.17);   // реф: мха на вертикалях вдвое меньше
-  diffuseColor.rgb *= mix(side, grass, g);
+  // реф v6b: верх уступа и его кромка — светлый камень (мох пятнами), не тёмный мшистый ковёр
+  float gl2 = dot(grass, vec3(0.3, 0.59, 0.11));
+  grass = mix(grass, vec3(gl2) * vec3(1.03, 1.0, 0.94) * 1.5, 0.45 * (1.0 - gp));
+  float rim = smoothstep(0.2, 0.48, n.y) * (1.0 - smoothstep(0.7, 0.9, n.y));
+  vec3 lightStone = vec3(dot(side, vec3(0.3, 0.59, 0.11))) * vec3(1.05, 1.03, 0.97) * 1.45 + 0.07;
+  diffuseColor.rgb *= mix(mix(side, grass, g), lightStone, rim * 0.8);
 }`);
   };
   return mat;
@@ -1161,8 +1172,12 @@ ${gtex ? `{
     vec3 rtop = mix(top, top2, 0.35 + 0.3 * sin(vWorldPos.x * 0.21 + sin(vWorldPos.z * 0.17) * 2.0));
     float mossy = smoothstep(0.55, 0.85, sin(vWorldPos.x * 0.43 + 1.3) * sin(vWorldPos.z * 0.37 + 0.7) * 0.5 + 0.5);
     rtop = mix(rtop, diffuseColor.rgb, mossy * 0.55);
+    float rl = dot(rtop, vec3(0.3, 0.59, 0.11));
+    rtop = mix(rtop, vec3(rl) * vec3(1.03, 1.0, 0.94) * 1.4, 0.4);   // верх террас светлее (реф v6b)
     diffuseColor.rgb = mix(diffuseColor.rgb, rtop, ridgeTop);
     diffuseColor.rgb = mix(diffuseColor.rgb, side, steep);
+    float rim = steep * (1.0 - smoothstep(0.25, 0.6, steep)) * smoothstep(0.6, 1.4, vWorldPos.y);   // кромка: переход стена→верх
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(side, vec3(0.3, 0.59, 0.11))) * vec3(1.05, 1.03, 0.97) * 1.45 + 0.07, rim * 0.7);
     }
   }
 }`);
