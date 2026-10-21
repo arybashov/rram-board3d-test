@@ -1334,7 +1334,9 @@ ${gtex ? `{
         for (let t = -6; t <= 6; t += 0.25) w += sampleMask(bc.x + ux * t, bc.z + uz * t).water;   // без искусственной воды у моста
         if (w > bestW) { bestW = w; best = a; }
       }
-      const fa = (best + 90) * Math.PI / 180, fx = Math.cos(fa), fz = Math.sin(fa);
+      // поперёк течения, но вдоль ряда клеток: направления на соседей гекса (плоский верх) — 30°+60°k
+      const raw = best + 90, snap = Math.round((raw - 30) / 60) * 60 + 30;
+      const fa = snap * Math.PI / 180, fx = Math.cos(fa), fz = Math.sin(fa);
       const reach = sgn => { let t = 0; for (; t < 6; t += 0.1) if (sampleMask(bc.x + fx * t * sgn, bc.z + fz * t * sgn).water < 0.3) break; return t; };
       const r1 = reach(1), r2 = reach(-1);
       const span = Math.max(3.0, r1 + r2 + 1.0);
@@ -1358,7 +1360,7 @@ ${gtex ? `{
       m.scale.set(1, 1, len / 5.0);
       piece.add(m);
       piece.userData.kind = kind;
-      if (kind === 'log') m.position.y = 0.04;   // верх настила чуть выше грунта берега — без мерцания
+      m.position.y = 0.05;   // настил над грунтом — земля не проглядывает (z-fighting)
       // огонь — на верхушке столбов модели (extras torch); у бревенчатого огня нет
       m.updateMatrixWorld(true);
       m.traverse(o => {
