@@ -1081,8 +1081,12 @@ ${gtex ? `{
 #ifndef LOWQ
   grass = mix(grass, texture2D(g_grass, tuv * 0.41 + 0.37).rgb, 0.35);
 #endif
+  // рваный край троп: маска троп берётся со сдвигом по шуму (domain warp) — у неё край в 1 px,
+  // порог двигать бесполезно; сдвиг ~0.3 ед. даёт выступы, заплаты травы и неровную ширину
+  vec2 pw = vec2(sin(vWorldPos.z * 1.9 + sin(vWorldPos.x * 1.3) * 1.7) + 0.5 * sin(vWorldPos.x * 4.7 - vWorldPos.z * 3.3),
+                 sin(vWorldPos.x * 2.1 - sin(vWorldPos.z * 1.1) * 1.5) + 0.5 * sin(vWorldPos.z * 5.3 + vWorldPos.x * 2.9));
   vec4 sa = texture2D(g_splatA, vMapUv);
-  vec4 sb = texture2D(g_splatB, vMapUv);
+  sa.r = texture2D(g_splatA, vMapUv + pw * vec2(0.0031, 0.0041)).r;  vec4 sb = texture2D(g_splatB, vMapUv);
   vec3 col = grass;
   if (sb.r > 0.01) col = mix(col, texture2D(g_meadow, tuv).rgb, sb.r);
   if (sa.g > 0.01) col = mix(col, texture2D(g_forest, tuv).rgb * vec3(0.6, 0.62, 0.55), sa.g);   // под кронами темно (не газон)
@@ -1222,6 +1226,11 @@ ${gtex ? `{
   // суши по обе стороны (соседи мостовых клеток); длина — от клетки до клетки суши;
   // ширина — ровно ширина гекса поперёк оси, чтобы края моста совпадали с краями клеток.
   const bridges = new THREE.Group();
+  // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
+  // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
+  const bridgeModels = {};
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=1`)
+    .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
   const deckTex = texL.load('./data/bridge-deck.webp?v=1'); deckTex.colorSpace = THREE.SRGBColorSpace; deckTex.wrapS = deckTex.wrapT = THREE.RepeatWrapping;
@@ -1307,6 +1316,26 @@ ${gtex ? `{
     deck.material.map.repeat.set(1, len / 2.2);
     deck.material.map.rotation = 0;
     deck.material.map.needsUpdate = true;
+    const kind = cx < 0 ? 'rope' : cz < 0 ? 'stone' : 'log';
+    if (bridgeModels[kind]) {
+      // модель: X — поперёк (3.5 м), вдоль — 5 м (4 м русло + по 0.5 м на берега); подгоняем под пролёт и ширину
+      piece.clear();
+      const m = bridgeModels[kind].clone(true);
+      m.scale.set(BRIDGE_WIDTH / 3.5, 1, len / 5.0);
+      piece.add(m);
+      piece.userData.kind = kind;
+      if (kind === 'log') m.position.y = 0.04;   // верх настила чуть выше грунта берега — без мерцания
+      // огонь — на верхушке столбов модели (extras torch); у бревенчатого огня нет
+      m.updateMatrixWorld(true);
+      m.traverse(o => {
+        if (!o.userData.torch) return;
+        o.userData.torch = false;
+        const bb = new THREE.Box3().setFromObject(o), c = bb.getCenter(new THREE.Vector3());
+        const f = new THREE.Object3D(); f.position.set(c.x, bb.max.y + 0.02, c.z); f.userData.firePoint = true;
+        piece.add(f);
+      });
+      m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = false; o.material.opacity = 1; o.material.depthWrite = true; } });
+    }
     piece.position.set(cx + dx * mid, 0, cz + dz * mid);
     piece.rotation.y = axis;
     piece.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -1688,7 +1717,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=17' : '.png')), (await fetch(treeSpritesUrl + '.json?v=17')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=18' : '.png')), (await fetch(treeSpritesUrl + '.json?v=18')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -2071,9 +2100,7 @@ ${gtex ? `{
             if (r() < 0.07) add('prop_mush_glow', jx, gy, jz, 1.2 + r() * 0.6);
             else if (r() < 0.14) add('prop_fern', jx, gy, jz, 1.1 + r() * 0.6);
           } else if (r() < (zoneOf(jx, jz) === 'G' ? 0.03 : 0.13)) add('prop_fern', jx, gy, jz, 1 + r() * 0.7);   // на лугу G папоротников почти нет (реф)
-          else if (r() < 0.035) add('prop_mush_red', jx, gy, jz, 1 + r() * 0.6);
           else if (r() < 0.02) add('prop_stump', jx, gy, jz, 0.9 + r() * 0.4);
-          else if (r() < 0.016) add('prop_log', jx, gy + 0.02, jz, 0.8 + r() * 0.4);
         } else if (dC < 2.2) {
           // опушка у тропы
           if (r() < 0.06) add('prop_fern', jx, gy, jz, 0.9 + r() * 0.5);
@@ -2162,7 +2189,7 @@ ${gtex ? `{
       };
       items.prop_fern = items.prop_fern.filter(([x, , z]) => !underCrown(x, z) && !onBridge(x, z));
       const ferns = items.prop_fern.map(([x, y, z, k]) => ({ x, y, z, h: 0.55 * k, group: 'fern', pick: Math.floor(r() * 99),
-        tint: [(r() - 0.5) * 0.04, 0.85 + r() * 0.25, 0.8 + r() * 0.3] }));
+        tint: [(r() - 0.5) * 0.04, 0.6 + r() * 0.2, 0.62 + r() * 0.2] }));   // тусклее (21.10: «не такие яркие»)
       // в ОДИН отсортированный список с деревьями — иначе две сетки сравниваются по глубине от камеры
       // и папоротник с деревом меняются местами при движении
       if (treeBillboard) {
@@ -2545,7 +2572,7 @@ ${gtex ? `{
     for (let j = 0; j < RZ; j += 1) for (let i = 0; i < RES; i += 1) {
       const x = groundX0 + (i + 0.5) / RES * groundW, z = groundZ0 + (j + 0.5) / RZ * groundH;
       let v = THREE.MathUtils.smoothstep(dens[j * RES + i], 0.6, 1.8);           // одиночка ~1 — слабо, группа — полностью
-      if (v > 0) v *= THREE.MathUtils.smoothstep(nearest(x, z), 0.95, 1.45);      // клетки чистые
+      if (v > 0) v *= THREE.MathUtils.smoothstep(nearest(x, z), 0.95, 1.45) * (onBridge(x, z) ? 0 : 1);      // клетки и мосты чистые
       if (v > 0) { const h = heightAt(x, z); v *= THREE.MathUtils.smoothstep(h, -0.35, -0.1) * (1 - THREE.MathUtils.smoothstep(h, 0.9, 1.4)); }
       data[(j * RES + i) * 4] = Math.round(255 * v); data[(j * RES + i) * 4 + 3] = 255;
     }
