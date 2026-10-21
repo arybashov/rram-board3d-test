@@ -183,7 +183,33 @@ function gateMat(name, repeat) {
   }
   return gateTex[name];
 }
+// модель ворот v2 из Blender: портал по частям + столбчатая скала вокруг (tools/blender/dwarf_gate_v2.py)
+let gateModel = null;
+async function loadGateModel(url) {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  const root = gltf.scene;
+  root.traverse(o => {
+    // жаровня из двух материалов приходит группой — огонь вешаем на один её меш
+    if (o.userData.torch && !o.isMesh) { const m = o.children.find(c => c.isMesh); if (m) m.userData.torch = true; o.userData.torch = false; }
+    if (o.isMesh) {
+      o.castShadow = true; o.receiveShadow = true;
+      if (o.material.emissiveMap) o.material.emissiveIntensity = 1.6;
+      if (o.material.name === 'gate_stone') o.material.color.setRGB(0.3, 0.3, 0.32); o.material.roughness = 1;   // боковины блоков — в тон скал хребта
+    }
+  });
+  gateModel = root;
+}
 function dwarfGate(span) {
+  if (gateModel) {
+    const W = Math.max(3.2, span * 0.9);              // ширина портала по раме (в модели 3.6 м)
+    const k = W / 3.6;
+    const g = new THREE.Group();
+    const m = gateModel.clone(true);
+    m.scale.setScalar(k);
+    g.add(m);
+    g.userData.span = W;
+    return g;
+  }
   const gate = new THREE.Group();
   const stoneTex = new THREE.TextureLoader().load('./data/tex-rockside-v6b.webp?v=1'); stoneTex.colorSpace = THREE.SRGBColorSpace; stoneTex.wrapS = stoneTex.wrapT = THREE.RepeatWrapping; stoneTex.repeat.set(0.6, 0.6);
   const stone = new THREE.MeshLambertMaterial({ map: stoneTex, color: 0xc8c8c8 });
@@ -870,7 +896,7 @@ function pickWeighted(list, r) {
   return list[list.length - 1][0];
 }
 
-export async function buildTerrain({ cells, cellById, groundX0, groundZ0, groundW, groundH, groundTex, maskUrl, cliffUrl, heightUrl, planUrl, upperRiverUrl, rocksUrl, modeledRocks = [], stoneKitUrl, rockStyle = 'stones', rockTopUrl, rockSideUrl, cliffKitUrl, cliffTexUrl, grassUrl, treeKitUrl, groundTextures, waterDistUrl, spireKitUrl, propKitUrl, treeSpritesUrl, treesUrl, leafAtlasUrl, kitTreesUrl, kitLodUrl }) {
+export async function buildTerrain({ cells, cellById, groundX0, groundZ0, groundW, groundH, groundTex, maskUrl, cliffUrl, heightUrl, planUrl, upperRiverUrl, rocksUrl, modeledRocks = [], stoneKitUrl, rockStyle = 'stones', rockTopUrl, rockSideUrl, cliffKitUrl, cliffTexUrl, grassUrl, treeKitUrl, groundTextures, waterDistUrl, spireKitUrl, propKitUrl, treeSpritesUrl, treesUrl, leafAtlasUrl, kitTreesUrl, kitLodUrl, gateModelUrl }) {
   // набор камней из Blender грузим первым: размеры набора нужны при расстановке
   const kitGeos = stoneKitUrl ? await loadStoneKit(stoneKitUrl).catch(() => null) : null;
   // рисованные текстуры камня (Codex): скалы, камни и стены хребта
@@ -1290,6 +1316,7 @@ ${gtex ? `{
   const houseSpots = [];
   const footprints = [];
   const glades = [];
+  if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   for (const c of cells) {
     const cls = c.marker?.class;
     const isGate = c.pointClass === 'dwarf_entry';
