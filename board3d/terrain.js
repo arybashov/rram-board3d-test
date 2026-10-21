@@ -1860,7 +1860,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=18' : '.png')), (await fetch(treeSpritesUrl + '.json?v=18')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=19' : '.png')), (await fetch(treeSpritesUrl + '.json?v=19')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -2791,6 +2791,29 @@ ${gtex ? `{
         brush += 1;
       }
     }
+    // цветы/лопухи/иван-чай/крапива (21.10: «должны быть ещё цветы всякие») — куртинами по 2–5 на опушках и
+    // у троп; шум решает, где пятно, чтобы не было ровного газона в цветочек
+    let forbs = 0;
+    if (sprites.frames.some(f => f.group === 'forb')) {
+      for (let z = groundZ0; z < groundZ0 + groundH; z += 1.4) for (let x = groundX0; x < groundX0 + groundW; x += 1.4) {
+        const jx = x + (rr() - 0.5) * 1.4, jz = z + (rr() - 0.5) * 1.4;
+        if (valueNoise2(jx * 0.3 - 3.3, jz * 0.3 + 8.1) < 0.5 || rr() > 0.7) continue;
+        const gy = groundY(jx, jz);
+        if (gy < -0.15 || gy > 1.0 || sample(jx, jz).water > 0.2 || onBridge(jx, jz) || nearHouse(jx, jz, 1.8)) continue;
+        const dc = nearest(jx, jz);
+        if (dc < 1.25) continue;
+        const nearTrees = grid.get(gk(jx, jz))?.some(t => Math.hypot(t.x - jx, t.z - jz) < 3.0) ?? false;
+        if (!nearTrees && dc > 2.6) continue;                    // опушка или у троп/клеток, не посреди пустоты
+        const kind = Math.floor(rr() * 4), n = 2 + Math.floor(rr() * 4);
+        for (let k = 0; k < n; k += 1) {
+          const fx = jx + (rr() - 0.5) * 0.9, fz = jz + (rr() - 0.5) * 0.9;
+          if (nearest(fx, fz) < 1.2 || sample(fx, fz).water > 0.2) continue;
+          extra.push({ x: fx, y: groundY(fx, fz), z: fz, h: 0.55 + rr() * 0.3, group: 'forb', pick: kind + 4 * Math.floor(rr() * 2), tint: [0, 0.8 + rr() * 0.15, 0.78 + rr() * 0.2] });
+          forbs += 1;
+        }
+      }
+    }
+    propCounts.forbs = forbs;
     let all = list.concat(extra);
     if (wf) {   // у заводи водопада деревьев нет (их обнулили выше) — при пересборке не возвращать
       const px = groundX0 + ((wf.poolX[0] + wf.poolX[1]) / 2 / 4096) * groundW, pz = groundZ0 + (wf.poolY / 3072) * groundH;
@@ -2841,7 +2864,7 @@ ${gtex ? `{
   // даёт сплошное основание, одиночка почти нет; вне клеток, на суше ниже хребта
   if (treeBillboard) {
     const RES = 512, RZ = Math.round(RES * groundH / groundW), dens = new Float32Array(RES * RZ);
-    const NO = new Set(['fern', 'reeds', 'bush', 'dry_bush', 'lily', 'mushroom', 'brush', 'shrub']);
+    const NO = new Set(['fern', 'reeds', 'bush', 'dry_bush', 'lily', 'mushroom', 'brush', 'shrub', 'forb', 'young_spruce', 'young_birch', 'young_willow']);
     for (const t of treeBillboard.list) {
       if (NO.has(t.group) || t.h < 1.4 || t.y > 1.0) continue;
       const rad = 0.42 * t.h, ci = (t.x - groundX0) / groundW * RES, cj = (t.z - groundZ0) / groundH * RZ;
