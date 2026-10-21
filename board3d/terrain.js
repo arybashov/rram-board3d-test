@@ -1199,10 +1199,11 @@ ${gtex ? `{
       rapids: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
       rbox: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) },
       impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1.0 },
+      reflTex: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
       flowTex: { value: (() => { const t = new THREE.TextureLoader().load('./data/water-flow.png?v=3'); t.colorSpace = THREE.NoColorSpace; return t; })() } },
     vertexShader: `varying vec2 vUv; varying vec3 vPos;
       void main(){ vUv = uv; vPos = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0); }`,
-    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform vec4 rbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
+    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform sampler2D reflTex; uniform vec4 rbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -1265,6 +1266,17 @@ ${gtex ? `{
         float riverK = (1.0 - lakeK) * (1.0 - poolK * smoothstep(1.4, 2.4, ri));
         white = max(white, streak * riverK * smoothstep(0.55, 0.85, sp) * smoothstep(0.15, 0.5, d) * (1.0 - smoothstep(0.75, 1.0, d)) * 0.3);   // струи только в узких быстрых руслах, не на плёсах
         foamBand = max(foamBand, white);
+        // отражения: тёмные массы берега и тёплые огни, разбитые рябью (сдвиг по шуму + полосы поперёк)
+        vec2 rj = vec2(n2(vPos.xz * 2.7 + time * 0.25) - 0.5, n2(vPos.xz * 1.3 - time * 0.15) - 0.5) * vec2(0.35, 0.12);
+        vec2 ruv = (vPos.xz + rj - rbox.xy) / rbox.zw;
+        vec2 refl = texture2D(reflTex, ruv).rg;
+        float bands = 0.65 + 0.35 * sin(vPos.z * 9.0 + n2(vPos.xz * 3.0) * 4.0 - time * 1.2);
+        col = mix(col, pow(vec3(0.06, 0.11, 0.09), vec3(2.2)), clamp(refl.r * 0.85 * mix(0.75, 1.0, bands), 0.0, 0.85));   // тёмно-зелёное отражение крон
+        col += pow(vec3(1.0, 0.62, 0.25), vec3(2.2)) * refl.g * 0.55 * smoothstep(0.35, 0.9, bands * (0.6 + 0.6 * n2(vPos.xz * 6.0 + time)));
+        // Френель: к горизонту вода светлее от неба (F0 ~0.02), блики редкие
+        vec3 V = normalize(cameraPosition - vPos);
+        float fres = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
+        col = mix(col, pow(vec3(0.52, 0.62, 0.68), vec3(2.2)), clamp(fres * 0.8, 0.0, 0.12) * (1.0 - refl.r * 0.7));
         col = mix(col, pow(vec3(0.70, 0.80, 0.82), vec3(2.2)), clamp(foamBand, 0.0, 1.0));   // пена серо-голубая, не белая
         col = pow(col, vec3(1.0 / 2.2));                            // обратно в вывод (шейдер пишет как есть)
         float a = mix(0.55, 0.96, smoothstep(0.0, 0.14, d));
@@ -2569,6 +2581,50 @@ ${gtex ? `{
       const rt = new THREE.DataTexture(data, RES, RZ); rt.magFilter = rt.minFilter = THREE.LinearFilter; rt.needsUpdate = true;
       if (waterMat.uniforms?.rapids) waterMat.uniforms.rapids.value = rt;
       propCounts.riverRocks = nr;
+      // ── карта отражений (разбор воды Codex, шаг 3): R — тёмные массы деревьев/домов/скал у воды, G — тёплые огни.
+      // Отражение лежит от основания к зрителю (+z — камера всегда спереди), длина ~ высота предмета.
+      const rf = new Float32Array(RES * RZ * 2);
+      const paint = (cx, cz, len, w, amp, ch) => {
+        const i0 = Math.floor((cx - w - groundX0) / groundW * RES), i1 = Math.ceil((cx + w - groundX0) / groundW * RES);
+        const j0 = Math.floor((cz - groundZ0) / groundH * RZ), j1 = Math.ceil((cz + len - groundZ0) / groundH * RZ);
+        for (let j = Math.max(0, j0); j <= Math.min(RZ - 1, j1); j += 1) for (let i = Math.max(0, i0); i <= Math.min(RES - 1, i1); i += 1) {
+          const x = groundX0 + (i + 0.5) / RES * groundW - cx, z = groundZ0 + (j + 0.5) / RZ * groundH - cz;
+          if (z < 0) continue;
+          const t = z / len, ww = w * (1 - 0.35 * t);
+          const v = amp * Math.max(0, 1 - Math.abs(x) / ww) * Math.max(0, 1 - t) ** 0.7;
+          const k = (j * RES + i) * 2 + ch; rf[k] = Math.max(rf[k], v);
+        }
+      };
+      const disc = (cx, cz, rad, amp, ch = 0) => {   // тень/отражение нависающей кроны — пятно вокруг основания
+        const i0 = Math.floor((cx - rad - groundX0) / groundW * RES), i1 = Math.ceil((cx + rad - groundX0) / groundW * RES);
+        const j0 = Math.floor((cz - rad - groundZ0) / groundH * RZ), j1 = Math.ceil((cz + rad - groundZ0) / groundH * RZ);
+        for (let j = Math.max(0, j0); j <= Math.min(RZ - 1, j1); j += 1) for (let i = Math.max(0, i0); i <= Math.min(RES - 1, i1); i += 1) {
+          const x = groundX0 + (i + 0.5) / RES * groundW - cx, z = groundZ0 + (j + 0.5) / RZ * groundH - cz;
+          const v = amp * Math.max(0, 1 - Math.hypot(x, z) / rad) ** 0.8;
+          const k = (j * RES + i) * 2 + ch; rf[k] = Math.max(rf[k], v);
+        }
+      };
+      const nearWaterXZ = (x, z) => [0.8, 1.6, 2.6].some(dz => sampleMask(x, z + dz).water > 0.4);
+      for (const t of treeBillboard?.list ?? []) {
+        if (t.h < 1.2) continue;
+        if ([[1, 0], [-1, 0], [0, 1], [0, -1], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([a, b]) => sampleMask(t.x + a * 1.2, t.z + b * 1.2).water > 0.4)) disc(t.x, t.z, 0.8 * t.h, 0.85);
+        if (!nearWaterXZ(t.x, t.z)) continue;
+        paint(t.x, t.z + 0.1, t.h * 1.1, Math.max(0.4, 0.42 * t.h * Math.min(1.2, t.aspect ?? 0.7)), t.group === 'willow' ? 1.0 : 0.85, 0); propCounts.refl = (propCounts.refl ?? 0) + 1;
+      }
+      houses.updateMatrixWorld(true);
+      for (const h of houses.children) {
+        const b = new THREE.Box3().setFromObject(h);
+        const cx = (b.min.x + b.max.x) / 2;
+        if (!nearWaterXZ(cx, b.max.z)) continue;
+        paint(cx, b.max.z, (b.max.y - b.min.y) * 0.9, (b.max.x - b.min.x) / 2, 0.9, 0);
+        h.traverse(o => { if (o.userData.torch || o.userData.firePoint) { const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld); paint(p.x, b.max.z, 2.0, 0.3, 1.0, 1); } });
+      }
+      bridges.updateMatrixWorld(true);
+      bridges.traverse(o => { if (o.userData.firePoint) { const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld); paint(p.x, p.z + 0.2, 2.2, 0.28, 1.0, 1); disc(p.x, p.z, 1.8, 0.7, 1); } });   // отблеск факела на ближней воде
+      const rd = new Uint8Array(RES * RZ * 4);
+      for (let k = 0; k < RES * RZ; k += 1) { rd[k * 4] = Math.round(Math.min(1, rf[k * 2]) * 255); rd[k * 4 + 1] = Math.round(Math.min(1, rf[k * 2 + 1]) * 255); rd[k * 4 + 3] = 255; }
+      const rtx = new THREE.DataTexture(rd, RES, RZ); rtx.magFilter = rtx.minFilter = THREE.LinearFilter; rtx.needsUpdate = true;
+      if (waterMat.uniforms?.reflTex) waterMat.uniforms.reflTex.value = rtx;
     }
     // отдельные камни — тем же рисованным материалом, что и скала (единый стиль)
     const stoneMat = monolithMat ?? new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -2619,7 +2675,7 @@ ${gtex ? `{
         col = mix(col, vec3(0.42, 0.60, 0.65) + lines * 0.12, lipK * 0.9);
         a = mix(a, 0.85, lipK);
         gl_FragColor = vec4(col, a * smoothstep(0.02, 0.5, m));`);
-        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) }, rapids: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, rbox: waterMat.uniforms.rbox, impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1 }, flowTex: { value: new THREE.DataTexture(new Uint8Array([128, 128, 0, 255]), 1, 1) },
+        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) }, rapids: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, rbox: waterMat.uniforms.rbox, impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1 }, flowTex: { value: new THREE.DataTexture(new Uint8Array([128, 128, 0, 255]), 1, 1) }, reflTex: waterMat.uniforms.reflTex,
             lipC: { value: new THREE.Vector2((lipW0.x + lipW1.x) / 2, (lipW0.z + lipW1.z) / 2) }, lipR: { value: lipW0.distanceTo(lipW1) * 0.75 } },
           vertexShader: waterMat.vertexShader, fragmentShader: fs });
         animated.push(upperMat);
