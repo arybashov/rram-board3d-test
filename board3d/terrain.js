@@ -2097,7 +2097,7 @@ ${gtex ? `{
         if (waterNear && gy > -0.25) continue;                     // мокрый берег — камыш, отдельный проход ниже
         if (m.forest > 0.5) {
           if (biome === 'dark') {
-            if (r() < 0.07) add('prop_mush_glow', jx, gy, jz, 1.2 + r() * 0.6);
+            if (r() < 0.07) { /* синие светящиеся грибы убраны (21.10) — вызов r() сохранён, посадка не сдвигается */ }
             else if (r() < 0.14) add('prop_fern', jx, gy, jz, 1.1 + r() * 0.6);
           } else if (r() < (zoneOf(jx, jz) === 'G' ? 0.03 : 0.13)) add('prop_fern', jx, gy, jz, 1 + r() * 0.7);   // на лугу G папоротников почти нет (реф)
           else if (r() < 0.02) add('prop_stump', jx, gy, jz, 0.9 + r() * 0.4);
