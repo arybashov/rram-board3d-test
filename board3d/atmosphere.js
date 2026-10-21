@@ -86,7 +86,7 @@ function warmGlow() {
 // клуба дыма (атлас 2×2, data/smoke-atlas.webp от Codex); у каждой частицы жизнь: появляется, растёт, дрейфует,
 // медленно вращается и гаснет, потом рождается заново (цикл в шейдере — без CPU). «Depth fade» (мягкий стык с
 // землёй) упрощён: низ клуба растворяется у высоты земли под точкой рождения. Всё — один InstancedMesh, один вызов.
-function smokeField({ spots, tex, color = 0xc4ced2, opacity = 1.1 }) {
+function smokeField({ spots, tex, color = 0xb6c4ca, opacity = 1.05 }) {
   const n = spots.length;
   const geo = new THREE.InstancedBufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));
@@ -96,7 +96,7 @@ function smokeField({ spots, tex, color = 0xc4ced2, opacity = 1.1 }) {
   spots.forEach((sp, i) => {
     spawn.set([sp.x, sp.y, sp.z, sp.ground], i * 4);
     // seed, жизнь (с), размер, кадр атласа
-    par.set([Math.random(), 14 + Math.random() * 12, sp.size * (0.8 + Math.random() * 0.5), Math.floor(Math.random() * 4)], i * 4);
+    par.set([Math.random(), 18 + Math.random() * 14, sp.size * (0.8 + Math.random() * 0.5), Math.random() < 0.8 ? (Math.random() < 0.5 ? 1 : 3) : (Math.random() < 0.5 ? 0 : 2)], i * 4);
   });
   geo.setAttribute('aSpawn', new THREE.InstancedBufferAttribute(spawn, 4));
   geo.setAttribute('aPar', new THREE.InstancedBufferAttribute(par, 4));
@@ -105,7 +105,7 @@ function smokeField({ spots, tex, color = 0xc4ced2, opacity = 1.1 }) {
     transparent: true, depthWrite: false,
     uniforms: { time: { value: 0 }, tex: { value: tex }, col: { value: new THREE.Color(color) }, k: { value: opacity }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
     vertexShader: `uniform float time; uniform vec2 wind; attribute vec4 aSpawn; attribute vec4 aPar;
-      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam;
+      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed;
       void main(){
         float life = aPar.y, t = fract(time / life + aPar.x);              // возраст 0..1
         float size = aPar.z * mix(0.65, 1.25, t);                          // растёт за жизнь
@@ -114,21 +114,28 @@ function smokeField({ spots, tex, color = 0xc4ced2, opacity = 1.1 }) {
         vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy * size;
         vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
         vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
-        vec3 w = c + right * q.x + up * q.y * 0.6;                         // клубы приплюснуты — стелются
-        vUv = uv; vA = sin(3.14159 * t); vWY = w.y; vG = aSpawn.w; vCell = aPar.w;
+        vec3 w = c + right * q.x + up * q.y * 0.38;                        // пелена приплюснута — стелется
+        vUv = uv; vA = sin(3.14159 * t); vT = time; vSeed = aPar.x; vWY = w.y; vG = aSpawn.w; vCell = aPar.w;
         vec4 mv = viewMatrix * vec4(w, 1.0); vCam = -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `uniform sampler2D tex; uniform vec3 col; uniform float k;
-      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam;
+      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
       void main(){
+        // рисунок внутри клуба медленно течёт (вместо раскадровки Unreal): UV искривлены бегущим шумом
+        vec2 fl = vec2(n2(vUv * 3.0 + vec2(vT * 0.05, vSeed * 9.0)), n2(vUv * 3.0 + vec2(vSeed * 7.0, -vT * 0.04))) - 0.5;
+        vec2 uv = clamp(vUv + fl * 0.18, 0.02, 0.98);
         vec2 cell = vec2(mod(vCell, 2.0), floor(vCell / 2.0)) * 0.5;
-        float d = texture2D(tex, cell + vUv * 0.5).r;                     // яркость клуба = плотность
+        float d = texture2D(tex, cell + uv * 0.5).r;
+        d = pow(d, 1.15) * (1.0 - smoothstep(0.36, 0.5, length(vUv - 0.5)));   // мягче, края растворяются полностью
         float soft = smoothstep(vG - 0.1, vG + 0.7, vWY);                  // мягкий стык с землёй (упрощённый depth fade)
         float near = smoothstep(4.0, 12.0, vCam);                          // не застилает камеру вблизи
         float a = d * vA * soft * near * k;
         if (a < 0.004) discard;
-        gl_FragColor = vec4(col * (0.85 + 0.25 * d), a);
+        gl_FragColor = vec4(col * (0.9 + 0.2 * d), a);
       }`,
   });
   const mesh = new THREE.Mesh(geo, mat);
@@ -162,7 +169,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
       const footOfRidge = h < 1.0 && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]].some(([dx, dz]) => hAt(jx + dx, jz + dz) > 2.5);
       if (!(water ? Math.random() < 0.6 : footOfRidge && Math.random() < 0.55)) continue;
       const g = Math.max(h, -0.3);
-      spots.push({ x: jx, y: g + 0.7, z: jz, ground: g, size: water ? 4.5 : 5.5 });
+      spots.push({ x: jx, y: g + 0.55, z: jz, ground: g, size: water ? 6.5 : 7.5 });
     }
     const smoke = smokeField({ spots, tex });
     group.add(smoke);
