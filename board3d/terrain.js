@@ -1229,7 +1229,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=1`)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=2`)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
@@ -1321,7 +1321,41 @@ ${gtex ? `{
       // модель: X — поперёк (3.5 м), вдоль — 5 м (4 м русло + по 0.5 м на берега); подгоняем под пролёт и ширину
       piece.clear();
       const m = bridgeModels[kind].clone(true);
-      m.scale.set(BRIDGE_WIDTH / 3.5, 1, len / 5.0);
+      // мост — ровно по своей клетке: на переправе одна клетка-мост, соседние клетки суши — не полосы моста
+      const bc = g.reduce((acc, c) => ({ x: acc.x + c.x / g.length, z: acc.z + c.z / g.length }), { x: 0, z: 0 });
+      const along = (bc.x - mx) * dx + (bc.z - mz) * dz;
+      piece.userData.center = [bc.x, bc.z];   // центр — сама клетка-мост
+      // ось — поперёк течения: направление реки = где вдоль линии через клетку больше всего воды;
+      // мост перпендикулярен ей, длина — от берега до берега (+0.5 на каждый берег)
+      let best = 0, bestW = -1;
+      for (let a = 0; a < 180; a += 5) {
+        const ux = Math.cos(a * Math.PI / 180), uz = Math.sin(a * Math.PI / 180);
+        let w = 0;
+        for (let t = -6; t <= 6; t += 0.25) w += sampleMask(bc.x + ux * t, bc.z + uz * t).water;   // без искусственной воды у моста
+        if (w > bestW) { bestW = w; best = a; }
+      }
+      const fa = (best + 90) * Math.PI / 180, fx = Math.cos(fa), fz = Math.sin(fa);
+      const reach = sgn => { let t = 0; for (; t < 6; t += 0.1) if (sampleMask(bc.x + fx * t * sgn, bc.z + fz * t * sgn).water < 0.3) break; return t; };
+      const r1 = reach(1), r2 = reach(-1);
+      const span = Math.max(3.0, r1 + r2 + 1.0);
+      // ширина — две полосы клеток (21.10: «мост 2 клетки вмещать должен»): клетка-мост и соседняя клетка
+      // поперёк оси; центр — посередине между ними, края — по вершинам их гексов
+      const nx2 = -fz, nz2 = fx;
+      const lane2 = cells.filter(c => {
+        const al = (c.x - bc.x) * fx + (c.z - bc.z) * fz, pe = (c.x - bc.x) * nx2 + (c.z - bc.z) * nz2;
+        return g.includes(c) || (Math.abs(al) < 1.0 && Math.abs(pe) > 0.9 && Math.abs(pe) < 2.1);
+      });
+      let q0 = Infinity, q1 = -Infinity;
+      for (const c of lane2) for (let i = 0; i < 6; i += 1) {
+        const pe = (c.x + Math.cos(i * Math.PI / 3) - bc.x) * nx2 + (c.z + Math.sin(i * Math.PI / 3) - bc.z) * nz2;
+        q0 = Math.min(q0, pe); q1 = Math.max(q1, pe);
+      }
+      const wid = Number.isFinite(q0) ? Math.max(3.4, q1 - q0) : 3.5, sh = Number.isFinite(q0) ? (q0 + q1) / 2 : 0;
+      piece.userData.center = [bc.x + fx * (r1 - r2) / 2 + nx2 * sh, bc.z + fz * (r1 - r2) / 2 + nz2 * sh];
+      piece.userData.axis = Math.atan2(fx, fz);
+      m.scale.x = wid / 3.5;
+      m.scale.z = span / (kind === 'stone' ? 7.0 : 5.0);
+      m.scale.set(1, 1, len / 5.0);
       piece.add(m);
       piece.userData.kind = kind;
       if (kind === 'log') m.position.y = 0.04;   // верх настила чуть выше грунта берега — без мерцания
@@ -1337,7 +1371,8 @@ ${gtex ? `{
       m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = false; o.material.opacity = 1; o.material.depthWrite = true; } });
     }
     piece.position.set(cx + dx * mid, 0, cz + dz * mid);
-    piece.rotation.y = axis;
+    if (piece.userData.center) piece.position.set(piece.userData.center[0], 0, piece.userData.center[1]);
+    piece.rotation.y = piece.userData.axis ?? axis;
     piece.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     bridges.add(piece);
   }
