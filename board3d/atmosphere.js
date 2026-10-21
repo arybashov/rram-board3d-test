@@ -128,7 +128,10 @@ function smokeField({ spots, tex, color = 0xb6c4ca, opacity = 1.05 }) {
         // рисунок внутри клуба медленно течёт (вместо раскадровки Unreal): UV искривлены бегущим шумом
         vec2 fl = vec2(n2(vUv * 3.0 + vec2(vT * 0.05, vSeed * 9.0)), n2(vUv * 3.0 + vec2(vSeed * 7.0, -vT * 0.04))) - 0.5;
         vec2 uv = clamp(vUv + fl * 0.18, 0.02, 0.98);
-        vec2 cell = vec2(mod(vCell, 2.0), floor(vCell / 2.0)) * 0.5;
+        // номер кадра атласа приходит интерполированным (2.0 → 1.9999 на части пикселей) — округлять, иначе
+        // клуб на кадр «прыгает» в соседнюю ячейку и пропадает (мерцание)
+        float ci = floor(vCell + 0.5);
+        vec2 cell = vec2(mod(ci, 2.0), floor(ci / 2.0 + 0.01)) * 0.5;
         float d = texture2D(tex, cell + uv * 0.5).r;
         d = pow(d, 1.15) * (1.0 - smoothstep(0.36, 0.5, length(vUv - 0.5)));   // мягче, края растворяются полностью
         float soft = smoothstep(vG - 0.1, vG + 0.7, vWY);                  // мягкий стык с землёй (упрощённый depth fade)
