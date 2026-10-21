@@ -191,10 +191,15 @@ async function loadGateModel(url) {
   root.traverse(o => {
     // жаровня из двух материалов приходит группой — огонь вешаем на один её меш
     if (o.userData.torch && !o.isMesh) { const m = o.children.find(c => c.isMesh); if (m) m.userData.torch = true; o.userData.torch = false; }
+    // пивоты огня чаш (fire_l / fire_r, инженерка §6): огонь ставит atmosphere.js
+    if (o.userData.fire) o.userData.firePoint = true;
     if (o.isMesh) {
       o.castShadow = true; o.receiveShadow = true;
-      if (o.material.emissiveMap) o.material.emissiveIntensity = 1.6;
-      if (o.material.name === 'gate_stone') o.material.color.setRGB(0.3, 0.3, 0.32); o.material.roughness = 1;   // боковины блоков — в тон скал хребта
+      if (o.material.emissiveMap) o.material.emissiveIntensity = 1.1;
+      if (o.material.name === 'gate_stone' || o.material.name === 'gate_floor') { o.material.color.setRGB(0.8, 0.8, 0.82); o.material.roughness = 1; }
+      if (o.material.name === 'gate_rune') { o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 0.9; o.material.color.set(0x0c2a33); }   // руны — голубым, без пересвета
+      if (o.material.name === 'gate_ember') { o.material.emissive.set(0xff4a10); o.material.emissiveIntensity = 0.8; o.material.color.set(0x220804); }
+      if (o.material.name === 'gate_inner') { o.material.color.setRGB(0.07, 0.07, 0.08); o.material.roughness = 1; }   // тоннель — темнота   // боковины блоков — в тон скал хребта
     }
   });
   gateModel = root;
@@ -202,12 +207,13 @@ async function loadGateModel(url) {
 function dwarfGate(span) {
   if (gateModel) {
     const W = Math.max(3.2, span * 0.9);              // ширина портала по раме (в модели 3.6 м)
-    const k = W / 3.6;
+    const k = W / 3.6;                                // рама модели v3 — 3.6 м по наружному контуру
     const g = new THREE.Group();
     const m = gateModel.clone(true);
     m.scale.setScalar(k);
     g.add(m);
     g.userData.span = W;
+    g.userData.depth = 3.4 * k + 0.3;                 // пол за воротами — до Y=3.4 модели
     return g;
   }
   const gate = new THREE.Group();
@@ -1393,7 +1399,7 @@ ${gtex ? `{
       x: best.hx, z: best.hz, dx: best.dx, dz: best.dz,
       hw: isGate ? h.userData.span / 2 + 1.2 : isNest ? 0.9 : HOUSE_W / 2,
       hdFront: isGate ? 0.6 : isNest ? 0.9 : HOUSE_D / 2,
-      hdBack: isGate ? 2.0 : isNest ? 0.9 : HOUSE_D / 2,   // за воротами — проход в обрыве
+      hdBack: isGate ? (h.userData.depth ?? 2.0) : isNest ? 0.9 : HOUSE_D / 2,   // за воротами — пол площадки
     });
     if (cls === 'fairy_glade') glades.push({ x: c.x, z: c.z });
   }
@@ -2418,8 +2424,26 @@ ${gtex ? `{
     animated.push(mistMat);
   }
   if (waterDist) animated.push(waterMat);
+  // створки ворот: клик открывает/закрывает (board3d.js → gate.userData.toggle), плавный поворот на петлях
+  const gateLeaves = [];
+  gate?.traverse(o => { if (o.name === 'door_l' || o.name === 'door_r') gateLeaves.push({ o, dir: o.name === 'door_l' ? -1 : 1 }); });
+  let gateT = 0, gateOpen = false;
+  if (gate) { gate.userData.toggle = () => { gateOpen = !gateOpen; return gateOpen; }; gate.userData.isOpen = () => gateOpen; }
   const update = (dt, camera) => {
     windUniform.value += dt;
+    if (gateLeaves.length) {
+      // инженерка: створки открываются НАРУЖУ и по очереди — сначала правая (с нащельником), потом левая;
+      // закрываются в обратном порядке. gateT: 0…1 — ход правой, 1…2 — ход левой
+      const target = gateOpen ? 2 : 0;
+      if (gateT !== target) {
+        gateT = THREE.MathUtils.clamp(gateT + Math.sign(target - gateT) * dt / 1.3, 0, 2);
+        const ease = t => t * t * (3 - 2 * t);               // тяжёлые створки: медленный старт и доводка
+        for (const { o, dir } of gateLeaves) {
+          const t = dir > 0 ? THREE.MathUtils.clamp(gateT, 0, 1) : THREE.MathUtils.clamp(gateT - 1, 0, 1);
+          o.rotation.y = dir * ease(t) * THREE.MathUtils.degToRad(85);
+        }
+      }
+    }
     for (const m of animated) m.uniforms.time.value += dt;
     if (camera) for (const bb of billboards) bb.userData.resort(camera);
   };

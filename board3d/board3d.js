@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=10';
-import { buildTerrain } from './terrain.js?v=223';
+import { buildAtmosphere } from './atmosphere.js?v=11';
+import { buildTerrain } from './terrain.js?v=227';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -107,7 +107,7 @@ const terrain = await buildTerrain({
   cliffUrl: './data/terrain-cliff.png?v=2',
   heightUrl: './data/terrain-height.png?v=11',
   planUrl: './data/plan.json?v=2',
-  gateModelUrl: './models/dwarf-gate-v2.glb?v=2',   // ворота дварфов (tools/blender/dwarf_gate_v2.py)
+  gateModelUrl: './models/dwarf-gate-v3.glb?v=2',   // ворота дварфов по инженерке (tools/blender/dwarf_gate_v3.py)
   upperRiverUrl: './data/upper-river.png?v=4',
   rocksUrl: './data/rocks.json?v=4',
   stoneKitUrl: './models/stone-kit.glb?v=3',   // гексовые камни из Blender (tools/blender/stone_kit.py)
@@ -522,6 +522,11 @@ renderer.domElement.addEventListener('pointerup', ev => {
   down = null;
   if (moved > 8 || ev.button === 2 || controls.hadGesture) return;
   const hit = pick(ev);
+  // клик по воротам дварфов — открыть/закрыть створки (если ворота ближе клетки под курсором)
+  if (terrain.gate?.userData.toggle) {
+    const g = raycaster.intersectObject(terrain.gate, true)[0];
+    if (g && g.distance < Math.min(hit.cellDist, hit.unitDist)) { terrain.gate.userData.toggle(); return; }
+  }
   const cellId = hit.cellId;
   if (selected && cellId && attackable.has(cellId)) return attack(selected, cellId);
   if (selected && cellId && reachable.has(cellId)) return moveSelected(cellId);

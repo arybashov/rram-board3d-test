@@ -110,19 +110,24 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   const flames = [];
   const glowMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
   const lights = [];
-  for (const g of [terrain.bridges, terrain.houses]) g?.traverse(o => { if (o.isMesh && o.userData.torch) lights.push(o); });
+  for (const g of [terrain.bridges, terrain.houses]) g?.traverse(o => { if ((o.isMesh && o.userData.torch) || o.userData.firePoint) lights.push(o); });
   for (const post of lights) {
     const s = new THREE.Sprite(glowMat);
     post.updateWorldMatrix(true, false);
     const p = new THREE.Vector3().setFromMatrixPosition(post.matrixWorld);
-    s.position.set(p.x, p.y + 0.75, p.z);
-    s.scale.setScalar(1.6);
+    // точка огня чаши ворот — прямо на топливе (её начало), столб моста — над чашей на его верху
+    const big = !!post.userData.firePoint;
+    const sc = big ? new THREE.Vector3().setFromMatrixScale(post.matrixWorld).x : 1;
+    const base = big ? p.y : p.y + 0.78;
+    s.position.set(p.x, base + (big ? 0.35 * sc : -0.03), p.z);
+    s.scale.setScalar(big ? 2.4 * sc : 1.6);
     s.renderOrder = 22;
     // язычок пламени над чашей (реф: факелы на углах мостов), мерцает
     const f = new THREE.Sprite(flameMat);
-    f.position.set(p.x, p.y + 0.78, p.z);
+    f.position.set(p.x, base, p.z);
     f.center.set(0.5, 0.05);
-    f.scale.set(0.32, 0.5, 1);
+    f.userData.w = big ? 0.55 * sc : 0.32; f.userData.h = big ? 0.75 * sc : 0.5;     // огонь чаши: высота ~0.55–0.65 м (инженерка §6)
+    f.scale.set(f.userData.w, f.userData.h, 1);
     f.renderOrder = 23;
     f.userData.phase = Math.random() * 6.28;
     flames.push(f);
@@ -132,7 +137,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   const update = dt => {
     for (const m of anim) m.uniforms.time.value += dt;
     tt += dt;
-    for (const f of flames) { const k = 1 + 0.15 * Math.sin(tt * 9 + f.userData.phase) + 0.08 * Math.sin(tt * 17 + f.userData.phase * 2); f.scale.set(0.32 * (2 - k), 0.5 * k, 1); }
+    for (const f of flames) { const k = 1 + 0.15 * Math.sin(tt * 9 + f.userData.phase) + 0.08 * Math.sin(tt * 17 + f.userData.phase * 2); f.scale.set(f.userData.w * (2 - k), f.userData.h * k, 1); }
   };
   return { group, update, torches: lights.length };
 }
