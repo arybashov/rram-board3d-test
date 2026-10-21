@@ -294,6 +294,12 @@ function waterfallMesh(lipL, lipR, poolC, topY, bottomY) {
   const side = new THREE.Vector3().subVectors(lipR, lipL).normalize();
   const segs = 14;
   const pos = [], uv = [], idx = [];
+  // перекрытие с водой плато: ряд вершин на 0.5 выше по течению, на уровне воды плато
+  for (const k of [-0.5, 0.5]) {
+    const p = top.clone().addScaledVector(side, k * width).addScaledVector(dir, -1.1);
+    pos.push(p.x, topY + 0.14, p.z);
+    uv.push(k + 0.5, -0.15);
+  }
   for (let i = 0; i <= segs; i += 1) {
     const t = i / segs;
     // вода срывается с края и падает почти отвесно: горизонтальный вынос — в начале
@@ -301,10 +307,10 @@ function waterfallMesh(lipL, lipR, poolC, topY, bottomY) {
     const y = topY + (bottomY - topY) * t * t * 0.4 + (bottomY - topY) * t * 0.6;
     for (const k of [-0.5, 0.5]) {
       const p = top.clone().addScaledVector(side, k * width * (1 + t * 0.25)).addScaledVector(dir, out);
-      pos.push(p.x, y, p.z);
+      pos.push(p.x, i === 0 ? topY + 0.13 : y, p.z);
       uv.push(k + 0.5, t);
     }
-    if (i < segs) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -325,8 +331,11 @@ function waterfallMesh(lipL, lipR, poolC, topY, bottomY) {
         vec3 water = mix(vec3(0.20, 0.72, 0.80), vec3(0.92, 0.98, 1.0), smoothstep(0.45, 0.85, streak));
         float foam = smoothstep(0.78, 1.0, vUv.y);
         water = mix(water, vec3(1.0), foam * 0.8);
+        water = mix(water, vec3(0.85, 0.97, 1.0), smoothstep(0.07, 0.0, abs(vUv.y - 0.01)) * 0.55);   // гребень на кромке
         float edge = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
-        gl_FragColor = vec4(water, (0.72 + 0.25 * streak) * edge);
+        float head = smoothstep(-0.15, 0.02, vUv.y);                 // вход с воды плато — растворяется, без плиты
+        water = mix(vec3(0.21, 0.70, 0.78), water, smoothstep(-0.02, 0.06, vUv.y));   // до кромки — цвет воды плато
+        gl_FragColor = vec4(water, (0.72 + 0.25 * streak) * edge * head * head);
       }`,
   });
   return new THREE.Mesh(g, mat);
@@ -601,8 +610,11 @@ varying vec3 vCNrm;`)
 {
   vec3 n = normalize(vCNrm);
   vec2 uvX = vec2(vCPos.z, vCPos.y) * 0.17, uvZ = vec2(vCPos.x, vCPos.y) * 0.17;
-  // трёхплоскостная проекция с весами по нормали: на косых гранях нет растянутых полос
-  vec3 tw = pow(abs(n), vec3(4.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
+  // трёхплоскостная проекция: веса — по нормали самой грани (сглаженная нормаль вершин у модулей
+  // скал расходится с гранью, и камень проецировался вдоль стены — полосы-«лесенка»)
+  vec3 fc = cross(dFdx(vCPos), dFdy(vCPos)); float fl = length(fc);
+  vec3 fn = fl > 1e-9 ? fc / fl : n;
+  vec3 tw = pow(abs(fn), vec3(6.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
   vec3 side = (texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z) * 1.85 * vec3(0.95, 0.98, 1.04);   // светлее и холоднее (реф)
   side = mix(vec3(dot(side, vec3(0.3, 0.59, 0.11))), side, 0.6);   // серее
   side *= mix(0.78, 1.08, clamp(vCPos.y / 6.5, 0.0, 1.0));          // низ темнее, верх светлее
@@ -1070,12 +1082,18 @@ ${gtex ? `{
 {
   vec3 n = normalize(vNrm);
   float steep = 1.0 - smoothstep(0.45, 0.8, n.y);
+  vec3 fc = cross(dFdx(vWorldPos), dFdy(vWorldPos));             // вне if: производные в ветвлении не определены
+  float fl = length(fc);
+  vec3 fn = fl > 1e-9 ? fc / fl : n;                                // вырожденный случай — без NaN (чёрный пунктир)
   if (vWorldPos.y > -0.6) {
     vec2 uvX = vec2(vWorldPos.z, vWorldPos.y) * 0.19, uvZ = vec2(vWorldPos.x, vWorldPos.y) * 0.19;
     float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
     float ridgeTop = smoothstep(1.0, 1.6, vWorldPos.y);
     if (steep > 0.01 || ridgeTop > 0.01) {
-    vec3 tw = pow(abs(n), vec3(4.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
+    // веса проекции — по нормали грани (сглаженная нормаль вершин на уступах рельефа расходится с гранью,
+    // камень проецировался вдоль стены — полосы-«лесенка»)
+    vec3 wn = fn;
+    vec3 tw = pow(abs(wn), vec3(6.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
     vec3 side = steep > 0.01 ? (texture2D(rockSide, uvX).rgb * tw.x + texture2D(rockSide, vWorldPos.xz * 0.19).rgb * tw.y + texture2D(rockSide, uvZ).rgb * tw.z) * 1.6 : vec3(0.0);   // светлее (концепт v6b)
     vec3 top = texture2D(rockTop, vWorldPos.xz * 0.13).rgb;
     // верх террас хребта — камень с мхом и лишайником (не газон); вторая выборка под углом против повтора,
@@ -1942,12 +1960,6 @@ ${gtex ? `{
         const jx = x + (r() - 0.5) * STEP, jz = z + (r() - 0.5) * STEP;
         const dC = nearest(jx, jz);
         if (dC < 1.05 || nearHouse(jx, jz, 2.2)) continue;
-        // камыш у берегов и камней — до проверки «перепада» (у воды он всегда есть)
-        if (sample(jx, jz).water > 0.5 && groundY(jx, jz) < -0.3 && r() < 0.16 && biomeAt(jx, jz) !== 'lake'
-          && [[1.1, 0], [-1.1, 0], [0, 1.1], [0, -1.1]].some(([dx, dz]) => groundY(jx + dx, jz + dz) > -0.2)) {
-          add('prop_reeds', jx, WATER_LEVEL - 0.05, jz, 1 + r() * 0.5);
-          continue;
-        }
         if (blocked(jx, jz)) continue;
         const gy = groundY(jx, jz);
         if (gy > 1.0) continue;                                    // хребет — отдельная история
@@ -1959,7 +1971,7 @@ ${gtex ? `{
             add('prop_lily', jx, WATER_LEVEL + 0.01, jz, 1 + r() * 0.6);
           continue;
         }
-        if (waterNear && gy > -0.25) { if (r() < 0.32) add('prop_reeds', jx, gy, jz, 1 + r() * 0.5); continue; }
+        if (waterNear && gy > -0.25) continue;                     // мокрый берег — камыш, отдельный проход ниже
         if (m.forest > 0.5) {
           if (biome === 'dark') {
             if (r() < 0.07) add('prop_mush_glow', jx, gy, jz, 1.2 + r() * 0.6);
@@ -1975,6 +1987,54 @@ ${gtex ? `{
         }
         // 3D-цветочки убраны (20.10: «не нужны») — цветы на земле дают текстуры луга
       }
+    }
+    // ── Камыш: правила по тому, как растут тростник/рогоз ──
+    // 1) только узкая полоса у кромки: мелководье до 0.25 от берега и мокрый низкий берег до 0.6
+    //    (посреди русла и на глубине не растёт);
+    // 2) тихая вода: берег озера, внутренние изгибы реки (намыв ила); на внешнем изгибе (подмыв),
+    //    у крутых/высоких берегов и скал, у водопада — нет;
+    // 3) растёт корневищами — плотные куртины вдоль берега с промежутками, в середине куртины выше.
+    {
+      const planEarly = planUrl ? await (await fetch(planUrl)).json().catch(() => null) : null;
+      const wfp = planEarly?.waterfall;
+      const pool = wfp ? [groundX0 + ((wfp.poolX[0] + wfp.poolX[1]) / 2 / 4096) * groundW, groundZ0 + (wfp.poolY / 3072) * groundH] : null;
+      const isWet = (x, z) => sample(x, z).water > 0.5 && groundY(x, z) < WATER_LEVEL;
+      const D8 = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4), Math.sin(i * Math.PI / 4)]);
+      const D16 = Array.from({ length: 16 }, (_, i) => [Math.cos(i * Math.PI / 8), Math.sin(i * Math.PI / 8)]);
+      const shoreDist = (x, z, wet) => {
+        for (const d of [0.15, 0.3, 0.45, 0.6]) for (const [dx, dz] of D8) if (isWet(x + dx * d, z + dz * d) !== wet) return d;
+        return Infinity;
+      };
+      const RS = 0.32;
+      let reedN = 0;
+      for (let z = groundZ0; z < groundZ0 + groundH; z += RS) {
+        for (let x = groundX0; x < groundX0 + groundW; x += RS) {
+          const jx = x + (r() - 0.5) * RS, jz = z + (r() - 0.5) * RS;
+          const wet = isWet(jx, jz);
+          const d = shoreDist(jx, jz, wet);
+          if (d > (wet ? 0.25 : 0.6)) continue;                         // не у кромки
+          if (nearest(jx, jz) < 1.05 || nearHouse(jx, jz, 2.2)) continue;
+          if (pool && Math.hypot(jx - pool[0], jz - pool[1]) < 4.5) continue;   // у водопада — бурлит
+          const gy = groundY(jx, jz);
+          if (!wet && gy > WATER_LEVEL + 0.4) continue;                  // высокий сухой берег
+          if (D8.some(([dx, dz]) => groundY(jx + dx * 1.3, jz + dz * 1.3) > WATER_LEVEL + 0.9)) continue;   // крутой берег/скала
+          // тихая вода: доля воды вокруг. Озеро/заводь — много воды; мыс внутреннего изгиба — вода
+          // с нескольких сторон; узкая прямая протока — мало (редкие куртины); внешний изгиб — нет
+          let wc = 0;
+          for (const [dx, dz] of D16) wc += isWet(jx + dx * 1.1, jz + dz * 1.1) + isWet(jx + dx * 2.2, jz + dz * 2.2);
+          const frac = wc / 32;
+          const lake = biomeAt(jx, jz) === 'lake' || frac > 0.65;
+          const habitat = lake ? 1 : Math.max(0, Math.min(1, (frac - 0.25) / 0.3)) * 0.8;
+          if (habitat <= 0.05) continue;
+          const col = valueNoise2(jx * 0.5 + 17.3, jz * 0.5 + 3.1);     // куртины ~2 ед.
+          const thr = 1 - 0.44 * habitat;                                // озеро — куртины с промежутками, не сплошь
+          if (col < thr || r() > 0.6) continue;
+          const core = Math.min(1, (col - thr) / 0.15);                  // к краю куртины — ниже
+          add('prop_reeds', jx, wet ? WATER_LEVEL - 0.05 : gy, jz, (0.7 + 0.5 * core + r() * 0.2) * (wet ? 0.85 : 1));
+          reedN += 1;
+        }
+      }
+      propCounts.reeds_planted = reedN;
     }
     // овцы и ограды — у клеток колоды «овцы»
     for (const zn of zones.filter(zz => zz.biome === 'meadow')) {
