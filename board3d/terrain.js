@@ -1229,7 +1229,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=3`)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=4`)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
