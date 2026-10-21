@@ -1419,13 +1419,14 @@ ${gtex ? `{
     const pos = groundGeo.attributes.position;
     for (let i = 0; i < pos.count; i += 1) {
       const x = pos.getX(i), z = pos.getZ(i);
-      // в контуре и на полклетки вокруг — земля ровная (скала сама даёт высоту)
-      if (pos.getY(i) > 0 && (underRock(x, z) || [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].some(([dx, dz]) => underRock(x + dx, z + dz)))) pos.setY(i, 0);
+      // в контуре и на полклетки вокруг — земля ровная (скала сама даёт высоту); на плато хребта (выше 4)
+      // землю не опускаем — между камнями скалы иначе провал до низины (дыра у кромки водопада)
+      if (pos.getY(i) > 0 && pos.getY(i) < 4 && (underRock(x, z) || [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].some(([dx, dz]) => underRock(x + dx, z + dz)))) pos.setY(i, 0);
     }
     pos.needsUpdate = true;
     groundGeo.computeVertexNormals();
   }
-  const groundY = (x, z) => { const y = heightAt(x, z); return y > 0 ? (underRock(x, z) ? 0 : y * flatAt(x, z)) : y; };
+  const groundY = (x, z) => { const y = heightAt(x, z); return y > 0 ? (underRock(x, z) && y < 4 ? 0 : y * flatAt(x, z)) : y; };
 
   // ── Модули обрыва вдоль стен хребта: где карта высот круто обрывается ──
   const cliffs = new THREE.Group();
