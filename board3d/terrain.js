@@ -976,7 +976,7 @@ export async function buildTerrain({ cells, cellById, groundX0, groundZ0, ground
     const d = pathDir(c);
     const px = -d.y, pz = d.x;
     const side = k => Math.max(sampleMask(c.x + px * k, c.z + pz * k).water, sampleMask(c.x + px * k * 1.5, c.z + pz * k * 1.5).water);
-    return side(1.4) > 0.45 && side(-1.4) > 0.45;
+    return side(1.4) > 0.3 && side(-1.4) > 0.3;   // 0.3: после сглаживания маски воды (21.10) у каменного моста ~0.4
   }).map(c => c.id));
   const bridgeCells = [...bridgeIds].map(id => cellById.get(id));
   // Под мостом река продолжается: добавляем воду в маску вокруг мостовых клеток.
@@ -984,6 +984,8 @@ export async function buildTerrain({ cells, cellById, groundX0, groundZ0, ground
     const m = sampleMask(x, z);
     for (const c of bridgeCells) {
       const d = Math.hypot(c.x - x, c.z - z);
+      // под каменным и бревенчатым мостом русло шире (21.10): вода на ~3 ед. вокруг клетки-моста;
+      // клетки суши остаются сухими — их держит heightFromMap (у клеток земля ровная)
       if (d < 1.6) m.water = Math.max(m.water, 1 - THREE.MathUtils.smoothstep(d, 1.1, 1.6));
     }
     return m;
@@ -995,7 +997,7 @@ export async function buildTerrain({ cells, cellById, groundX0, groundZ0, ground
   const group = new THREE.Group();
 
   // ── Земля: плоско везде, кроме воды; у клеток всегда ровно ──
-  const seg = 200;
+  const seg = 300;   // шаг сетки ~0.27: уже спуска клетка→русло, иначе край воды лесенкой (21.10)
   const groundGeo = new THREE.PlaneGeometry(groundW, groundH, seg, Math.round(seg * groundH / groundW));
   groundGeo.rotateX(-Math.PI / 2);
   groundGeo.translate(groundX0 + groundW / 2, 0, groundZ0 + groundH / 2);
@@ -1016,14 +1018,20 @@ export async function buildTerrain({ cells, cellById, groundX0, groundZ0, ground
   // tools/board3d_heightmap_from_zones.py из карты зон от Codex. Яркость = только высота:
   // h = v / 255 * 8 - 1 (земля 0, вода до -0.9, хребет — три террасы 2.1 / 4.3 / 6.4).
   const fromHeightMap = v => v * 8 - 1;
+  const WBLUR = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 0.45, Math.sin(i * Math.PI / 4) * 0.45]);
   const heightFromMap = (x, z) => {
     const m = sample(x, z);
     let h = fromHeightMap(bilinear(heightMap, x, z, 0));
     const dLand = nearestLand(x, z);
-    // у клеток всегда ровно (и не опускаем, и не поднимаем)
-    h *= THREE.MathUtils.smoothstep(dLand, 1.0, 1.5);
+    // у клеток всегда ровно (и не опускаем, и не поднимаем). Вниз (вода) — только в пределах самого гекса:
+    // раньше ровный пояс 1.5 рвал узкие русла между клетками на лужи (21.10); вверх (холмы) — как раньше
+    h *= h < 0 ? THREE.MathUtils.smoothstep(dLand, 0.78, 1.2) : THREE.MathUtils.smoothstep(dLand, 1.0, 1.5);
     // под мостом — река (на карте высот мост нарисован полосой земли)
-    if (m.water > 0.5) h = Math.min(h, WATER_FLOOR * m.water * THREE.MathUtils.smoothstep(dLand, 0.95, 1.35));
+    // плавно, без порога: жёсткое «water > 0.5» давало обрыв 0 → -0.45 между узлами сетки — край воды лесенкой (21.10)
+    // маска воды почти двоичная (512 px) — размываем выборкой по кругу r≈0.45, иначе склон уже шага сетки
+    let wb = m.water * 0.2;
+    for (const [dx, dz] of WBLUR) wb += sample(x + dx, z + dz).water * 0.1;
+    if (wb > 0.15) h = Math.min(h, WATER_FLOOR * THREE.MathUtils.smoothstep(wb, 0.25, 0.85) * THREE.MathUtils.smoothstep(dLand, 0.78, 1.2));
     return h;
   };
   const heightAt = (x, z) => {
@@ -1140,7 +1148,8 @@ ${gtex ? `{
     col = mix(col, gcol, gld);
   }
   // дно под водой: от песка у берега к глубокой бирюзе
-  float depth = clamp(-vWorldPos.y / 0.9, 0.0, 1.0);
+  // от самой кромки воды (-0.3), а не от нуля: мелкий склон выше воды — земля, не светлое дно (21.10)
+  float depth = clamp((-vWorldPos.y - 0.2) / 0.7, 0.0, 1.0);
   col = mix(col, mix(vec3(0.55, 0.62, 0.45), vec3(0.04, 0.32, 0.38), smoothstep(0.1, 0.8, depth)), smoothstep(0.02, 0.15, depth));
   // грейд v6b: земля темнее и холоднее, зелень приглушена
   float gl0 = dot(col, vec3(0.3, 0.59, 0.11));
@@ -1212,11 +1221,12 @@ ${gtex ? `{
       rapids: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
       rbox: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) },
       impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1.0 },
+      bridgeC: { value: (() => { const l = bridgeCells.filter(c => c.x >= 0).map(c => new THREE.Vector2(c.x, c.z)); while (l.length < 3) l.push(new THREE.Vector2(9999, 9999)); return l.slice(0, 3); })() },
       reflTex: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
-      flowTex: { value: (() => { const t = new THREE.TextureLoader().load('./data/water-flow.png?v=3'); t.colorSpace = THREE.NoColorSpace; return t; })() } },
+      flowTex: { value: (() => { const t = new THREE.TextureLoader().load('./data/water-flow.png?v=4'); t.colorSpace = THREE.NoColorSpace; return t; })() } },
     vertexShader: `varying vec2 vUv; varying vec3 vPos;
       void main(){ vUv = uv; vPos = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0); }`,
-    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform sampler2D reflTex; uniform vec4 rbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
+    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform sampler2D reflTex; uniform vec4 rbox; uniform vec2 bridgeC[3]; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -1239,6 +1249,7 @@ ${gtex ? `{
         vec3 sh = mix(vec3(0.443,0.608,0.635), vec3(0.322,0.490,0.514), lakeK); sh = mix(sh, vec3(0.525,0.682,0.710), poolK);
         dp = pow(dp, vec3(2.2)); md = pow(md, vec3(2.2)); sh = pow(sh, vec3(2.2));
         d = clamp(d * mix(3.2, 1.0, lakeK), 0.0, 1.0);   // узкие русла и чаша — расстояние до берега мало, но вода не мелкая
+        for (int i = 0; i < 3; i++) d = max(d, (1.0 - smoothstep(2.0, 3.6, length(vPos.xz - bridgeC[i]))) * 0.55);   // расширенное русло под мостом — не берег
         vec3 col = mix(sh, md, smoothstep(0.0, 0.18, d));
         col = mix(col, dp, smoothstep(0.18, 0.65, d));
         // ── течение (карта data/water-flow.png, tools/board3d_flowmap.py): рябь и пена сносятся по руслу,
@@ -1313,7 +1324,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=8`)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=10`)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
@@ -1486,6 +1497,26 @@ ${gtex ? `{
     bridges.add(piece);
   }
   group.add(bridges);
+  // русло под каменным и бревенчатым мостом шире (21.10): земля под настилом (без концов на берегах) уходит
+  // под воду — по следу модели моста, обе полосы клеток; края плавные
+  {
+    const posA = groundGeo.attributes.position, inv = new THREE.Matrix4(), lp = new THREE.Vector3();
+    let changed = 0;
+    for (const pc of bridges.children) {
+      if (pc.userData.kind !== 'stone' && pc.userData.kind !== 'log') continue;
+      pc.updateMatrixWorld(true); inv.copy(pc.matrixWorld).invert();
+      const m = pc.children[0], hw = 1.75 * m.scale.x - 0.15, hl = (pc.userData.kind === 'stone' ? 3.5 : 2.5) * m.scale.z - 0.9;
+      for (let i = 0; i < posA.count; i += 1) {
+        lp.set(posA.getX(i), 0, posA.getZ(i)).applyMatrix4(inv);
+        const ex = Math.abs(lp.x) - hw, ez = Math.abs(lp.z) - hl;
+        if (ex > 0.9 || ez > 0.9) continue;
+        const k = (1 - THREE.MathUtils.smoothstep(Math.max(ex, 0), 0, 0.9)) * (1 - THREE.MathUtils.smoothstep(Math.max(ez, 0), 0, 0.9));
+        const ny = Math.min(posA.getY(i), THREE.MathUtils.lerp(posA.getY(i), WATER_FLOOR * 0.85, k));
+        if (ny < posA.getY(i)) { posA.setY(i, ny); changed += 1; }
+      }
+    }
+    if (changed) { posA.needsUpdate = true; groundGeo.computeVertexNormals(); }
+  }
   // габариты мостов (с запасом) — на мост не ставим ни деревья, ни кусты, ни камыш
   const bridgeBoxes = bridges.children.map(pc => { pc.updateMatrixWorld(true); return new THREE.Box3().setFromObject(pc).expandByScalar(0.6); });
   const onBridge = (x, z) => bridgeBoxes.some(b => x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z);
@@ -2160,6 +2191,41 @@ ${gtex ? `{
       }
       list.length = 0; list.push(...keep);
     }
+    // 21.10 «тут прям каша — разнести»: высокие деревья РАЗНЫХ пород (и ивы между собой) не сливаются кронами —
+    // позднее дерево отодвигаем от раннего на зазор ~0.28·(h1+h2), на допустимое место; некуда — убираем.
+    // Однопородные рощи (ельник) не трогаем — там плотность задумана.
+    {
+      const fam = g => (g === 'spruce' || g === 'dark' || g === 'pine') ? 'conifer' : g;
+      const tall = t => t.h > 2.0 && !t.group.startsWith('fairy');
+      const clash = (a, b) => tall(a) && tall(b) && (fam(a.group) !== fam(b.group) || a.group === 'willow' && b.group === 'willow');
+      const need = (a, b) => 0.28 * (a.h + b.h);   // ~ширина кроны: 0.2 оставлял перекрытие на половину
+      const okSpot = (x, z, y0) => nearest(x, z) > 0.8 && !nearHouse(x, z, 1.2) && !bridgeCells.some(c => Math.hypot(c.x - x, c.z - z) < 2.4)
+        && Math.abs(groundY(x, z) - y0) < 0.3 && groundY(x, z) > -0.15;
+      const placed = [];
+      let moved = 0, dropped = 0, shrunk = 0;
+      for (const t of list) {
+        let bad = placed.find(o => clash(o, t) && Math.hypot(o.x - t.x, o.z - t.z) < need(o, t));
+        if (bad) {
+          let done = false;
+          const a0 = Math.atan2(t.z - bad.z, t.x - bad.x) || r() * 6.28;
+          for (const da of [0, 0.6, -0.6, 1.2, -1.2, 2.0, -2.0]) {
+            const d = need(bad, t) + 0.05, nx = bad.x + Math.cos(a0 + da) * d, nz = bad.z + Math.sin(a0 + da) * d;
+            if (Math.hypot(nx - t.x, nz - t.z) > 1.6 || !okSpot(nx, nz, t.y) || coverLimit(nx, nz, t.h * 0.35) < t.h) continue;
+            const tt = { ...t, x: nx, z: nz, y: groundY(nx, nz) };
+            if (placed.some(o => clash(o, tt) && Math.hypot(o.x - nx, o.z - nz) < need(o, tt))) continue;
+            Object.assign(t, tt); done = true; moved += 1; break;
+          }
+          if (!done) {   // некуда отодвинуть — ниже ростом, чтобы кроны разошлись (цвет рощи сохраняется); совсем мало — убираем
+            const hs = Math.min(...placed.filter(o => clash(o, t)).map(o => Math.hypot(o.x - t.x, o.z - t.z) / 0.28 - o.h));
+            if (hs >= 1.6) { t.h = hs; shrunk += 1; } else { dropped += 1; continue; }
+          }
+        }
+        placed.push(t);
+      }
+      list.length = 0; list.push(...placed);
+      T.treesSpread = [moved, shrunk, dropped];
+    }
+    window.__treeList = list;   // отладка: посадка деревьев-спрайтов (x, z, h, group)
     // дальние — сначала: альфа-срез и так корректен по глубине, но так меньше перерисовки
     // густота рощи: сколько деревьев рядом — в гуще темнее, на опушке светлее
     const cellOf = new Map(), key = (x, z) => `${Math.floor(x / 2)},${Math.floor(z / 2)}`;
@@ -2552,7 +2618,7 @@ ${gtex ? `{
           rap[j * RES + i] = Math.max(rap[j * RES + i], amp * Math.exp(-(u * u + v * v) * 1.6));
         }
       };
-      const flowImg = await loadMask('./data/water-flow.png?v=3').catch(() => null);
+      const flowImg = await loadMask('./data/water-flow.png?v=4').catch(() => null);
       const flowAt = (x, z) => {
         if (!flowImg) return null;
         const i = Math.min(flowImg.w - 1, Math.max(0, Math.floor((x - groundX0) / groundW * flowImg.w)));
@@ -2688,7 +2754,7 @@ ${gtex ? `{
         col = mix(col, vec3(0.42, 0.60, 0.65) + lines * 0.12, lipK * 0.9);
         a = mix(a, 0.85, lipK);
         gl_FragColor = vec4(col, a * smoothstep(0.02, 0.5, m));`);
-        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) }, rapids: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, rbox: waterMat.uniforms.rbox, impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1 }, flowTex: { value: new THREE.DataTexture(new Uint8Array([128, 128, 0, 255]), 1, 1) }, reflTex: waterMat.uniforms.reflTex,
+        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) }, rapids: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, rbox: waterMat.uniforms.rbox, impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1 }, flowTex: { value: new THREE.DataTexture(new Uint8Array([128, 128, 0, 255]), 1, 1) }, reflTex: waterMat.uniforms.reflTex, bridgeC: waterMat.uniforms.bridgeC,
             lipC: { value: new THREE.Vector2((lipW0.x + lipW1.x) / 2, (lipW0.z + lipW1.z) / 2) }, lipR: { value: lipW0.distanceTo(lipW1) * 0.75 } },
           vertexShader: waterMat.vertexShader, fragmentShader: fs });
         animated.push(upperMat);

@@ -9,7 +9,7 @@ import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
 import { buildAtmosphere } from './atmosphere.js?v=30';
-import { buildTerrain } from './terrain.js?v=287';
+import { buildTerrain } from './terrain.js?v=303';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -111,9 +111,9 @@ groundTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 const tTerrain = performance.now();
 const terrain = await buildTerrain({
   cells, cellById, groundX0, groundZ0, groundW, groundH, groundTex,
-  maskUrl: './data/terrain-mask.png?v=2',
+  maskUrl: './data/terrain-mask.png?v=5',
   cliffUrl: './data/terrain-cliff.png?v=2',
-  heightUrl: './data/terrain-height.png?v=11',
+  heightUrl: './data/terrain-height.png?v=13',
   planUrl: './data/plan.json?v=2',
   gateModelUrl: './models/dwarf-gate-v3.glb?v=6',   // ворота дварфов по инженерке (tools/blender/dwarf_gate_v3.py)
   upperRiverUrl: './data/upper-river.png?v=4',
@@ -129,9 +129,9 @@ const terrain = await buildTerrain({
   groundTextures: {   // этап 2: рисованные текстуры земли (Codex) + карты смешивания (tools/board3d_splat.py)
     grass: './data/tex-grass.webp?v=1', path: './data/tex-path.webp?v=1', forest: './data/tex-forest.webp?v=1',
     beach: './data/tex-beach.webp?v=1', meadow: './data/tex-meadow.webp?v=1', dark: './data/tex-darkforest.webp?v=1',
-    splatA: './data/splat-a.png?v=6', splatB: './data/splat-b.png?v=6',
+    splatA: './data/splat-a.png?v=7', splatB: './data/splat-b.png?v=7',
   },
-  waterDistUrl: './data/water-dist.png?v=1',   // этап 3: расстояние до берега для шейдера воды
+  waterDistUrl: './data/water-dist.png?v=2',   // этап 3: расстояние до берега для шейдера воды
   spireKitUrl: './models/spire-kit.glb?v=1',   // набор шпилей и кристаллов: шпили выключены (20.10), кристаллы сказочной поляны — нужны
   propKitUrl: './models/prop-kit.glb?v=1',   // этап 5: мелочь биома (tools/blender/prop_kit.py)
   cliffTexUrl: './data/tex-rockside-v6b.webp?v=1',   // концепт v6b: холодный тёмный камень блоками   // нерегулярная скала (Codex) для стен хребта
