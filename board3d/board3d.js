@@ -9,7 +9,7 @@ import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
 import { buildAtmosphere } from './atmosphere.js?v=11';
-import { buildTerrain } from './terrain.js?v=227';
+import { buildTerrain } from './terrain.js?v=230';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -107,7 +107,7 @@ const terrain = await buildTerrain({
   cliffUrl: './data/terrain-cliff.png?v=2',
   heightUrl: './data/terrain-height.png?v=11',
   planUrl: './data/plan.json?v=2',
-  gateModelUrl: './models/dwarf-gate-v3.glb?v=2',   // ворота дварфов по инженерке (tools/blender/dwarf_gate_v3.py)
+  gateModelUrl: './models/dwarf-gate-v3.glb?v=3',   // ворота дварфов по инженерке (tools/blender/dwarf_gate_v3.py)
   upperRiverUrl: './data/upper-river.png?v=4',
   rocksUrl: './data/rocks.json?v=4',
   stoneKitUrl: './models/stone-kit.glb?v=3',   // гексовые камни из Blender (tools/blender/stone_kit.py)

@@ -174,6 +174,7 @@ function blobShadowTexture() {
 // утопленные железные двери, ступени, жаровни. Фасадные грани — текстуры из рисунка Codex
 // (outputs/board3d-concept/sprites2/sheet-gate.png → data/gate-*.webp), руны светятся (gate-*-glow).
 const gateTex = {};
+const FLOOR_WALL_Y = -0.3;     // низ стен у ворот — чуть в землю
 function gateMat(name, repeat) {
   if (!gateTex[name]) {
     const l = new THREE.TextureLoader();
@@ -1391,6 +1392,7 @@ ${gtex ? `{
     h.rotation.y = Math.atan2(-best.dx, -best.dz);         // +z дома (дверь) смотрит на клетку
     h.userData.cell = c.id;
     houses.add(h);
+    if (isGate && gateModel) gateWalls(h);
     houseSpots.push([best.hx, best.hz]);
     if (isGate) { h.userData.isGate = true; houseSpots.push([best.hx + best.dx * 1.2, best.hz + best.dz * 1.2]); }
     // След постройки (прямоугольник) — под ним и вокруг земля ровная, скалы не залезают.
@@ -1402,6 +1404,41 @@ ${gtex ? `{
       hdBack: isGate ? (h.userData.depth ?? 2.0) : isNest ? 0.9 : HOUSE_D / 2,   // за воротами — пол площадки
     });
     if (cls === 'fairy_glade') glades.push({ x: c.x, z: c.z });
+  }
+  // стены от рамы ворот в обе стороны до скалы: кладка той же высоты, что рама; идём вдоль оси ворот,
+  // пока земля не поднимется выше середины стены (там уже скала) — но не дальше 9 м
+  function gateWalls(g) {
+    let stoneMat = null;
+    g.traverse(o => { if (o.isMesh && o.material.name === 'gate_stone' && !stoneMat) stoneMat = o.material; });
+    const k = g.children[0].scale.x, H = 4.1 * k, D = 0.6 * k;
+    const ax = Math.cos(g.rotation.y), az = -Math.sin(g.rotation.y);       // локальная +X ворот в мире
+    const fx = Math.sin(g.rotation.y), fz = Math.cos(g.rotation.y);        // к клетке (локальная +Z)
+    const cy = 1.5 * k;                                                     // середина глубины рамы (Y модели 1.2…1.8)
+    for (const side of [-1, 1]) {
+      const start = 1.8 * k;
+      let len = 0;
+      for (let d = start; d < start + 9; d += 0.25) {
+        len = d - start;
+        // скала — где земля поднимается выше 1.2 хоть на лицевой, хоть на тыльной линии стены
+        if ([1.2 * k, 1.8 * k].some(t => heightAt(g.position.x + ax * side * d - fx * t, g.position.z + az * side * d - fz * t) > 1.2)) break;
+      }
+      // под воротами и вокруг земля потом выравнивается (след постройки до span/2+1.2) — стена закрывает
+      // весь этот выровненный участок, иначе между рамой и скалой остаётся проём
+      len = Math.max(len, g.userData.span / 2 + 1.2 - start);
+      len += 0.8;                                                           // заходит в скалу
+      const geo = new THREE.BoxGeometry(len, H, D);
+      const uv = geo.attributes.uv, pos = geo.attributes.position, nrm = geo.attributes.normal;
+      for (let i = 0; i < uv.count; i += 1) {                               // тайл кладки ~1.5 м
+        const ax2 = Math.abs(nrm.getX(i)) > 0.5 ? [pos.getZ(i), pos.getY(i)] : Math.abs(nrm.getY(i)) > 0.5 ? [pos.getX(i), pos.getZ(i)] : [pos.getX(i), pos.getY(i)];
+        uv.setXY(i, ax2[0] * 0.67, ax2[1] * 0.67);
+      }
+      const w = new THREE.Mesh(geo, stoneMat ?? new THREE.MeshLambertMaterial({ color: 0x55575a }));
+      w.position.set(side * (start + len / 2), FLOOR_WALL_Y + H / 2, -cy);
+      w.position.applyMatrix4(new THREE.Matrix4().makeScale(1, 1, 1));
+      w.castShadow = w.receiveShadow = true;
+      w.name = 'gate_wall';
+      g.add(w);                                                             // в локальных осях ворот
+    }
   }
   const nearHouse = (x, z, r) => houseSpots.some(([hx, hz]) => Math.hypot(hx - x, hz - z) < r);
   // Расстояние до ближайшего следа постройки (0 — внутри).
