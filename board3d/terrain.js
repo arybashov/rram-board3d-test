@@ -1103,7 +1103,19 @@ ${gtex ? `{
   if (sb.r > 0.01) col = mix(col, texture2D(g_meadow, tuv).rgb, sb.r);
   if (sa.g > 0.01) col = mix(col, texture2D(g_forest, tuv).rgb * vec3(0.6, 0.62, 0.55), sa.g);   // под кронами темно (не газон)
   if (sb.g > 0.01) col = mix(col, texture2D(g_dark, tuv).rgb, sb.g);
-  if (sa.b > 0.01) col = mix(col, texture2D(g_beach, tuv).rgb * vec3(0.95, 0.9, 0.82), sa.b);
+  // берег (разбор «парка» п.2): не ровная песчаная кайма — ширина рвётся шумом, местами вместо песка мокрая
+  // тёмная земля и галька, песок только редкими пляжиками
+  float bn = sin(vWorldPos.x * 0.9 + sin(vWorldPos.z * 0.7) * 2.1) * sin(vWorldPos.z * 1.1 - vWorldPos.x * 0.4) * 0.5 + 0.5;
+  float bn2 = sin(vWorldPos.x * 3.7 + vWorldPos.z * 2.9) * sin(vWorldPos.z * 4.1 - vWorldPos.x * 1.7) * 0.5 + 0.5;
+  float beachK = smoothstep(0.35, 0.75, sa.b + (bn - 0.55) * 0.55 + (bn2 - 0.5) * 0.2);
+  if (beachK > 0.01) {
+    vec3 sand = texture2D(g_beach, tuv).rgb * vec3(0.95, 0.9, 0.82);
+    vec3 wet = texture2D(g_forest, tuv * 1.4 + 0.3).rgb * vec3(0.45, 0.43, 0.38);          // мокрая тёмная земля
+    vec3 pebble = mix(texture2D(rockTop, vWorldPos.xz * 0.35).rgb * 0.7, wet, 0.4);
+    vec3 bank = mix(wet, sand, smoothstep(0.55, 0.8, bn));                                 // песок — только пятнами
+    bank = mix(bank, pebble, smoothstep(0.6, 0.85, bn2) * 0.7);
+    col = mix(col, bank, beachK);
+  }
   // тропа без видимого повтора: две выборки в разном масштабе и под углом, смешаны шумовой маской
   vec2 ruv = mat2(0.80, -0.60, 0.60, 0.80) * tuv * 0.47 + 0.31;
   float pm = sin(vWorldPos.x * 0.37 + sin(vWorldPos.z * 0.29) * 2.0) * 0.5 + 0.5;
