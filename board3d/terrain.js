@@ -1436,7 +1436,7 @@ ${gtex ? `{
       const sc = Math.max(0.8, len / 3.2);                    // хорда дуги ~3.2 м — растягиваем по месту
       const w = new THREE.Mesh(wallGeo, wallCliffMat);
       w.scale.set(side * sc * k / 1.0, k, sc * k);
-      w.position.set(side * start, FLOOR_WALL_Y + 0.3 * k, -1.2 * k);
+      w.position.set(side * start, FLOOR_WALL_Y + 0.3 * k, -1.8 * k);    // ось стены — по задней плоскости рамы: лицо (−0.45) за постаментами чаш (до −1.1)
       w.castShadow = w.receiveShadow = true;
       w.name = 'gate_wall';
       g.add(w);
