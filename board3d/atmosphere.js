@@ -119,7 +119,7 @@ function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0
   geo.instanceCount = n;
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { time: { value: 0 }, tex: { value: tex }, hTex: { value: hTex }, box: { value: new THREE.Vector4(...box) }, sunDir: { value: sunDir.clone().normalize() }, lit: { value: new THREE.Color(0xf2ebdc) }, shade: { value: new THREE.Color(0x7f8f9a) }, col: { value: new THREE.Color(color) }, k: { value: opacity }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
+    uniforms: { time: { value: 0 }, tex: { value: tex }, hTex: { value: hTex }, depthTex: { value: null }, camNear: { value: 0.1 }, camFar: { value: 1000 }, res: { value: new THREE.Vector2(1, 1) }, box: { value: new THREE.Vector4(...box) }, sunDir: { value: sunDir.clone().normalize() }, lit: { value: new THREE.Color(0xf2ebdc) }, shade: { value: new THREE.Color(0x7f8f9a) }, col: { value: new THREE.Color(color) }, k: { value: opacity }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
     vertexShader: `uniform float time; uniform vec2 wind; attribute vec4 aSpawn; attribute vec4 aPar;
       varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed; varying vec2 vWXZ; varying vec2 vSun;
       uniform vec3 sunDir;
@@ -127,19 +127,22 @@ function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0
         float life = aPar.y, t = fract(time / life + aPar.x);              // возраст 0..1
         float size = aPar.z * mix(0.65, 1.25, t);                          // растёт за жизнь
         vec3 c = aSpawn.xyz + vec3(wind.x, 0.0, wind.y) * life * t + vec3(0.0, 0.35 * t, 0.0);   // дрейф + подъём
-        float ang = aPar.x * 6.2831 + time * (0.02 + 0.03 * aPar.x) * (aPar.x > 0.5 ? 1.0 : -1.0); // медленное вращение
+        float ang = 0.0;                                                   // клубы не наклоняются и не крутятся (замечание 21.10)
         vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy * size;
         vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
         vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
         vec3 w = c + right * q.x + up * q.y * 0.38;                        // пелена приплюснута — стелется
-        vUv = uv; vA = sin(3.14159 * t); vT = time; vSeed = aPar.x; vWXZ = w.xz;
+        vUv = vec2(aPar.x > 0.5 ? 1.0 - uv.x : uv.x, uv.y); vA = sin(3.14159 * t);   // половина клубов зеркально — разнообразие без поворота
+        vT = time; vSeed = aPar.x; vWXZ = w.xz;
         // направление на солнце в плоскости клуба (экранные «вправо/вверх» с учётом поворота клуба)
         vec2 s2 = vec2(dot(sunDir, right), dot(sunDir, up));
         vSun = mat2(cos(-ang), -sin(-ang), sin(-ang), cos(-ang)) * s2; vWY = w.y; vG = aSpawn.w; vCell = aPar.w;
         vec4 mv = viewMatrix * vec4(w, 1.0); vCam = -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: `uniform sampler2D tex; uniform sampler2D hTex; uniform vec4 box; uniform vec3 col; uniform float k; uniform vec3 lit; uniform vec3 shade; varying vec2 vSun;
+    fragmentShader: `#include <packing>
+      uniform sampler2D depthTex; uniform float camNear; uniform float camFar; uniform vec2 res;
+      uniform sampler2D tex; uniform sampler2D hTex; uniform vec4 box; uniform vec3 col; uniform float k; uniform vec3 lit; uniform vec3 shade; varying vec2 vSun;
       varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed; varying vec2 vWXZ;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -166,6 +169,11 @@ function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0
         d = pow(d, 1.15) * (1.0 - smoothstep(0.36, 0.5, length(vUv - 0.5)));   // мягче, края растворяются полностью
         float ground = texture2D(hTex, (vWXZ - box.xy) / box.zw).r;       // высота рельефа под этим пикселем клуба
         float soft = smoothstep(0.0, 0.9, vWY - max(ground, -0.3));       // у поверхности (скала, склон, земля) — растворяется
+        // Depth Fade (как в Unreal): глубина сцены за пикселем клуба из буфера глубины; чем ближе к ней клуб,
+        // тем прозрачнее — к любой поверхности (скала, дом, ворота, модели) подходит растворённым, без линии
+        float sceneD = -perspectiveDepthToViewZ(texture2D(depthTex, gl_FragCoord.xy / res).x, camNear, camFar);
+        float fragD = -perspectiveDepthToViewZ(gl_FragCoord.z, camNear, camFar);
+        soft *= smoothstep(0.0, 1.4, sceneD - fragD);                     // скалы, земля, дома — широкий стык
         float near = smoothstep(4.0, 12.0, vCam);                          // не застилает камеру вблизи
         float a = d * vA * soft * near * k;
         if (a < 0.004) discard;
@@ -182,6 +190,7 @@ function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0
 }
 
 export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH, fog = false }) {
+  let fogMesh = null;
   const group = new THREE.Group();
   const anim = [];
   const hAt = terrain.heightAt;
@@ -228,7 +237,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
     }
     const hTex = heightTexture(hAt, groundX0, groundZ0, groundW, groundH, solids);
     const smoke = smokeField({ spots, tex, hTex, box: [groundX0, groundZ0, groundW, groundH] });
-    group.add(smoke);
+    fogMesh = smoke;                                   // рисуется отдельным проходом с глубиной сцены (board3d.js)
     anim.push(smoke.userData.mat);
   }
   // 4) тёплые огни: по краям мостов (факелы)
@@ -275,5 +284,5 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
     tt += dt;
     for (const f of flames) { const k = 1 + 0.15 * Math.sin(tt * 9 + f.userData.phase) + 0.08 * Math.sin(tt * 17 + f.userData.phase * 2); f.scale.set(f.userData.w * (2 - k), f.userData.h * k, 1); }
   };
-  return { group, update, torches: lights.length };
+  return { group, update, torches: lights.length, fogMesh };
 }

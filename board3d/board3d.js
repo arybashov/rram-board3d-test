@@ -8,7 +8,7 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=23';
+import { buildAtmosphere } from './atmosphere.js?v=28';
 import { buildTerrain } from './terrain.js?v=235';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
@@ -132,8 +132,42 @@ const terrain = await buildTerrain({
   rockSideUrl: './data/tex-rockside-v6b.webp?v=1',   // пока одна скала — у моста (как в концепте), точка в пикселях арта
 });
 scene.add(terrain.group);
-const atmo = buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH, fog: new URLSearchParams(location.search).has('fog') });   // ?fog=1 — эксперимент: туман частицами как дым Unreal
+const atmo = buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH, fog: !new URLSearchParams(location.search).has('nofog') });   // туман частицами как дым Unreal (?nofog — выключить)
 scene.add(atmo.group);
+// Туман — отдельным проходом: сцена рисуется в буфер с текстурой глубины, затем на экран, и поверх — туман,
+// который читает глубину сцены (мягкий стык с любой поверхностью, Depth Fade). Без тумана — как раньше.
+const fogPass = atmo.fogMesh ? (() => {
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { samples: 4, depthTexture: new THREE.DepthTexture(size.x, size.y) });
+  // буфер ведёт себя как экран (флаг XR в three: вывод в цветовом пространстве буфера, без sRGB-хранения) —
+  // и стандартные материалы, и самописные шейдеры пишут те же байты, что на канвас; копия на экран — один в один
+  rt.texture.colorSpace = THREE.SRGBColorSpace;
+  rt.isXRRenderTarget = true;
+  rt.texture.internalFormat = 'RGBA8';                    // хранение — обычные байты (как у сглаживающего буфера)
+  const fogScene = new THREE.Scene();
+  fogScene.add(atmo.fogMesh);
+  atmo.fogMesh.material.depthTest = false;                 // перекрытие считает сам шейдер по глубине сцены
+  const u = atmo.fogMesh.material.uniforms;
+  u.depthTex.value = rt.depthTexture;
+  const blitScene = new THREE.Scene(), blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: 'uniform sampler2D map; varying vec2 vUv; void main(){ gl_FragColor = texture2D(map, vUv); }',   // байты как есть
+  })));
+  return () => {
+    renderer.getDrawingBufferSize(size);
+    if (rt.width !== size.x || rt.height !== size.y) rt.setSize(size.x, size.y);
+    u.res.value.copy(size); u.camNear.value = camera.near; u.camFar.value = camera.far;
+    renderer.setRenderTarget(rt);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.render(blitScene, blitCam);
+    renderer.autoClear = false;
+    renderer.render(fogScene, camera);
+    renderer.autoClear = true;
+  };
+})() : null;
 terrain.stats.buildMs = Math.round(performance.now() - tTerrain);
 
 // ─── Клетки: тонкие гексы (один InstancedMesh) + общий контур ─────────────
@@ -615,7 +649,7 @@ renderer.setAnimationLoop(() => {
   // Тень считается только вокруг того, куда смотрит камера.
   sun.target.position.copy(controls.target);
   sun.position.copy(controls.target).add(SUN_OFFSET);
-  renderer.render(scene, camera);
+  if (fogPass) fogPass(); else renderer.render(scene, camera);
   if (benchFrames) benchFrames.push(dt);
 
   frames += 1;
@@ -708,4 +742,4 @@ async function runBench() {
 }
 if (new URLSearchParams(location.search).has('bench')) runBench();
 // Для проверки из консоли / автотестов.
-window.__board3d = { THREE, terrain, scene, camera, controls, units, cells, select, moveSelected, attack, renderer };
+window.__board3d = { THREE, terrain, scene, camera, controls, units, cells, select, moveSelected, attack, renderer, fog: atmo.fogMesh, render: () => (fogPass ? fogPass() : renderer.render(scene, camera)) };
