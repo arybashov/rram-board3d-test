@@ -2298,10 +2298,39 @@ ${gtex ? `{
     const toW = (px, py, y = 0) => new THREE.Vector3(groundX0 + (px / 4096) * groundW, y, groundZ0 + (py / 3072) * groundH);
     if (upperRiverUrl) {
       const alpha = await new THREE.TextureLoader().loadAsync(upperRiverUrl);
+      const lipW0 = toW(wf.lipX[0], wf.lipY + 10), lipW1 = toW(wf.lipX[1], wf.lipY + 10);
+      // река на плато — та же вода, что внизу (глубина, рябь Вороного, пена у берега); расстояние
+      // до берега — по маске реки: доля «воды» в кольцах выборок вокруг точки
+      let upperMat;
+      if (waterDist) {
+        const fs = waterMat.fragmentShader
+          .replace('float d = texture2D(dist, vUv).r;', `float m = texture2D(dist, vUv).r;
+        if (m < 0.02) discard;
+        float acc = 0.0;
+        for (int k = 0; k < 12; k++) { float an = float(k) * 0.5236;
+          vec2 o = vec2(cos(an), sin(an)) / vec2(1024.0, 768.0);
+          acc += texture2D(dist, vUv + o * 4.0).r + texture2D(dist, vUv + o * 9.0).r + texture2D(dist, vUv + o * 16.0).r; }
+        float d = clamp((acc / 36.0 - 0.5) * 2.0, 0.0, 1.0);
+        // у кромки водопада срез маски — не берег: без пены, вода уходит в струю
+        float lipK = 1.0 - smoothstep(lipR * 0.6, lipR * 1.3, length(vPos.xz - lipC));
+        d = max(d, lipK * 0.7);`)
+          .replace('uniform float time;', 'uniform float time; uniform vec2 lipC; uniform float lipR;')
+          .replace('gl_FragColor = vec4(col, a);', `// перед водопадом течение быстрое, вода светлее — переходит в цвет струи
+        col = mix(col, vec3(0.22, 0.68, 0.76) + lines * 0.12, lipK * 0.9);
+        a = mix(a, 0.85, lipK);
+        gl_FragColor = vec4(col, a * smoothstep(0.02, 0.5, m));`);
+        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha },
+            lipC: { value: new THREE.Vector2((lipW0.x + lipW1.x) / 2, (lipW0.z + lipW1.z) / 2) }, lipR: { value: lipW0.distanceTo(lipW1) * 0.75 } },
+          vertexShader: waterMat.vertexShader, fragmentShader: fs });
+        animated.push(upperMat);
+      } else {
+        upperMat = new THREE.MeshLambertMaterial({ color: 0x35c6d6, transparent: true, opacity: 0.6, alphaMap: alpha, depthWrite: false });
+      }
       const upper = new THREE.Mesh(
         new THREE.PlaneGeometry(groundW, groundH).rotateX(-Math.PI / 2).translate(groundX0 + groundW / 2, wf.topH + 0.12, groundZ0 + groundH / 2),
-        new THREE.MeshLambertMaterial({ color: 0x35c6d6, transparent: true, opacity: 0.6, alphaMap: alpha, depthWrite: false }),
+        upperMat,
       );
+      upper.renderOrder = 1;
       group.add(upper);
     }
     // верх струи — под концом воды плато (она теперь доходит до края на 14 px дальше)
