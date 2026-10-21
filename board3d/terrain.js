@@ -1180,10 +1180,13 @@ ${gtex ? `{
     uniforms: { time: { value: 0 }, dist: { value: waterDist },
       lakeC: { value: (() => { const l = cells.filter(c => c.deck === 'lake').map(c => new THREE.Vector2(c.x, c.z)); while (l.length < 6) l.push(l[0] ?? new THREE.Vector2(9999, 9999)); return l.slice(0, 6); })() },
       lakeR: { value: new THREE.Vector4(0, 0, 0, 7.5) },
-      poolC: { value: new THREE.Vector2(9999, 9999) } },
+      poolC: { value: new THREE.Vector2(9999, 9999) },
+      rapids: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
+      rbox: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) },
+      impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1.0 } },
     vertexShader: `varying vec2 vUv; varying vec3 vPos;
       void main(){ vUv = uv; vPos = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0); }`,
-    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; varying vec2 vUv; varying vec3 vPos;
+    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform vec4 rbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -1223,6 +1226,18 @@ ${gtex ? `{
         float foamBand = (1.0 - smoothstep(0.0, 0.05, d)) * 0.7 + (1.0 - smoothstep(0.03, 0.12, d)) * smoothstep(0.8, 0.97, wave) * 0.5;   // тонкая рваная кромка, не белая полоса
         foamBand *= 0.6 + 0.6 * n2(vPos.xz * 4.0 + time * 0.3);
         foamBand *= mix(1.0, 0.15, lakeK);                          // на озере пены почти нет
+        // белая вода (разбор Codex, шаг 2): пороги у камней в руслах и ядро под водопадом — пятнами, не кольцом
+        float rap = texture2D(rapids, (vPos.xz - rbox.xy) / rbox.zw).r;
+        float wn1 = n2(vPos.xz * 3.1 + vec2(time * 0.9, -time * 0.6)), wn2 = n2(vPos.xz * 9.3 - vec2(time * 1.4, time * 0.8));
+        float white = smoothstep(0.38, 0.62, rap * (0.5 + 0.75 * wn1) + (wn2 - 0.5) * 0.35);   // рваные клочья, не облака
+        float ri = length(vPos.xz - impactC) / impactR;
+        float core = (1.0 - smoothstep(0.35, 1.1, ri + (wn1 - 0.5) * 0.45));
+        float arcs = smoothstep(0.7, 0.95, sin(ri * 9.0 - time * 2.6 + wn2 * 3.0) * 0.5 + 0.5) * (1.0 - smoothstep(1.0, 2.2, ri)) * smoothstep(0.5, 0.9, wn1 + 0.2);
+        white = max(white, max(core * smoothstep(0.2, 0.6, wn1 * 0.6 + 0.5), arcs * 0.8));
+        float riverK = (1.0 - lakeK) * (1.0 - poolK * smoothstep(1.4, 2.4, ri));
+        float streak = smoothstep(0.78, 0.95, n2(vec2(vPos.x * 2.2 + vPos.z * 0.7, vPos.z * 2.2 - vPos.x * 0.7) * vec2(1.0, 0.35) + time * vec2(0.0, 0.5)));
+        white = max(white, streak * riverK * smoothstep(0.15, 0.5, d) * 0.55);
+        foamBand = max(foamBand, white);
         col = mix(col, pow(vec3(0.773, 0.867, 0.878), vec3(2.2)), clamp(foamBand, 0.0, 1.0));
         col = pow(col, vec3(1.0 / 2.2));                            // обратно в вывод (шейдер пишет как есть)
         float a = mix(0.55, 0.96, smoothstep(0.0, 0.14, d));
@@ -2469,6 +2484,52 @@ ${gtex ? `{
       const kit = d < 0.7 ? 5 : 3, ks = STONE_KIT[kit].size, h = d * 0.6;
       lists[kit].push([x, gy + h * 0.3, z, d / ks[0], h / ks[1], d * 0.9 / ks[2], r() * 6.28, 0.75 + r() * 0.15, kit]);
     }
+    // ── Камни в руслах и маска порогов (разбор воды Codex, шаг 2) ──
+    // группы частично погружённых валунов в реках (не в озере), мокрые — темнее; у каждого — пятно белой воды,
+    // вытянутое вдоль русла. Озеро спокойное. Свой генератор — остальная посадка не сдвигается.
+    {
+      const rq = rng(20261023);
+      const lakeCs = cells.filter(c => c.deck === 'lake');
+      const RES = 512, RZ = Math.round(RES * groundH / groundW), rap = new Float32Array(RES * RZ);
+      const blob = (cx, cz, ax, az, rl, rw, amp) => {      // эллипс вдоль (ax,az): длина rl, ширина rw
+        const R = Math.max(rl, rw), i0 = Math.floor((cx - R - groundX0) / groundW * RES), i1 = Math.ceil((cx + R - groundX0) / groundW * RES);
+        const j0 = Math.floor((cz - R - groundZ0) / groundH * RZ), j1 = Math.ceil((cz + R - groundZ0) / groundH * RZ);
+        for (let j = Math.max(0, j0); j <= Math.min(RZ - 1, j1); j += 1) for (let i = Math.max(0, i0); i <= Math.min(RES - 1, i1); i += 1) {
+          const x = groundX0 + (i + 0.5) / RES * groundW - cx, z = groundZ0 + (j + 0.5) / RZ * groundH - cz;
+          const u = (x * ax + z * az) / rl, v = (-x * az + z * ax) / rw;
+          rap[j * RES + i] = Math.max(rap[j * RES + i], amp * Math.exp(-(u * u + v * v) * 1.6));
+        }
+      };
+      const riverAxis = (x, z) => {   // направление русла: где вдоль линии больше воды
+        let best = 0, bw = -1;
+        for (let a = 0; a < 180; a += 15) { const ux = Math.cos(a * Math.PI / 180), uz = Math.sin(a * Math.PI / 180); let w = 0;
+          for (let t = -2; t <= 2; t += 0.4) w += sampleMask(x + ux * t, z + uz * t).water; if (w > bw) { bw = w; best = a; } }
+        return [Math.cos(best * Math.PI / 180), Math.sin(best * Math.PI / 180)];
+      };
+      let nr = 0;
+      for (let z = groundZ0; z < groundZ0 + groundH; z += 0.9) for (let x = groundX0; x < groundX0 + groundW; x += 0.9) {
+        const jx = x + (rq() - 0.5) * 0.9, jz = z + (rq() - 0.5) * 0.9;
+        if (sampleMask(jx, jz).water < 0.72 || heightAt(jx, jz) > -0.32) continue;   // только в самом русле, не на песке
+        if (lakeCs.some(c => Math.hypot(c.x - jx, c.z - jz) < 7.0) || onBridge(jx, jz) || nearest(jx, jz) < 1.1) continue;
+        if (valueNoise2(jx * 0.35 + 11.7, jz * 0.35 - 4.2) < 0.48 || rq() > 0.6) continue;   // группами, не россыпью
+        const [ax, az] = riverAxis(jx, jz);
+        const n = 1 + Math.floor(rq() * 3);
+        for (let k = 0; k < n; k += 1) {
+          const big = k === 0, d = big ? 0.35 + rq() * 0.35 : 0.12 + rq() * 0.15;
+          const sx = jx + (rq() - 0.5) * 0.8, sz = jz + (rq() - 0.5) * 0.8;
+          const kit = big ? 3 : 5, ks = STONE_KIT[kit].size, h = d * (0.55 + rq() * 0.3);
+          if (sampleMask(sx, sz).water < 0.68) continue;
+          lists[kit].push([sx, WATER_LEVEL - h * 0.32, sz, d / ks[0], h / ks[1], d * 0.9 / ks[2], rq() * 6.28, 0.5 + rq() * 0.12, kit]);   // мокрые — темнее
+          blob(sx, sz, ax, az, d * 1.7 + 0.18, d * 0.75 + 0.08, big ? 1.0 : 0.55);
+          nr += 1;
+        }
+      }
+      const data = new Uint8Array(RES * RZ * 4);
+      for (let k = 0; k < RES * RZ; k += 1) { data[k * 4] = Math.min(255, Math.round(rap[k] * 255)); data[k * 4 + 3] = 255; }
+      const rt = new THREE.DataTexture(data, RES, RZ); rt.magFilter = rt.minFilter = THREE.LinearFilter; rt.needsUpdate = true;
+      if (waterMat.uniforms?.rapids) waterMat.uniforms.rapids.value = rt;
+      propCounts.riverRocks = nr;
+    }
     // отдельные камни — тем же рисованным материалом, что и скала (единый стиль)
     const stoneMat = monolithMat ?? new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     geos.forEach((geo, gi) => {
@@ -2540,6 +2601,8 @@ ${gtex ? `{
     const foam = foamRing(new THREE.Vector3((poolCenter.getX(last) + poolCenter.getX(last - 1)) / 2, WATER_LEVEL + 0.02,
       (poolCenter.getZ(last) + poolCenter.getZ(last - 1)) / 2), 1.6);
     group.add(fall, foam);
+    if (waterMat.uniforms?.impactC) { waterMat.uniforms.impactC.value.set(foam.position.x, foam.position.z); waterMat.uniforms.impactR.value = 2.6; }
+    foam.visible = false;   // ровное кольцо заменено ядром белой воды в шейдере
     animated.push(fall.material, foam.material);
     // туман и брызги у подножия водопада: мягкие белые частицы поднимаются и тают
     const mistTex = (() => {
