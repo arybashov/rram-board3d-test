@@ -1363,12 +1363,14 @@ ${gtex ? `{
       m.scale.z = span / (kind === 'stone' ? 7.0 : 5.0);
       // столбы и борта не должны стоять на клетках суши: сдвигаем мост вдоль оси, пока его крайние
       // столбы/опоры не уйдут с клеток (21.10: «сдвинь мост, чтоб он с клетки ушел»)
-      const L2 = (kind === 'stone' ? 3.5 : 2.35) * m.scale.z, W2 = (kind === 'stone' ? 2.05 : 1.98) * m.scale.x;
-      const posts = [[-W2, -L2], [W2, -L2], [-W2, L2], [W2, L2]];   // крайние столбы/опоры
+      const L2 = (kind === 'stone' ? 3.2 : 2.35) * m.scale.z, W2 = (kind === 'stone' ? 2.02 : 1.98) * m.scale.x;
+      const posts = [];   // крайние столбы/опоры — весь след (центр и углы), не одна точка
+      for (const [px, pz] of [[-W2, -L2], [W2, -L2], [-W2, L2], [W2, L2]])
+        for (const dx2 of [-0.32, 0, 0.32]) for (const dz2 of [-0.32, 0, 0.32]) posts.push([px + dx2, pz + dz2]);
       const [c0x, c0z] = piece.userData.center;
       const onCells = off => posts.reduce((n, [px, pz]) => {
         const wx = c0x + nx2 * px + fx * (pz + off), wz = c0z + nz2 * px + fz * (pz + off);
-        return n + (cells.some(c => !g.includes(c) && Math.hypot(c.x - wx, c.z - wz) < 1.0) ? 1 : 0);
+        return n + (cells.some(c => Math.hypot(c.x - wx, c.z - wz) < 0.9) ? 1 : 0);   // и клетка-мост — под опорой её быть не должно
       }, 0);
       let bestOff = 0, bestN = onCells(0);
       for (let o = 0.1; o <= 2.2 && bestN > 0; o += 0.1) for (const sg of [1, -1]) {
@@ -1390,6 +1392,8 @@ ${gtex ? `{
         piece.add(f);
       });
       m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = false; o.material.opacity = 1; o.material.depthWrite = true; } });
+      // руны каменного моста — голубым свечением, как на воротах (в glb приходят белыми)
+      m.traverse(o => { if (o.isMesh && o.material.name === 'rune') { o.material.color.set(0x0c2a33); o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 1.2; } });
     }
     piece.position.set(cx + dx * mid, 0, cz + dz * mid);
     if (piece.userData.center) piece.position.set(piece.userData.center[0], 0, piece.userData.center[1]);
