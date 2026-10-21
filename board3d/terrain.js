@@ -775,7 +775,9 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   const byGroup = {};
   for (const f of frames) (byGroup[f.group] ??= []).push(f);
   for (const t of list) {
-    const opts = byGroup[t.group] ?? byGroup.spruce ?? frames;
+    const grp = t.group === 'bush' && byGroup.shrub ? 'shrub' : t.group;   // круглые садовые кусты -> дикие (21.10)
+    if (grp === 'shrub' && !t.shrubScaled) { t.h *= 1.6; t.shrubScaled = true; }   // дикий куст раскидистый и выше шара
+    const opts = byGroup[grp] ?? byGroup.spruce ?? frames;
     t.frame = opts[t.pick % opts.length];
     t.aspect = (t.frame.w * atlasTex.image.width) / (t.frame.h * atlasTex.image.height);
   }
@@ -1686,7 +1688,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=16' : '.png')), (await fetch(treeSpritesUrl + '.json?v=16')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=17' : '.png')), (await fetch(treeSpritesUrl + '.json?v=17')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -2487,11 +2489,48 @@ ${gtex ? `{
   gate?.traverse(o => { if (o.name === 'door_l' || o.name === 'door_r') gateLeaves.push({ o, dir: o.name === 'door_l' ? -1 : 1 }); });
   let gateT = 0, gateOpen = false;
   if (gate) { gate.userData.toggle = () => { gateOpen = !gateOpen; return gateOpen; }; gate.userData.isOpen = () => gateOpen; }
+  // Сухостой и сушняк (21.10: «нет сухостоя, должен быть сушняк»): отдельный проход со своим генератором —
+  // посадка остального леса не сдвигается. Сухостой — часть деревьев внутри групп (не одиночки на лугу);
+  // сушняк — у оснований деревьев в группах и на опушке, вне клеток, троп, мостов и воды.
+  if (treeBillboard && sprites?.frames.some(f => f.group === 'deadstand')) {
+    const rr = rng(20261021);
+    const list = treeBillboard.list;
+    const adults = list.filter(t => t.h >= 1.8 && t.y < 1.0 && /spruce|birch|autumn|pine|oak|willow|dark/.test(t.group));
+    const grid = new Map(), gk = (x, z) => `${Math.floor(x / 2.5)},${Math.floor(z / 2.5)}`;
+    for (const t of adults) { const k = gk(t.x, t.z); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(t); }
+    const neigh = t => { let n = 0; for (let i = -1; i <= 1; i += 1) for (let j = -1; j <= 1; j += 1)
+      for (const o of grid.get(`${Math.floor(t.x / 2.5) + i},${Math.floor(t.z / 2.5) + j}`) ?? []) if (o !== t && Math.hypot(o.x - t.x, o.z - t.z) < 2.6) n += 1; return n; };
+    let dead = 0, brush = 0;
+    const extra = [];
+    for (const t of adults) {
+      const n = neigh(t);
+      if (n >= 3 && rr() < (t.group === 'dark' ? 0.3 : 0.16)) {                    // в группе — сухостой
+        t.group = 'deadstand'; t.h *= 0.9 + rr() * 0.25; t.pick = Math.floor(rr() * 99); t.tint = [0, 0.85 + rr() * 0.2, 0.85 + rr() * 0.25]; dead += 1;
+      }
+      if (n >= 2 && rr() < 0.32) {                                                  // сушняк у основания
+        const a = rr() * Math.PI * 2, d = 0.7 + rr() * 1.1, x = t.x + Math.cos(a) * d, z = t.z + Math.sin(a) * d;
+        const gy = groundY(x, z);
+        if (nearest(x, z) < 1.25 || onBridge(x, z) || gy < -0.2 || gy > 1.0 || sample(x, z).water > 0.3) continue;
+        extra.push({ x, y: gy, z, h: 0.55 + rr() * 0.35, group: 'brush', pick: Math.floor(rr() * 99), tint: [0, 0.85 + rr() * 0.2, 0.8 + rr() * 0.25] });
+        brush += 1;
+      }
+    }
+    let all = list.concat(extra);
+    if (wf) {   // у заводи водопада деревьев нет (их обнулили выше) — при пересборке не возвращать
+      const px = groundX0 + ((wf.poolX[0] + wf.poolX[1]) / 2 / 4096) * groundW, pz = groundZ0 + (wf.poolY / 3072) * groundH;
+      all = all.filter(t => Math.hypot(t.x - px, t.z - pz) > 3.6);
+    }
+    const nb = billboardTrees(all, sprites.tex, sprites.frames);
+    trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
+    trees.add(nb); billboards.push(nb);
+    treeBillboard = { list: all, mesh: nb };
+    propCounts.deadstand = dead; propCounts.brushwood = brush;
+  }
   // маска полога: плотность крон взрослых деревьев (гауссово пятно на каждое), порог — только группа
   // даёт сплошное основание, одиночка почти нет; вне клеток, на суше ниже хребта
   if (treeBillboard) {
     const RES = 512, RZ = Math.round(RES * groundH / groundW), dens = new Float32Array(RES * RZ);
-    const NO = new Set(['fern', 'reeds', 'bush', 'dry_bush', 'lily', 'mushroom']);
+    const NO = new Set(['fern', 'reeds', 'bush', 'dry_bush', 'lily', 'mushroom', 'brush', 'shrub']);
     for (const t of treeBillboard.list) {
       if (NO.has(t.group) || t.h < 1.4 || t.y > 1.0) continue;
       const rad = 0.42 * t.h, ci = (t.x - groundX0) / groundW * RES, cj = (t.z - groundZ0) / groundH * RZ;
