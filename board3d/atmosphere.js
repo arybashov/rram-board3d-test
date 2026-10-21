@@ -86,7 +86,17 @@ function warmGlow() {
 // клуба дыма (атлас 2×2, data/smoke-atlas.webp от Codex); у каждой частицы жизнь: появляется, растёт, дрейфует,
 // медленно вращается и гаснет, потом рождается заново (цикл в шейдере — без CPU). «Depth fade» (мягкий стык с
 // землёй) упрощён: низ клуба растворяется у высоты земли под точкой рождения. Всё — один InstancedMesh, один вызов.
-function smokeField({ spots, tex, color = 0xb6c4ca, opacity = 1.05 }) {
+// Мягкий стык с рельефом и скалами (аналог Depth Fade в Unreal без отдельного прохода глубины): карта высот
+// рельефа в текстуре; пиксель клуба тем прозрачнее, чем ближе он к поверхности под собой — к месту, где плоскость
+// клуба уходит в скалу или землю, он уже растворился, и резкой линии пересечения не видно.
+function heightTexture(hAt, x0, z0, w, d, res = 256) {
+  const rz = Math.round(res * d / w), data = new Float32Array(res * rz);
+  for (let j = 0; j < rz; j += 1) for (let i = 0; i < res; i += 1) data[j * res + i] = hAt(x0 + (i + 0.5) / res * w, z0 + (j + 0.5) / rz * d);
+  const t = new THREE.DataTexture(data, res, rz, THREE.RedFormat, THREE.FloatType);
+  t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
+  return t;
+}
+function smokeField({ spots, tex, hTex, box, color = 0xb6c4ca, opacity = 1.05 }) {
   const n = spots.length;
   const geo = new THREE.InstancedBufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));
@@ -103,9 +113,9 @@ function smokeField({ spots, tex, color = 0xb6c4ca, opacity = 1.05 }) {
   geo.instanceCount = n;
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { time: { value: 0 }, tex: { value: tex }, col: { value: new THREE.Color(color) }, k: { value: opacity }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
+    uniforms: { time: { value: 0 }, tex: { value: tex }, hTex: { value: hTex }, box: { value: new THREE.Vector4(...box) }, col: { value: new THREE.Color(color) }, k: { value: opacity }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
     vertexShader: `uniform float time; uniform vec2 wind; attribute vec4 aSpawn; attribute vec4 aPar;
-      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed;
+      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed; varying vec2 vWXZ;
       void main(){
         float life = aPar.y, t = fract(time / life + aPar.x);              // возраст 0..1
         float size = aPar.z * mix(0.65, 1.25, t);                          // растёт за жизнь
@@ -115,12 +125,12 @@ function smokeField({ spots, tex, color = 0xb6c4ca, opacity = 1.05 }) {
         vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
         vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
         vec3 w = c + right * q.x + up * q.y * 0.38;                        // пелена приплюснута — стелется
-        vUv = uv; vA = sin(3.14159 * t); vT = time; vSeed = aPar.x; vWY = w.y; vG = aSpawn.w; vCell = aPar.w;
+        vUv = uv; vA = sin(3.14159 * t); vT = time; vSeed = aPar.x; vWXZ = w.xz; vWY = w.y; vG = aSpawn.w; vCell = aPar.w;
         vec4 mv = viewMatrix * vec4(w, 1.0); vCam = -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: `uniform sampler2D tex; uniform vec3 col; uniform float k;
-      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed;
+    fragmentShader: `uniform sampler2D tex; uniform sampler2D hTex; uniform vec4 box; uniform vec3 col; uniform float k;
+      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed; varying vec2 vWXZ;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -134,7 +144,8 @@ function smokeField({ spots, tex, color = 0xb6c4ca, opacity = 1.05 }) {
         vec2 cell = vec2(mod(ci, 2.0), floor(ci / 2.0 + 0.01)) * 0.5;
         float d = texture2D(tex, cell + uv * 0.5).r;
         d = pow(d, 1.15) * (1.0 - smoothstep(0.36, 0.5, length(vUv - 0.5)));   // мягче, края растворяются полностью
-        float soft = smoothstep(vG - 0.1, vG + 0.7, vWY);                  // мягкий стык с землёй (упрощённый depth fade)
+        float ground = texture2D(hTex, (vWXZ - box.xy) / box.zw).r;       // высота рельефа под этим пикселем клуба
+        float soft = smoothstep(0.0, 0.9, vWY - max(ground, -0.3));       // у поверхности (скала, склон, земля) — растворяется
         float near = smoothstep(4.0, 12.0, vCam);                          // не застилает камеру вблизи
         float a = d * vA * soft * near * k;
         if (a < 0.004) discard;
@@ -164,17 +175,31 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   // 5) эксперимент: туман частицами как дым Unreal (?fog=1) — над водой и у подножия хребта, как на рефе v6b
   if (fog) {
     const tex = new THREE.TextureLoader().load('./data/smoke-atlas.webp?v=1');
+    // туман только в четырёх местах (отмечено 21.10): ельник на террасах хребта слева, тёмный лес у
+    // фиолетового домика, заводь под водопадом, озеро
+    const toW = (px, py) => [groundX0 + px / 4096 * groundW, groundZ0 + py / 3072 * groundH];
+    const pool = toW(3278, 760);                                   // plan.json → waterfall.pool
+    const hut = cells.filter(c => c.deck === 'dark_forest').sort((a, b) => a.z - b.z)[0];
+    const lakeCells = cells.filter(c => c.deck === 'lake');
+    const zoneAt = (x, z, h) => {
+      if (Math.hypot(x - pool[0], z - pool[1]) < 4.2 && h < 0.5) return 'pool';
+      if (h < -0.2 && lakeCells.some(c => Math.hypot(c.x - x, c.z - z) < 5.5)) return 'lake';
+      if (hut && Math.hypot(x - hut.x, z - hut.z) < 6.5 && z < hut.z + 1.2 && h < 1.2) return 'dark';   // только лес за домиком, не поле
+      if (h > 1.4 && x < groundX0 + groundW * 0.47 && z < groundZ0 + groundH * 0.36) return 'ridge';
+      return null;
+    };
+    const DENS = { pool: 0.75, lake: 0.6, dark: 0.55, ridge: 0.22 };
     const spots = [];
     for (let z = groundZ0; z < groundZ0 + groundH; z += 1.2) for (let x = groundX0; x < groundX0 + groundW; x += 1.2) {
       const jx = x + (Math.random() - 0.5) * 1.2, jz = z + (Math.random() - 0.5) * 1.2;
       const h = hAt(jx, jz);
-      const water = h < -0.2;
-      const footOfRidge = h < 1.0 && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]].some(([dx, dz]) => hAt(jx + dx, jz + dz) > 2.5);
-      if (!(water ? Math.random() < 0.6 : footOfRidge && Math.random() < 0.55)) continue;
+      const zn = zoneAt(jx, jz, h);
+      if (!zn || Math.random() > DENS[zn]) continue;
       const g = Math.max(h, -0.3);
-      spots.push({ x: jx, y: g + 0.55, z: jz, ground: g, size: water ? 6.5 : 7.5 });
+      spots.push({ x: jx, y: g + 0.55, z: jz, ground: g, size: zn === 'ridge' ? 7.5 : zn === 'dark' ? 5.5 : 6.5 });
     }
-    const smoke = smokeField({ spots, tex });
+    const hTex = heightTexture(hAt, groundX0, groundZ0, groundW, groundH);
+    const smoke = smokeField({ spots, tex, hTex, box: [groundX0, groundZ0, groundW, groundH] });
     group.add(smoke);
     anim.push(smoke.userData.mat);
   }
