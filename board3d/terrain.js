@@ -1553,15 +1553,24 @@ ${gtex ? `{
   const footprints = [];
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
+  // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=1' };
+  const houseModels = {};
+  await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
+    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    houseModels[k] = g.scene;
+  }).catch(e => console.warn('house model', k, e))));
+  const HM = { hw: 1.05, hd: 1.40 };   // габарит модели с пропсами и свесом (инженерка: 2.10 × 2.80)
   for (const c of cells) {
     const cls = c.marker?.class;
     const isGate = c.pointClass === 'dwarf_entry';
     const make = isGate ? () => dwarfGate(3.0)
-      : HOUSE_ROOF[cls] ? () => houseMesh(cls) : cls === 'fairy_glade' ? phoenixNest : cls === 'blueprints' ? smithStone : null;
+      : HOUSE_ROOF[cls] ? () => (houseModels[c.marker?.asset] ? houseModels[c.marker.asset].clone(true) : houseMesh(cls)) : cls === 'fairy_glade' ? phoenixNest : cls === 'blueprints' ? smithStone : null;
     if (!make) continue;
     let best = null;
     const isSmall = cls === 'fairy_glade' || cls === 'blueprints';
-    const halfW = isSmall ? 0.9 : HOUSE_W / 2, halfD = isSmall ? 0.9 : HOUSE_D / 2;
+    const isModel = !!houseModels[c.marker?.asset];
+    const halfW = isSmall ? 0.9 : isModel ? HM.hw : HOUSE_W / 2, halfD = isSmall ? 0.9 : isModel ? HM.hd : HOUSE_D / 2;
     for (let i = 0; i < 6; i += 1) {
       const ang = Math.PI / 6 + i * Math.PI / 3;           // направления на грани гекса (плоский верх)
       const dx = Math.cos(ang), dz = Math.sin(ang);
@@ -1628,9 +1637,9 @@ ${gtex ? `{
     const isNest = cls === 'fairy_glade' || cls === 'blueprints';
     footprints.push({
       x: best.hx, z: best.hz, dx: best.dx, dz: best.dz,
-      hw: isGate ? h.userData.span / 2 + 1.2 : isNest ? 0.9 : HOUSE_W / 2,
-      hdFront: isGate ? 0.6 : isNest ? 0.9 : HOUSE_D / 2,
-      hdBack: isGate ? (h.userData.depth ?? 2.0) : isNest ? 0.9 : HOUSE_D / 2,   // за воротами — пол площадки
+      hw: isGate ? h.userData.span / 2 + 1.2 : isNest ? 0.9 : isModel ? HM.hw : HOUSE_W / 2,
+      hdFront: isGate ? 0.6 : isNest ? 0.9 : isModel ? HM.hd : HOUSE_D / 2,
+      hdBack: isGate ? (h.userData.depth ?? 2.0) : isNest ? 0.9 : isModel ? HM.hd : HOUSE_D / 2,   // за воротами — пол площадки
     });
     if (cls === 'fairy_glade') glades.push({ x: c.x, z: c.z });
   }
