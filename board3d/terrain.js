@@ -776,7 +776,7 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   for (const f of frames) (byGroup[f.group] ??= []).push(f);
   for (const t of list) {
     const grp = t.group === 'bush' && byGroup.shrub ? 'shrub' : t.group;   // круглые садовые кусты -> дикие (21.10)
-    if (grp === 'shrub' && !t.shrubScaled) { t.h *= 1.6; t.shrubScaled = true; }   // дикий куст раскидистый и выше шара
+    if (grp === 'shrub' && !t.shrubScaled) { t.h = Math.min(t.h * 1.1, 0.95); t.shrubScaled = true; }   // куст не выше молодой ели (21.10)
     const opts = byGroup[grp] ?? byGroup.spruce ?? frames;
     t.frame = opts[t.pick % opts.length];
     t.aspect = (t.frame.w * atlasTex.image.width) / (t.frame.h * atlasTex.image.height);
