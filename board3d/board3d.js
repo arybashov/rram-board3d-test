@@ -8,7 +8,7 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=12';
+import { buildAtmosphere } from './atmosphere.js?v=14';
 import { buildTerrain } from './terrain.js?v=235';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
@@ -132,7 +132,7 @@ const terrain = await buildTerrain({
   rockSideUrl: './data/tex-rockside-v6b.webp?v=1',   // пока одна скала — у моста (как в концепте), точка в пикселях арта
 });
 scene.add(terrain.group);
-const atmo = buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH });
+const atmo = buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH, fog: new URLSearchParams(location.search).has('fog') });   // ?fog=1 — эксперимент: туман частицами как дым Unreal
 scene.add(atmo.group);
 terrain.stats.buildMs = Math.round(performance.now() - tTerrain);
 

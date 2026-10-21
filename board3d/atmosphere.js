@@ -82,7 +82,63 @@ function warmGlow() {
   return new THREE.CanvasTexture(c);
 }
 
-export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH }) {
+// Туман частицами — как стандартный дым Unreal (Niagara/Cascade, M_smoke_subUV): спрайты к камере с текстурой
+// клуба дыма (атлас 2×2, data/smoke-atlas.webp от Codex); у каждой частицы жизнь: появляется, растёт, дрейфует,
+// медленно вращается и гаснет, потом рождается заново (цикл в шейдере — без CPU). «Depth fade» (мягкий стык с
+// землёй) упрощён: низ клуба растворяется у высоты земли под точкой рождения. Всё — один InstancedMesh, один вызов.
+function smokeField({ spots, tex, color = 0xc4ced2, opacity = 1.1 }) {
+  const n = spots.length;
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+  geo.setIndex([0, 1, 2, 0, 2, 3]);
+  const spawn = new Float32Array(n * 4), par = new Float32Array(n * 4);
+  spots.forEach((sp, i) => {
+    spawn.set([sp.x, sp.y, sp.z, sp.ground], i * 4);
+    // seed, жизнь (с), размер, кадр атласа
+    par.set([Math.random(), 14 + Math.random() * 12, sp.size * (0.8 + Math.random() * 0.5), Math.floor(Math.random() * 4)], i * 4);
+  });
+  geo.setAttribute('aSpawn', new THREE.InstancedBufferAttribute(spawn, 4));
+  geo.setAttribute('aPar', new THREE.InstancedBufferAttribute(par, 4));
+  geo.instanceCount = n;
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { time: { value: 0 }, tex: { value: tex }, col: { value: new THREE.Color(color) }, k: { value: opacity }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
+    vertexShader: `uniform float time; uniform vec2 wind; attribute vec4 aSpawn; attribute vec4 aPar;
+      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam;
+      void main(){
+        float life = aPar.y, t = fract(time / life + aPar.x);              // возраст 0..1
+        float size = aPar.z * mix(0.65, 1.25, t);                          // растёт за жизнь
+        vec3 c = aSpawn.xyz + vec3(wind.x, 0.0, wind.y) * life * t + vec3(0.0, 0.35 * t, 0.0);   // дрейф + подъём
+        float ang = aPar.x * 6.2831 + time * (0.02 + 0.03 * aPar.x) * (aPar.x > 0.5 ? 1.0 : -1.0); // медленное вращение
+        vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy * size;
+        vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+        vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+        vec3 w = c + right * q.x + up * q.y * 0.6;                         // клубы приплюснуты — стелются
+        vUv = uv; vA = sin(3.14159 * t); vWY = w.y; vG = aSpawn.w; vCell = aPar.w;
+        vec4 mv = viewMatrix * vec4(w, 1.0); vCam = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `uniform sampler2D tex; uniform vec3 col; uniform float k;
+      varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam;
+      void main(){
+        vec2 cell = vec2(mod(vCell, 2.0), floor(vCell / 2.0)) * 0.5;
+        float d = texture2D(tex, cell + vUv * 0.5).r;                     // яркость клуба = плотность
+        float soft = smoothstep(vG - 0.1, vG + 0.7, vWY);                  // мягкий стык с землёй (упрощённый depth fade)
+        float near = smoothstep(4.0, 12.0, vCam);                          // не застилает камеру вблизи
+        float a = d * vA * soft * near * k;
+        if (a < 0.004) discard;
+        gl_FragColor = vec4(col * (0.85 + 0.25 * d), a);
+      }`,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 19;
+  mesh.userData.mat = mat;
+  return mesh;
+}
+
+export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH, fog = false }) {
   const group = new THREE.Group();
   const anim = [];
   const hAt = terrain.heightAt;
@@ -95,6 +151,23 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   const rays = godRays({ origin: O, targets: T });
   group.add(rays);
   anim.push(rays.userData.mat);
+  // 5) эксперимент: туман частицами как дым Unreal (?fog=1) — над водой и у подножия хребта, как на рефе v6b
+  if (fog) {
+    const tex = new THREE.TextureLoader().load('./data/smoke-atlas.webp?v=1');
+    const spots = [];
+    for (let z = groundZ0; z < groundZ0 + groundH; z += 1.2) for (let x = groundX0; x < groundX0 + groundW; x += 1.2) {
+      const jx = x + (Math.random() - 0.5) * 1.2, jz = z + (Math.random() - 0.5) * 1.2;
+      const h = hAt(jx, jz);
+      const water = h < -0.2;
+      const footOfRidge = h < 1.0 && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]].some(([dx, dz]) => hAt(jx + dx, jz + dz) > 2.5);
+      if (!(water ? Math.random() < 0.6 : footOfRidge && Math.random() < 0.55)) continue;
+      const g = Math.max(h, -0.3);
+      spots.push({ x: jx, y: g + 0.7, z: jz, ground: g, size: water ? 4.5 : 5.5 });
+    }
+    const smoke = smokeField({ spots, tex });
+    group.add(smoke);
+    anim.push(smoke.userData.mat);
+  }
   // 4) тёплые огни: по краям мостов (факелы)
   const glowTex = warmGlow();
   const flameTex = (() => {
