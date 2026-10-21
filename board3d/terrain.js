@@ -1045,11 +1045,16 @@ export async function buildTerrain({ cells, cellById, groundX0, groundZ0, ground
     if (k.startsWith('splat')) { t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.colorSpace = THREE.NoColorSpace; }
     return [k, t];
   }))) : null;
+  // Лесное основание (разбор «парка» 21.10, шаг 1): маска полога — где деревья стоят группой, земля под ними
+  // одним тёмным пятном подстилки с неровным краем. Заполняется после посадки деревьев (ниже).
+  const canopyU = { tex: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, box: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) } };
+  canopyU.tex.value.needsUpdate = true;
   const groundMat = new THREE.MeshLambertMaterial({ map: groundTex });
   if (matchMedia('(pointer: coarse)').matches) groundMat.defines = { LOWQ: 1 };   // телефон: без второй выборки травы
   groundMat.onBeforeCompile = shader => {
     shader.uniforms.rockTop = { value: rockTopTex };
     shader.uniforms.rockSide = { value: rockSideTex };
+    shader.uniforms.canopyTex = canopyU.tex; shader.uniforms.canopyBox = canopyU.box;
     if (gtex) for (const [k, t] of Object.entries(gtex)) shader.uniforms['g_' + k] = { value: t };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
@@ -1062,6 +1067,7 @@ vNrm = normal;`);
       .replace('#include <common>', `#include <common>
 uniform sampler2D rockTop;
 uniform sampler2D rockSide;
+uniform sampler2D canopyTex; uniform vec4 canopyBox;
 ${gtex ? Object.keys(gtex).map(k => `uniform sampler2D g_${k};`).join('\n') : ''}
 varying vec3 vWorldPos;
 varying vec3 vNrm;`)
@@ -1110,6 +1116,19 @@ ${gtex ? `{
   // земля как на концепте v6b: тёмная мшистая олива с бурым; тропы остаются светлыми песчаными
   vec3 graded = mix(vec3(gl0), col, 0.55) * vec3(0.66, 0.66, 0.60);   // замер v6b: серо-оливковая, не жёлтая
   float pathW = sa.r;
+  // лесное основание: под группами деревьев — тёмная хвойно-лиственная подстилка одним пятном; край рваный
+  // (шум), на тропе и клетках нет (маска это уже учитывает, тропа — ещё и здесь)
+  float cn = texture2D(canopyTex, (vWorldPos.xz - canopyBox.xy) / canopyBox.zw).r;
+  if (cn > 0.01) {
+    float edgeN = sin(vWorldPos.x * 1.7 + sin(vWorldPos.z * 1.3) * 2.0) * sin(vWorldPos.z * 1.9 - vWorldPos.x * 0.6) * 0.5 + 0.5;
+    float cov = smoothstep(0.15, 0.75, cn + (edgeN - 0.5) * 0.35) * (1.0 - pathW);
+    vec3 lit = texture2D(g_forest, tuv * 1.3).rgb;
+    lit = mix(lit, texture2D(g_dark, tuv * 0.8 + 0.21).rgb, 0.4);
+    float ll = dot(lit, vec3(0.3, 0.59, 0.11));
+    lit = mix(vec3(ll), lit, 0.6) * vec3(0.62, 0.55, 0.42);           // бурая хвоя и опад, без зелени газона
+    graded = mix(graded, lit, cov * 0.85);
+    graded *= mix(1.0, 0.68, cov);                                      // под пологом на ~30% темнее открытого грунта
+  }
   diffuseColor.rgb = mix(graded, mix(vec3(gl0), col, 0.7) * vec3(0.92, 0.86, 0.72), pathW);
 }` : ''}
 {
@@ -2468,6 +2487,33 @@ ${gtex ? `{
   gate?.traverse(o => { if (o.name === 'door_l' || o.name === 'door_r') gateLeaves.push({ o, dir: o.name === 'door_l' ? -1 : 1 }); });
   let gateT = 0, gateOpen = false;
   if (gate) { gate.userData.toggle = () => { gateOpen = !gateOpen; return gateOpen; }; gate.userData.isOpen = () => gateOpen; }
+  // маска полога: плотность крон взрослых деревьев (гауссово пятно на каждое), порог — только группа
+  // даёт сплошное основание, одиночка почти нет; вне клеток, на суше ниже хребта
+  if (treeBillboard) {
+    const RES = 512, RZ = Math.round(RES * groundH / groundW), dens = new Float32Array(RES * RZ);
+    const NO = new Set(['fern', 'reeds', 'bush', 'dry_bush', 'lily', 'mushroom']);
+    for (const t of treeBillboard.list) {
+      if (NO.has(t.group) || t.h < 1.4 || t.y > 1.0) continue;
+      const rad = 0.42 * t.h, ci = (t.x - groundX0) / groundW * RES, cj = (t.z - groundZ0) / groundH * RZ;
+      const ri = rad / groundW * RES * 2, rj = rad / groundH * RZ * 2;
+      for (let j = Math.max(0, Math.floor(cj - rj)); j <= Math.min(RZ - 1, Math.ceil(cj + rj)); j += 1)
+        for (let i = Math.max(0, Math.floor(ci - ri)); i <= Math.min(RES - 1, Math.ceil(ci + ri)); i += 1) {
+          const dx = (i - ci) / (ri / 2), dz = (j - cj) / (rj / 2);
+          dens[j * RES + i] += Math.exp(-(dx * dx + dz * dz) * 0.9);
+        }
+    }
+    const data = new Uint8Array(RES * RZ * 4);
+    for (let j = 0; j < RZ; j += 1) for (let i = 0; i < RES; i += 1) {
+      const x = groundX0 + (i + 0.5) / RES * groundW, z = groundZ0 + (j + 0.5) / RZ * groundH;
+      let v = THREE.MathUtils.smoothstep(dens[j * RES + i], 0.6, 1.8);           // одиночка ~1 — слабо, группа — полностью
+      if (v > 0) v *= THREE.MathUtils.smoothstep(nearest(x, z), 0.95, 1.45);      // клетки чистые
+      if (v > 0) { const h = heightAt(x, z); v *= THREE.MathUtils.smoothstep(h, -0.35, -0.1) * (1 - THREE.MathUtils.smoothstep(h, 0.9, 1.4)); }
+      data[(j * RES + i) * 4] = Math.round(255 * v); data[(j * RES + i) * 4 + 3] = 255;
+    }
+    const ct = new THREE.DataTexture(data, RES, RZ);
+    ct.magFilter = ct.minFilter = THREE.LinearFilter; ct.needsUpdate = true;
+    canopyU.tex.value = ct;
+  }
   const update = (dt, camera) => {
     windUniform.value += dt;
     if (gateLeaves.length) {
