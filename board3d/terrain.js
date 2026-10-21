@@ -777,6 +777,7 @@ const SPRITE_GRADE = {   // новые породы (sheet6b-*) уже в цве
   birch: [0.0, 1.0, 1.0],      // берёзы v3 уже в тоне рефа   // реф: тёплый красно-оранжевый, не малиновый
   pine: [0.02, 0.9, 0.66], oak_green: [0.0, 0.9, 0.7], autumn_yellow: [-0.02, 1.2, 0.95],
   fern: [0.02, 0.9, 0.7], snag: [0, 0.8, 0.75],
+  shrub: [0.0, 0.78, 0.8], bush: [0.0, 0.75, 0.78],   // разбор «парка» п.5: салатовые кусты приглушить
 }
 function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   // list: [{x, y, z, h, group, tint}]
@@ -788,7 +789,7 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   for (const f of frames) (byGroup[f.group] ??= []).push(f);
   for (const t of list) {
     const grp = t.group === 'bush' && byGroup.shrub ? 'shrub' : t.group;   // круглые садовые кусты -> дикие (21.10)
-    if (grp === 'shrub' && !t.shrubScaled) { t.h = Math.min(t.h * 1.1, 0.95); t.shrubScaled = true; }   // куст не выше молодой ели (21.10)
+    if (grp === 'shrub' && !t.shrubScaled) { t.h = Math.min(t.h * 1.1, 0.95); t.shrubScaled = true; t.tint = [t.tint[0], t.tint[1] * 0.75, t.tint[2] * 0.82, t.tint[3]]; }   // куст не выше молодой ели; приглушён (разбор «парка» п.5)
     const opts = byGroup[grp] ?? byGroup.spruce ?? frames;
     t.frame = opts[t.pick % opts.length];
     t.aspect = (t.frame.w * atlasTex.image.width) / (t.frame.h * atlasTex.image.height);
@@ -1157,7 +1158,7 @@ ${gtex ? `{
     float ll = dot(lit, vec3(0.3, 0.59, 0.11));
     lit = mix(vec3(ll), lit, 0.6) * vec3(0.62, 0.55, 0.42);           // бурая хвоя и опад, без зелени газона
     graded = mix(graded, lit, cov * 0.85);
-    graded *= mix(1.0, 0.68, cov);                                      // под пологом на ~30% темнее открытого грунта
+    graded *= mix(vec3(1.0), vec3(0.52, 0.55, 0.60), cov * smoothstep(0.2, 0.9, cn));   // разбор «парка» п.4: ядро группы на ~45% темнее и холоднее, край мягкий
   }
   diffuseColor.rgb = mix(graded, mix(vec3(gl0), col, 0.7) * vec3(0.92, 0.86, 0.72), pathW);
 }` : ''}
@@ -2814,6 +2815,27 @@ ${gtex ? `{
       }
     }
     propCounts.forbs = forbs;
+    // опушка (разбор «парка» п.1): у крайних деревьев группы, со стороны открытого места — низкий подлесок,
+    // чтобы лес не обрывался «газоном» под кронами
+    let edge = 0;
+    for (const t of adults) {
+      const n = neigh(t);
+      if (n < 1 || rr() > 0.7) continue;
+      let ox = 0, oz = 0;
+      for (let i = -1; i <= 1; i += 1) for (let j = -1; j <= 1; j += 1)
+        for (const o of grid.get(`${Math.floor(t.x / 2.5) + i},${Math.floor(t.z / 2.5) + j}`) ?? []) if (o !== t && Math.hypot(o.x - t.x, o.z - t.z) < 3.5) { ox += t.x - o.x; oz += t.z - o.z; }
+      const ol = Math.hypot(ox, oz); if (ol < 0.8) continue;          // в глубине группы соседи со всех сторон — не край
+      ox /= ol; oz /= ol;                                          // наружу из группы
+      for (let k = 0; k < 3; k += 1) {
+        const d = 0.5 + rr() * 1.1, sx = t.x + ox * d + (rr() - 0.5) * 0.7, sz = t.z + oz * d + (rr() - 0.5) * 0.7;
+        const gy = groundY(sx, sz);
+        if (nearest(sx, sz) < 1.35 || onBridge(sx, sz) || gy < -0.15 || gy > 1.0 || sample(sx, sz).water > 0.2) continue;
+        const g2 = rr() < 0.45 ? 'shrub' : rr() < 0.6 ? 'forb' : 'brush';
+        extra.push({ x: sx, y: gy, z: sz, h: g2 === 'shrub' ? 0.6 + rr() * 0.3 : g2 === 'forb' ? 0.5 + rr() * 0.3 : 0.32 + rr() * 0.15, group: g2, pick: Math.floor(rr() * 99), tint: [0, 0.72 + rr() * 0.15, 0.75 + rr() * 0.15], shrubScaled: true });
+        edge += 1;
+      }
+    }
+    propCounts.edgeUnder = edge;
     let all = list.concat(extra);
     if (wf) {   // у заводи водопада деревьев нет (их обнулили выше) — при пересборке не возвращать
       const px = groundX0 + ((wf.poolX[0] + wf.poolX[1]) / 2 / 4096) * groundW, pz = groundZ0 + (wf.poolY / 3072) * groundH;
