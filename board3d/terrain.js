@@ -1229,7 +1229,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=2`)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=3`)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
@@ -1337,7 +1337,11 @@ ${gtex ? `{
       // поперёк течения, но вдоль ряда клеток: направления на соседей гекса (плоский верх) — 30°+60°k
       const raw = best + 90, snap = Math.round((raw - 30) / 60) * 60 + 30;
       const fa = snap * Math.PI / 180, fx = Math.cos(fa), fz = Math.sin(fa);
-      const reach = sgn => { let t = 0; for (; t < 6; t += 0.1) if (sampleMask(bc.x + fx * t * sgn, bc.z + fz * t * sgn).water < 0.3) break; return t; };
+      const reach = sgn => {   // до берега: сперва вода (под мостом карта может быть нарисована сушей), потом суша
+        let seen = false, t = 0;
+        for (; t < 6; t += 0.1) { const w = sampleMask(bc.x + fx * t * sgn, bc.z + fz * t * sgn).water; if (w > 0.5) seen = true; else if (seen && w < 0.3) break; }
+        return seen ? t : len / 2;
+      };
       const r1 = reach(1), r2 = reach(-1);
       const span = Math.max(3.0, r1 + r2 + 1.0);
       // ширина — две полосы клеток (21.10: «мост 2 клетки вмещать должен»): клетка-мост и соседняя клетка
@@ -1357,7 +1361,22 @@ ${gtex ? `{
       piece.userData.axis = Math.atan2(fx, fz);
       m.scale.x = wid / 3.5;
       m.scale.z = span / (kind === 'stone' ? 7.0 : 5.0);
-      m.scale.set(1, 1, len / 5.0);
+      // столбы и борта не должны стоять на клетках суши: сдвигаем мост вдоль оси, пока его крайние
+      // столбы/опоры не уйдут с клеток (21.10: «сдвинь мост, чтоб он с клетки ушел»)
+      const L2 = (kind === 'stone' ? 3.5 : 2.35) * m.scale.z, W2 = (kind === 'stone' ? 2.05 : 1.98) * m.scale.x;
+      const posts = [[-W2, -L2], [W2, -L2], [-W2, L2], [W2, L2]];   // крайние столбы/опоры
+      const [c0x, c0z] = piece.userData.center;
+      const onCells = off => posts.reduce((n, [px, pz]) => {
+        const wx = c0x + nx2 * px + fx * (pz + off), wz = c0z + nz2 * px + fz * (pz + off);
+        return n + (cells.some(c => !g.includes(c) && Math.hypot(c.x - wx, c.z - wz) < 1.0) ? 1 : 0);
+      }, 0);
+      let bestOff = 0, bestN = onCells(0);
+      for (let o = 0.1; o <= 2.2 && bestN > 0; o += 0.1) for (const sg of [1, -1]) {
+        const n = onCells(o * sg);
+        if (n < bestN) { bestN = n; bestOff = o * sg; }
+      }
+      piece.userData.center = [c0x + fx * bestOff, c0z + fz * bestOff];
+      (window.__bridgeDbg ??= []).push({ kind, bestOff, n0: onCells(0), bestN, fx, fz, L2, W2 });
       piece.add(m);
       piece.userData.kind = kind;
       m.position.y = 0.05;   // настил над грунтом — земля не проглядывает (z-fighting)
