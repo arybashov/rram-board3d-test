@@ -132,20 +132,27 @@ function rockGeometry(seed) {
 }
 
 function plankTexture() {
+  // тёмные потёртые доски поперёк моста (реф v6b): разный тон доски, щели, сучки, царапины
   const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 256;
+  c.width = 128; c.height = 512;
   const g = c.getContext('2d');
-  g.fillStyle = '#9a6234';
-  g.fillRect(0, 0, 64, 256);
-  for (let y = 0; y < 256; y += 32) {
-    g.fillStyle = y % 64 ? '#a86c3a' : '#8f5a2f';
-    g.fillRect(0, y + 2, 64, 28);
-    g.fillStyle = '#5b3519';
-    g.fillRect(0, y, 64, 2);
+  g.fillStyle = '#3a2716'; g.fillRect(0, 0, 128, 512);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let y = 0; y < 512; y += 32) {
+    const t = 0.75 + rnd() * 0.35;
+    g.fillStyle = `rgb(${Math.round(92 * t)},${Math.round(64 * t)},${Math.round(40 * t)})`;
+    g.fillRect(0, y + 3, 128, 27);
+    for (let i = 0; i < 10; i += 1) {                     // волокна
+      g.fillStyle = `rgba(30,18,8,${0.12 + rnd() * 0.15})`;
+      g.fillRect(0, y + 4 + rnd() * 24, 128, 1);
+    }
+    if (rnd() < 0.5) { g.fillStyle = 'rgba(25,15,6,0.6)'; g.beginPath(); g.ellipse(rnd() * 128, y + 16, 4, 2, 0, 0, 7); g.fill(); }
+    g.fillStyle = '#1a0f07'; g.fillRect(0, y, 128, 3);     // щель
+    g.fillStyle = 'rgba(20,12,6,0.8)'; g.fillRect(0, y + 30, 128, 2);
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
 
@@ -1112,8 +1119,13 @@ ${gtex ? `{
   // суши по обе стороны (соседи мостовых клеток); длина — от клетки до клетки суши;
   // ширина — ровно ширина гекса поперёк оси, чтобы края моста совпадали с краями клеток.
   const bridges = new THREE.Group();
-  const deckMat = new THREE.MeshLambertMaterial({ map: plankTexture() });
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b4223 });
+  // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
+  const texL = new THREE.TextureLoader();
+  const deckTex = texL.load('./data/bridge-deck.webp?v=1'); deckTex.colorSpace = THREE.SRGBColorSpace; deckTex.wrapS = deckTex.wrapT = THREE.RepeatWrapping;
+  const railTex = texL.load('./data/bridge-rail.webp?v=1'); railTex.colorSpace = THREE.SRGBColorSpace; railTex.wrapS = THREE.RepeatWrapping;
+  const deckMat = new THREE.MeshLambertMaterial({ map: deckTex });
+  const railMat = new THREE.MeshLambertMaterial({ map: railTex, alphaTest: 0.5, side: THREE.DoubleSide });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4a301b });   // тёмное дерево (реф)
   const groups = [];
   for (const c of bridgeCells) {
     const g = groups.find(gr => gr.some(o => (o.neighbors ?? []).includes(c.id) || Math.hypot(o.x - c.x, o.z - c.z) < 1.9));
@@ -1162,23 +1174,36 @@ ${gtex ? `{
     piece.add(deck);
     const half = BRIDGE_WIDTH / 2;
     for (const side of [-1, 1]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, len - 0.3), woodMat);
-      rail.position.set(side * (half - 0.06), 0.45, 0);
-      piece.add(rail);
+      // перила как на рефе: брус по краю настила, верхний поручень, частые балясины
+      const sx = side * (half - 0.07);
+      // перила — плоскость с нарисованными балясинами (Codex), повтор по длине
+      const railGeo = new THREE.PlaneGeometry(len - 0.3, 0.62).rotateY(Math.PI / 2);
+      const uv = railGeo.attributes.uv;
+      for (let i = 0; i < uv.count; i += 1) uv.setX(i, uv.getX(i) * (len - 0.3) / 1.8);
+      const railM = new THREE.Mesh(railGeo, railMat);
+      railM.position.set(sx, 0.3, 0);
+      piece.add(railM);
       for (const end of [-1, 1]) {
-        // столбики с навершием по углам, как в концепте
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.75, 0.22), woodMat);
-        post.position.set(side * (half - 0.06), 0.22, end * (len / 2 - 0.15));
-        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), woodMat);
-        cap.position.set(side * (half - 0.06), 0.66, end * (len / 2 - 0.15));
-        piece.add(post, cap);
+        // толстые угловые столбы с чашей огня (огонь — atmosphere.js)
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.9, 0.3), woodMat);
+        post.position.set(sx, 0.3, end * (len / 2 - 0.15));
+        post.userData.torch = true;
+        const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.12, 0.14, 8), new THREE.MeshLambertMaterial({ color: 0x2a2420 }));
+        bowl.position.set(sx, 0.82, end * (len / 2 - 0.15));
+        piece.add(post, bowl);
       }
       for (let t = -len / 2 + 0.9; t < len / 2 - 0.8; t += 1.1) {
-        const pile = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.1, 0.14), woodMat);
+        const pile = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), woodMat);
         pile.position.set(side * (half - 0.25), -0.65, t);
         piece.add(pile);
       }
     }
+    // доски поперёк: повтор текстуры по длине моста
+    deck.material = deckMat.clone();
+    deck.material.map = deckMat.map.clone();
+    deck.material.map.repeat.set(1, len / 2.2);
+    deck.material.map.rotation = 0;
+    deck.material.map.needsUpdate = true;
     piece.position.set(cx + dx * mid, 0, cz + dz * mid);
     piece.rotation.y = axis;
     piece.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -1517,7 +1542,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=15' : '.png')), (await fetch(treeSpritesUrl + '.json?v=15')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=16' : '.png')), (await fetch(treeSpritesUrl + '.json?v=16')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -1751,6 +1776,7 @@ ${gtex ? `{
         // цвет по породе — с концепта v6b: хвойные тёмные сине-зелёные, берёзы золотые, осень насыщенная
         const gg = SPRITE_GRADE[group];
         if (gg) { tone[0] += gg[0]; tone[1] *= gg[1]; tone[2] *= gg[2]; }
+        if (bridgeCells.some(c => Math.hypot(c.x - x, c.z - z) < 2.4)) continue;   // не на мост
         list.push({ x, y: groundY(x, z), z, h, group, pick: Math.floor(r() * 99), tint: tone });
       }
     }
@@ -1966,6 +1992,20 @@ ${gtex ? `{
       }
       propCounts.fern_sprites = ferns.length;
       delete items.prop_fern;
+    }
+    // плоский режим: ворота дварфов — картинка Codex по игровому ролику вместо деревянной крепости
+    if (sprites && treeBillboard && sprites.frames.some(f => f.group === 'gate')) {
+      const g3 = houses.children.find(h => h.userData.isGate);
+      if (g3) {
+        const f = footprints.find(fp => Math.hypot(fp.x - g3.position.x, fp.z - g3.position.z) < 0.01);
+        const w = (f ? f.hw * 2 : 4) * 1.15;
+        g3.visible = false;
+        const all = treeBillboard.list.concat([{ x: g3.position.x, y: groundY(g3.position.x, g3.position.z), z: g3.position.z + 0.2, h: w, group: 'gate', pick: 0, tint: [0, 1, 1] }]);
+        const nb = billboardTrees(all, sprites.tex, sprites.frames);
+        trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
+        trees.add(nb); billboards.push(nb);
+        treeBillboard = { list: all, mesh: nb };
+      }
     }
     // плоский режим: камыш — картинками атласа (группа reeds), сортируется вместе с деревьями
     if (sprites && treeBillboard && sprites.frames.some(f => f.group === 'reeds') && items.prop_reeds) {

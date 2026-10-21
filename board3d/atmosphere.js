@@ -97,18 +97,42 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   anim.push(rays.userData.mat);
   // 4) тёплые огни: по краям мостов (факелы)
   const glowTex = warmGlow();
+  const flameTex = (() => {
+    const c = document.createElement('canvas'); c.width = 32; c.height = 64;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(16, 46, 1, 16, 40, 22);
+    gr.addColorStop(0, 'rgba(255,245,200,1)'); gr.addColorStop(0.35, 'rgba(255,170,50,0.95)'); gr.addColorStop(1, 'rgba(255,80,10,0)');
+    g.fillStyle = gr;
+    g.beginPath(); g.moveTo(16, 2); g.quadraticCurveTo(30, 34, 24, 52); g.quadraticCurveTo(16, 64, 8, 52); g.quadraticCurveTo(2, 34, 16, 2); g.fill();
+    return new THREE.CanvasTexture(c);
+  })();
+  const flameMat = new THREE.SpriteMaterial({ map: flameTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+  const flames = [];
   const glowMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
   const lights = [];
-  terrain.bridges?.traverse(o => { if (o.isMesh && o.geometry?.type === 'BoxGeometry' && o.geometry.parameters?.height > 0.6) lights.push(o); });
+  terrain.bridges?.traverse(o => { if (o.isMesh && o.userData.torch) lights.push(o); });
   for (const post of lights) {
     const s = new THREE.Sprite(glowMat);
     post.updateWorldMatrix(true, false);
     const p = new THREE.Vector3().setFromMatrixPosition(post.matrixWorld);
-    s.position.set(p.x, p.y + 0.55, p.z);
-    s.scale.setScalar(1.1);
+    s.position.set(p.x, p.y + 0.75, p.z);
+    s.scale.setScalar(1.6);
     s.renderOrder = 22;
-    group.add(s);
+    // язычок пламени над чашей (реф: факелы на углах мостов), мерцает
+    const f = new THREE.Sprite(flameMat);
+    f.position.set(p.x, p.y + 0.78, p.z);
+    f.center.set(0.5, 0.05);
+    f.scale.set(0.32, 0.5, 1);
+    f.renderOrder = 23;
+    f.userData.phase = Math.random() * 6.28;
+    flames.push(f);
+    group.add(s, f);
   }
-  const update = dt => { for (const m of anim) m.uniforms.time.value += dt; };
+  let tt = 0;
+  const update = dt => {
+    for (const m of anim) m.uniforms.time.value += dt;
+    tt += dt;
+    for (const f of flames) { const k = 1 + 0.15 * Math.sin(tt * 9 + f.userData.phase) + 0.08 * Math.sin(tt * 17 + f.userData.phase * 2); f.scale.set(0.32 * (2 - k), 0.5 * k, 1); }
+  };
   return { group, update, torches: lights.length };
 }
