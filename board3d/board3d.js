@@ -187,6 +187,72 @@ function baseCellColor(c) {
   const hex = palette.points?.[c.pointClass] || palette.decks?.[c.deck] || palette.terrain?.[c.terrain] || '#dbe8f7';
   return new THREE.Color(hex);
 }
+// Клетки на мостах (22.10): настил закрывает плоскую заливку и контур на земле — для таких клеток строим их
+// по поверхности настила: точки гекса опускаем лучом сверху на модель моста (перила, столбы, крышки бортов
+// отсекаем — берём только пологие грани ниже 0.45), щели между досками закрываем выборкой по соседству.
+const deckRay = new THREE.Raycaster(), deckDown = new THREE.Vector3(0, -1, 0), deckFrom = new THREE.Vector3();
+const deckMeshes = [];
+terrain.bridges?.traverse(o => { if (o.isMesh) deckMeshes.push(o); });
+terrain.bridges?.updateMatrixWorld(true);
+const deckAt1 = (x, z) => {
+  deckFrom.set(x, 5, z); deckRay.set(deckFrom, deckDown);
+  for (const h of deckRay.intersectObjects(deckMeshes, false)) {
+    if (h.point.y > 0.45) continue;
+    const n = h.face?.normal.clone().transformDirection(h.object.matrixWorld);
+    if (n && Math.abs(n.y) < 0.6) continue;
+    return h.point.y;
+  }
+  return null;
+};
+const deckAt = (x, z) => {
+  let best = deckAt1(x, z);
+  if (best !== null) return best;
+  for (const [dx, dz] of [[0.12, 0], [-0.12, 0], [0, 0.12], [0, -0.12], [0.2, 0.2], [-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2]]) {
+    const v = deckAt1(x + dx, z + dz); if (v !== null && (best === null || v > best)) best = v;
+  }
+  return best;
+};
+const DECK_K = 6;                                   // точек на сторону гекса
+const deckCells = new Map();                        // id клетки → высоты по сетке гекса
+for (const c of cells) {
+  if (!deckMeshes.length) break;
+  const probe = [[0, 0], ...Array.from({ length: 6 }, (_, i) => [Math.cos(i * Math.PI / 3 + Math.PI / 6) * 0.7, Math.sin(i * Math.PI / 3 + Math.PI / 6) * 0.7])];
+  if (!probe.some(([dx, dz]) => deckAt1(c.x + dx, c.z + dz) !== null)) continue;
+  deckCells.set(c.id, true);
+}
+const groundTop = TILE_TOP + 0.02;
+const deckY = (x, z) => { const v = deckAt(x, z); return v === null ? groundTop : Math.max(groundTop, v + 0.03); };
+// контур гекса радиуса R по точкам (плоский верх: вершины на углах kπ/3)
+const hexRing = (c, R) => {
+  const pts = [];
+  for (let i = 0; i < 6; i += 1) {
+    const a1 = (Math.PI / 3) * i, a2 = (Math.PI / 3) * (i + 1);
+    for (let k = 0; k < DECK_K; k += 1) {
+      const t = k / DECK_K;
+      pts.push([c.x + R * (Math.cos(a1) * (1 - t) + Math.cos(a2) * t), c.z + R * (Math.sin(a1) * (1 - t) + Math.sin(a2) * t)]);
+    }
+  }
+  return pts;
+};
+// заливка по настилу: кольца R = .31/.62/.93, веер от центра
+function deckTileGeo(c) {
+  const rings = [0.31, 0.62, 0.93].map(R => hexRing(c, R).map(([x, z]) => [x, deckY(x, z), z]));
+  const pos = [c.x, deckY(c.x, c.z), c.z];
+  for (const r of rings) for (const p of r) pos.push(...p);
+  const N = 6 * DECK_K, idx = [];
+  for (let j = 0; j < N; j += 1) idx.push(0, 1 + (j + 1) % N, 1 + j);
+  for (let r = 0; r < 2; r += 1) for (let j = 0; j < N; j += 1) {
+    const a = 1 + r * N + j, b = 1 + r * N + (j + 1) % N, a2 = a + N, b2 = b + N;
+    idx.push(a, b, b2, a, b2, a2);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+  return g;
+}
+const deckTiles = new Map();
+const deckTileGroup = new THREE.Group(); deckTileGroup.renderOrder = 1;
+scene.add(deckTileGroup);
+
 const hexGeo = new THREE.CylinderGeometry(0.93, 0.93, TILE_TOP, 6);
 hexGeo.rotateY(Math.PI / 2);   // вершина на +X: гекс с плоским верхом, как в SVG
 hexGeo.translate(0, TILE_TOP / 2, 0);
@@ -199,7 +265,7 @@ let tileCells = [];              // какая клетка в каком инс
 const pickTiles = new THREE.InstancedMesh(hexGeo, new THREE.MeshBasicMaterial({ visible: false }), cells.length);
 const m4 = new THREE.Matrix4();
 for (const c of cells) {
-  m4.makeTranslation(c.x, 0.01, c.z);
+  m4.makeTranslation(c.x, deckCells.has(c.id) ? deckY(c.x, c.z) - TILE_TOP : 0.01, c.z);   // на мосту — клик по настилу
   pickTiles.setMatrixAt(c.index, m4);
 }
 scene.add(pickTiles);
@@ -207,6 +273,11 @@ scene.add(pickTiles);
 {
   const pts = [];
   for (const c of cells) {
+    if (deckCells.has(c.id)) {                     // по настилу моста
+      const ring = hexRing(c, 1).map(([x, z]) => [x, deckY(x, z) + 0.005, z]);
+      for (let j = 0; j < ring.length; j += 1) pts.push(...ring[j], ...ring[(j + 1) % ring.length]);
+      continue;
+    }
     for (let i = 0; i < 6; i += 1) {
       const a1 = (Math.PI / 3) * i, a2 = (Math.PI / 3) * (i + 1);
       pts.push(c.x + Math.cos(a1), TILE_TOP + 0.02, c.z + Math.sin(a1), c.x + Math.cos(a2), TILE_TOP + 0.02, c.z + Math.sin(a2));
@@ -464,6 +535,16 @@ function refreshTiles() {
     else if (attackable.has(c.id)) col = COLOR_ATTACK;
     else if (reachable.has(c.id)) col = COLOR_VALID;
     if (c.id === hoveredCell && (reachable.has(c.id) || attackable.has(c.id))) col = COLOR_HOVER;
+    if (deckCells.has(c.id)) {                      // клетка на мосту — заливка по настилу
+      let dt = deckTiles.get(c.id);
+      if (!dt) {
+        dt = new THREE.Mesh(deckTileGeo(c), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+        dt.renderOrder = 1; deckTiles.set(c.id, dt); deckTileGroup.add(dt);
+      }
+      dt.visible = !!col;
+      if (col) { dt.material.color.copy(col); dt.material.opacity = selected ? 0.45 : 0.32; }
+      continue;
+    }
     if (!col) continue;
     m4.makeTranslation(c.x, 0.01, c.z);
     tiles.setMatrixAt(tileCells.length, m4);
