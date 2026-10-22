@@ -1591,26 +1591,58 @@ ${gtex ? `{
     const t = await new THREE.TextureLoader().loadAsync(u).catch(() => null);
     if (t) { t.flipY = false; t.colorSpace = THREE.NoColorSpace; wearTex[k] = t; }
   }));
-  const applyWear = (root, tex) => {
+  const applyWear = (root, tex, opt = {}) => {
     if (!tex) return;
+    const aged = !!opt.aged;   // каменный мост (22.10): сильнее состарить — мох в щелях и на верхах бортиков, затёртый проход, мусор к краям
     const done = new Set();
     root.traverse(o => {
-      if (!o.isMesh || !o.geometry.attributes.uv1) return;
-      o.geometry.setAttribute('wearUv', o.geometry.attributes.uv1);
+      if (!o.isMesh) return;
+      if (!o.geometry.attributes.uv1 && !aged) return;
+      // glTF разбивает объект по материалам — у части (настил) может не оказаться 2-й развёртки: тогда без запечённого износа (w=1)
+      o.geometry.setAttribute('wearUv', o.geometry.attributes.uv1 ?? o.geometry.attributes.uv);
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
         if (done.has(m)) continue; done.add(m);
         m.onBeforeCompile = sh => {
           sh.uniforms.wearMap = { value: tex };
-          sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 wearUv; varying vec2 vWearUv;')
-            .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWearUv = wearUv;');
-          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv;')
+          sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 wearUv; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;')
+            .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWearUv = wearUv; vLoc = position; vWN = normalize(mat3(modelMatrix) * normal);');
+          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;')
             .replace('#include <map_fragment>', `#include <map_fragment>
   { vec3 w = texture2D(wearMap, vWearUv).rgb;
     diffuseColor.rgb *= mix(1.0, smoothstep(0.05, 0.85, w.r), 0.7);                       // щели и низ — темнее
-    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.0 + vec3(0.08, 0.07, 0.055), clamp(w.g * 1.3, 0.0, 1.0) * 0.9); }   // потёртые кромки — светлее`);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.0 + vec3(0.08, 0.07, 0.055), clamp(w.g * 1.3, 0.0, 1.0) * 0.9);   // потёртые кромки — светлее
+    ${aged ? `
+    // модель моста: X поперёк, Z вверх (glTF → three: y вверх, x поперёк, -z вдоль) — vLoc в осях three
+    float hsh = fract(sin(dot(floor(vLoc.xz * 7.0), vec2(12.99, 78.23))) * 43758.5);
+    float n1 = fract(sin(dot(floor(vLoc.xz * 2.3 + vLoc.y), vec2(39.3, 11.7))) * 9137.1);
+    float up = smoothstep(0.55, 0.95, vWN.y);
+    // мох: в затенённом (щели, низ арки, под бортиками) и пятнами на верхах бортиков/столбов
+    float moss = (1.0 - smoothstep(0.25, 0.7, w.r)) * 0.8 + up * step(1.80, abs(vLoc.x)) * smoothstep(0.35, 0.85, n1) * 0.9;
+    moss *= smoothstep(0.2, 0.6, hsh * 0.6 + n1 * 0.6);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.20, 0.27, 0.10) * (0.8 + 0.4 * hsh), clamp(moss, 0.0, 0.85));
+    // проход: по центру камни затёрты (светлее), к краям — тёмный мусор: земля и сухие листья
+    if (up > 0.5 && abs(vLoc.x) < 1.80) {
+      float ax = abs(vLoc.x);
+      float edge = smoothstep(0.85, 1.55, ax);
+      float centre = 1.0 - smoothstep(0.15, 1.0, ax);
+      // затёртая тропа: светлее, теплее, без мха; контраст рисунка камня гасится (отполировано ногами)
+      float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+      vec3 polished = mix(vec3(lum), diffuseColor.rgb, 0.6) * 1.45 + vec3(0.06, 0.05, 0.035);
+      diffuseColor.rgb = mix(diffuseColor.rgb, polished, centre * 0.8);
+      // к краям — мусор: земля, мох и сухие листья крупными пятнами, у самого бортика почти сплошь
+      // гладкий value-шум (не клетки): пятна мусора с мягким рваным краем
+      vec2 q = vLoc.xz * 3.2; vec2 qi = floor(q), qf = fract(q); qf = qf * qf * (3.0 - 2.0 * qf);
+      #define HH(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
+      float blot = mix(mix(HH(qi), HH(qi + vec2(1, 0)), qf.x), mix(HH(qi + vec2(0, 1)), HH(qi + vec2(1, 1)), qf.x), qf.y);
+      vec2 q2 = vLoc.xz * 9.0; vec2 ri = floor(q2), rf = fract(q2); rf = rf * rf * (3.0 - 2.0 * rf);
+      float fine = mix(mix(HH(ri), HH(ri + vec2(1, 0)), rf.x), mix(HH(ri + vec2(0, 1)), HH(ri + vec2(1, 1)), rf.x), rf.y);
+      float debris = edge * smoothstep(0.45, 0.70, blot * 0.75 + fine * 0.35) + smoothstep(1.50, 1.78, ax) * 0.5 * fine;
+      vec3 junk = mix(mix(vec3(0.14, 0.10, 0.06), vec3(0.45, 0.27, 0.09), smoothstep(0.35, 0.65, fine)), vec3(0.19, 0.25, 0.09), smoothstep(0.6, 0.8, blot));
+      diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * n1), clamp(debris, 0.0, 0.9));
+    }` : ''} }`);
         };
-        m.customProgramCacheKey = () => 'wear';
+        m.customProgramCacheKey = () => aged ? 'wear-aged' : 'wear';
         m.needsUpdate = true;
       }
     });
@@ -1633,7 +1665,7 @@ ${gtex ? `{
   // износ кромок у моделей мостов (запекание по 2-й развёртке, как у домиков)
   {
     const wt = await new THREE.TextureLoader().loadAsync('./data/bridge/stone2-wear.png?v=2').catch(() => null);
-    if (wt) { wt.flipY = false; wt.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'stone') applyWear(pc, wt); }
+    if (wt) { wt.flipY = false; wt.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'stone') applyWear(pc, wt, { aged: true }); }
   }
   const houseJetty = {};
   // пена там, где столбы входят в воду (22.10): кольцо на поверхности, рваный край, мягко «дышит»; оси свай — как в
