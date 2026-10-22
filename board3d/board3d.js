@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=30';
-import { buildTerrain } from './terrain.js?v=323';
+import { buildAtmosphere } from './atmosphere.js?v=32';
+import { buildTerrain } from './terrain.js?v=327';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -197,7 +197,8 @@ terrain.bridges?.updateMatrixWorld(true);
 const deckAt1 = (x, z) => {
   deckFrom.set(x, 5, z); deckRay.set(deckFrom, deckDown);
   for (const h of deckRay.intersectObjects(deckMeshes, false)) {
-    if (h.point.y > 0.45) continue;
+    let kind = null; for (let p = h.object; p && !kind; p = p.parent) kind = p.userData.kind;
+    if (h.point.y > (kind === 'stone' ? 1.0 : 0.45)) continue;   // горбатый каменный — настил до +0.9
     const n = h.face?.normal.clone().transformDirection(h.object.matrixWorld);
     if (n && Math.abs(n.y) < 0.6) continue;
     return h.point.y;

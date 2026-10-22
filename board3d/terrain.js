@@ -1326,7 +1326,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(`./models/bridge-${k}.glb?v=10`)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(k === 'stone' ? './models/bridge-stone2.glb?v=2' : `./models/bridge-${k}.glb?v=10`)   // 22.10: каменный — горбатый v2 (bridge_stone2.py)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
@@ -1511,7 +1511,7 @@ ${gtex ? `{
       pc.updateMatrixWorld(true);
       const m = pc.children[0];
       carvers.push({ inv: new THREE.Matrix4().copy(pc.matrixWorld).invert(), hw: 1.75 * m.scale.x,
-        S: (pc.userData.kind === 'stone' ? 2.9 : 2.0) * m.scale.z - 0.1 });
+        S: (pc.userData.kind === 'stone' ? 2.2 : 2.0) * m.scale.z - 0.1 });   // 22.10: у каменного — ровно пролёт арки, берега от её пят
     }
     const FL = 4.0;
     const carveAt = (x, z) => {
@@ -1581,22 +1581,131 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=9' };
-  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=1', [1.05, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=13' };
+  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=4', [1.05, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
+  // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
+  const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=2', 'lake-01-props': './data/house/lake01props-wear.png?v=2', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=2' };
+  const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=3' };   // мостки к дому (в системе дома)
+  const wearTex = {};
+  await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
+    const t = await new THREE.TextureLoader().loadAsync(u).catch(() => null);
+    if (t) { t.flipY = false; t.colorSpace = THREE.NoColorSpace; wearTex[k] = t; }
+  }));
+  const applyWear = (root, tex) => {
+    if (!tex) return;
+    const done = new Set();
+    root.traverse(o => {
+      if (!o.isMesh || !o.geometry.attributes.uv1) return;
+      o.geometry.setAttribute('wearUv', o.geometry.attributes.uv1);
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (done.has(m)) continue; done.add(m);
+        m.onBeforeCompile = sh => {
+          sh.uniforms.wearMap = { value: tex };
+          sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 wearUv; varying vec2 vWearUv;')
+            .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWearUv = wearUv;');
+          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv;')
+            .replace('#include <map_fragment>', `#include <map_fragment>
+  { vec3 w = texture2D(wearMap, vWearUv).rgb;
+    diffuseColor.rgb *= mix(1.0, smoothstep(0.05, 0.85, w.r), 0.7);                       // щели и низ — темнее
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.0 + vec3(0.08, 0.07, 0.055), clamp(w.g * 1.3, 0.0, 1.0) * 0.9); }   // потёртые кромки — светлее`);
+        };
+        m.customProgramCacheKey = () => 'wear';
+        m.needsUpdate = true;
+      }
+    });
+  };
   const houseModels = {};
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => {
       if (!o.isMesh) return;
       o.castShadow = true; o.receiveShadow = true;
-      if (o.material?.name === 'net') Object.assign(o.material, { alphaTest: 0.5, transparent: false, depthWrite: true, side: THREE.DoubleSide });   // сеть — вырез по альфе
     });
+    applyWear(g.scene, wearTex[k]);
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const houseProps = {};
   await Promise.all(Object.entries(HOUSE_PROPS).map(([k, [u, at]]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    applyWear(g.scene, wearTex[k + '-props']);
     g.scene.position.set(...at); houseProps[k] = g.scene;
   }).catch(e => console.warn('house props', k, e))));
+  // износ кромок у моделей мостов (запекание по 2-й развёртке, как у домиков)
+  {
+    const wt = await new THREE.TextureLoader().loadAsync('./data/bridge/stone2-wear.png?v=2').catch(() => null);
+    if (wt) { wt.flipY = false; wt.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'stone') applyWear(pc, wt); }
+  }
+  const houseJetty = {};
+  // пена там, где столбы входят в воду (22.10): кольцо на поверхности, рваный край, мягко «дышит»; оси свай — как в
+  // tools/blender/jetty_lake01.py (Blender X,Y → three x, −z), берётся точка оси на уровне воды
+  const JETTY_PILES = [
+    [1.350, -0.290, 1.330, -0.305, 0.250, 0.095], [1.350, 0.990, 1.370, 1.005, 0.250, 0.095],
+    [2.650, -0.290, 2.625, -0.310, 0.350, 0.100], [2.650, 0.990, 2.680, 1.010, 0.350, 0.100],
+    [4.000, -0.290, 4.025, -0.315, 0.410, 0.125], [4.000, 0.990, 3.975, 1.015, 1.350, 0.120]];
+  const HOUSE_PILES_FOAM = [[0.905, -0.905, 0.915, -0.915, 0.002, 0.110], [0.905, 0.905, 0.915, 0.915, 0.002, 0.110], [0.930, 0.000, 0.935, 0.010, 0.002, 0.100]];
+  // мостки от берега (22.10, стрелка пользователя): мировая поза — начало настила (локально X=1.15, центр Y=.35) на берегу,
+  // ось в озеро; сваи под углами дома — отдельной моделью, стоят с домом
+  const JETTY_POSE = { 'lake-01': { start: [-7.62, -2.02], yaw: 0.50 } };
+  const housePiles = {};
+  const foamMats = [];
+  const foamMat = () => {
+    const m = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: { time: { value: 0 }, seed: { value: Math.random() * 10 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform float time; uniform float seed; varying vec2 vUv;
+        void main(){
+          vec2 p = vUv * 2.0 - 1.0; float r = length(p), a = atan(p.y, p.x);
+          // неровный край и клочья — value-шум по точке, без регулярных лучей
+          vec2 q = p * 4.0 + vec2(seed, seed * 1.7) + vec2(time * 0.08, -time * 0.06);
+          vec2 i = floor(q), fq = fract(q); fq = fq * fq * (3.0 - 2.0 * fq);
+          float h00 = fract(sin(dot(i, vec2(12.9898, 78.233))) * 43758.5), h10 = fract(sin(dot(i + vec2(1, 0), vec2(12.9898, 78.233))) * 43758.5);
+          float h01 = fract(sin(dot(i + vec2(0, 1), vec2(12.9898, 78.233))) * 43758.5), h11 = fract(sin(dot(i + vec2(1, 1), vec2(12.9898, 78.233))) * 43758.5);
+          float n = mix(mix(h00, h10, fq.x), mix(h01, h11, fq.x), fq.y);
+          float edge = 0.62 + 0.30 * n + 0.05 * sin(a * 3.0 + time * 0.7 + seed);
+          float ring = smoothstep(0.28, 0.33, r) * (1.0 - smoothstep(edge - 0.28, edge, r));
+          vec2 q2 = p * 11.0 + vec2(seed * 3.1, time * 0.15); vec2 i2 = floor(q2), f2 = fract(q2); f2 = f2 * f2 * (3.0 - 2.0 * f2);
+          float n2 = mix(mix(fract(sin(dot(i2, vec2(12.9898, 78.233))) * 43758.5), fract(sin(dot(i2 + vec2(1, 0), vec2(12.9898, 78.233))) * 43758.5), f2.x),
+                         mix(fract(sin(dot(i2 + vec2(0, 1), vec2(12.9898, 78.233))) * 43758.5), fract(sin(dot(i2 + vec2(1, 1), vec2(12.9898, 78.233))) * 43758.5), f2.x), f2.y);
+          float lace = smoothstep(0.45, 0.75, n2);                 // кружево с дырками, не сплошная лужа
+          float near = 1.0 - smoothstep(0.30, 0.55, r);              // у самой сваи плотнее
+          float alpha = ring * max(lace * smoothstep(0.3, 0.7, n), near * 0.7) * (0.85 + 0.15 * sin(time * 1.3 + seed));
+          if (alpha < 0.02) discard;
+          gl_FragColor = vec4(vec3(0.78, 0.85, 0.86), alpha * 0.55);
+        }` });
+    foamMats.push(m); return m;
+  };
+  const addFoam = (root, list = JETTY_PILES) => {
+    for (const [xb, yb, xt, yt, zt, r] of list) {
+      const f = (-0.30 + 0.95) / (zt + 0.95);
+      if (f > 1) continue;
+      const x = xb + (xt - xb) * f, y = yb + (yt - yb) * f;
+      const ring = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), foamMat());
+      const s = (r + 0.01) / 0.15;          // внутренний край (r=.30 в UV → .15 в плоскости) — у сваи, пена до ~2.6r
+      ring.scale.set(s, s, 1); ring.rotation.x = -Math.PI / 2;
+      ring.position.set(x, -0.295, -y); ring.renderOrder = 3;
+      root.add(ring);
+    }
+  };
+  // пятно мостков (локально: X 0.9…4.6, z −1.3…0.6) — без деревьев и камыша; высокое перед мостками (ближе к камере, +z) тоже
+  const jettyRoots = [];
+  const inJetty = (x, z) => jettyRoots.some(j => {
+    const c = Math.cos(j.rotation.y), sn = Math.sin(j.rotation.y), ox = x - j.position.x, oz = z - j.position.z;
+    const lx = ox * c - oz * sn, lz = ox * sn + oz * c;
+    return lx > 0.9 && lx < 4.6 && lz > -1.3 && lz < 0.6;
+  });
+  const onJetty = (x, z, h0 = 0) => {
+    for (let s = 0; s <= (h0 > 1.5 ? 0.9 * h0 : 0); s += 0.3) if (inJetty(x, z - s)) return true;
+    return false;
+  };
+  await Promise.all(Object.entries(HOUSE_JETTY).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
+    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    applyWear(g.scene, wearTex[k + '-jetty']); addFoam(g.scene); houseJetty[k] = g.scene;
+  }).catch(e => console.warn('house jetty', k, e))));
+  await Promise.all(Object.entries(HOUSE_JETTY).map(([k, u]) => new GLTFLoader().loadAsync(u.replace('lake01-jetty', 'lake01-housepiles')).then(g => {
+    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    applyWear(g.scene, wearTex[k + '-jetty']); addFoam(g.scene, HOUSE_PILES_FOAM); housePiles[k] = g.scene;
+  }).catch(e => console.warn('house piles', k, e))));
   const HM = { hw: 1.25, hd: 1.25 };   // v4: низ с пропсами ±1.20, крыша ±1.35 (свес над землёй, не над клетками)
   for (const c of cells) {
     const cls = c.marker?.class;
@@ -1674,7 +1783,15 @@ ${gtex ? `{
     if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
     if (houseModels[c.marker?.asset] && !isGate) h.userData.houseModel = c.marker.asset;
-    if (houseProps[c.marker?.asset] && !isGate) h.add(houseProps[c.marker.asset].clone(true));
+    if (houseProps[c.marker?.asset] && !isGate) { const pr = houseProps[c.marker.asset].clone(true); pr.userData.noFogSolid = true; h.add(pr); }
+    if (housePiles[c.marker?.asset] && !isGate) h.add(housePiles[c.marker.asset].clone(true));
+    if (houseJetty[c.marker?.asset] && !isGate && JETTY_POSE[c.marker.asset]) {
+      const jt = houseJetty[c.marker.asset].clone(true), P = JETTY_POSE[c.marker.asset], a = P.yaw;
+      // локальная точка (1.15, 0, −0.35) → в start
+      jt.rotation.y = a;
+      jt.position.set(P.start[0] - (1.15 * Math.cos(a) + -0.35 * Math.sin(a)), 0, P.start[1] - (-1.15 * Math.sin(a) + -0.35 * Math.cos(a)));
+      jt.userData.noFogSolid = true; houses.add(jt); jettyRoots.push(jt);
+    }
     houses.add(h);
     if (isGate && gateModel) gateWalls(h);
     houseSpots.push([best.hx, best.hz]);
@@ -1948,7 +2065,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=19' : '.png')), (await fetch(treeSpritesUrl + '.json?v=19')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=20' : '.png')), (await fetch(treeSpritesUrl + '.json?v=20')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -2289,6 +2406,7 @@ ${gtex ? `{
       const keep = list.filter(t => !hm.some(h => {
         const dx = Math.abs(t.x - h.position.x), dz = t.z - h.position.z;
         if (dx < 1.9 && dz > -1.9 && dz < 2.0 + 1.1 * t.h) return true;     // пятно и вид спереди: высокое дерево закрывает дальше
+        if (t.h > 0.6 && onJetty(t.x, t.z)) return true;
         return dx < 3.0 && Math.abs(dz) < 3.0 && t.h > 1.8;                 // рядом — только низкое
       }));
       T.houseClear = list.length - keep.length; list.length = 0; list.push(...keep);
@@ -2489,7 +2607,7 @@ ${gtex ? `{
     }
     // плоский режим: камыш — картинками атласа (группа reeds), сортируется вместе с деревьями
     if (sprites && treeBillboard && sprites.frames.some(f => f.group === 'reeds') && items.prop_reeds) {
-      const reeds = items.prop_reeds.filter(([x, , z]) => !onBridge(x, z)).map(([x, y, z, k]) => ({ x, y, z, h: 1.05 * k, group: 'reeds', pick: Math.floor(r() * 99), tint: [0, 0.9 + r() * 0.2, 0.85 + r() * 0.3] }));
+      const reeds = items.prop_reeds.filter(([x, , z]) => !onBridge(x, z) && !onJetty(x, z)).map(([x, y, z, k]) => ({ x, y, z, h: 1.05 * k, group: 'reeds', pick: Math.floor(r() * 99), tint: [0, 0.9 + r() * 0.2, 0.85 + r() * 0.3] }));
       const all = treeBillboard.list.concat(reeds);
       const nb = billboardTrees(all, sprites.tex, sprites.frames);
       trees.remove(treeBillboard.mesh); billboards.splice(billboards.indexOf(treeBillboard.mesh), 1);
@@ -2504,6 +2622,7 @@ ${gtex ? `{
       // поэтому поворот только ±15°; каждая на своей высоте над водой — без мерцания
       const lilyList = [];
       for (const [x, y, z, k] of items.prop_lily) {
+        if (inJetty(x, z)) continue;   // не под мостками
         const size = 0.55 * k;
         if (lilyList.some(o => Math.hypot(o.x - x, o.z - z) < (o.size + size) * 0.55)) continue;
         lilyList.push({ x, y: y + 0.004 + lilyList.length * 0.0006, z, size, rot: (r() - 0.5) * 0.5, pick: Math.floor(r() * 99) });
@@ -2904,6 +3023,8 @@ ${gtex ? `{
   // Сухостой и сушняк (21.10: «нет сухостоя, должен быть сушняк»): отдельный проход со своим генератором —
   // посадка остального леса не сдвигается. Сухостой — часть деревьев внутри групп (не одиночки на лугу);
   // сушняк — у оснований деревьев в группах и на опушке, вне клеток, троп, мостов и воды.
+  // 22.10: сухостой (sheet6b-snagwood) — битая альфа после кеинга; выключен до перерисовки Codex с прозрачностью
+  const DEADSTAND_OK = true;   // перерисован Codex с настоящей альфой (sprites2/alpha)
   if (treeBillboard && sprites?.frames.some(f => f.group === 'deadstand')) {
     const rr = rng(20261021);
     const list = treeBillboard.list;
@@ -2916,7 +3037,8 @@ ${gtex ? `{
     const extra = [];
     for (const t of adults) {
       const n = neigh(t);
-      if (n >= 3 && rr() < (t.group === 'dark' ? 0.3 : 0.16)) {                    // в группе — сухостой
+      const nearBr = [0, 0.8, 1.6, 2.4, 3.2].some(d => onBridge(t.x, t.z - d) || onBridge(t.x - d * 0.6, t.z) || onBridge(t.x + d * 0.6, t.z));
+      if (DEADSTAND_OK && !nearBr && n >= 3 && rr() < (t.group === 'dark' ? 0.3 : 0.16)) {   // в группе — сухостой; наклонный — не у моста
         t.group = 'deadstand'; t.h *= 0.9 + rr() * 0.25; t.pick = Math.floor(rr() * 99); t.tint = [0, 0.85 + rr() * 0.2, 0.85 + rr() * 0.25]; dead += 1;
       }
       if (n >= 2 && rr() < 0.32) {                                                  // сушняк у основания
@@ -2996,6 +3118,8 @@ ${gtex ? `{
     const kept = [];
     const rr2 = rng(20261022);
     for (const t of treeBillboard.list) {
+      if (t.group !== 'lily' && onJetty(t.x, t.z, t.h)) { cut += 1; continue; }
+      if (t.h > 1.5 && [0.3, 0.9, 1.5, 2.1].some(d => d < 0.9 * t.h && onBridge(t.x, t.z - d))) { cut += 1; continue; }   // высокое прямо перед мостом (к камере) закрывает арку   // на мостках ничего не растёт (последний проход посадки)
       const fl = FLOOR[t.group];
       if (fl && t.h < fl) {
         const yg = YOUNG[t.group];
@@ -3060,6 +3184,7 @@ ${gtex ? `{
       }
     }
     for (const m of animated) m.uniforms.time.value += dt;
+    for (const m of foamMats) m.uniforms.time.value += dt;
     if (camera) for (const bb of billboards) bb.userData.resort(camera);
   };
   return {

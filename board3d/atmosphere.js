@@ -233,7 +233,12 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
     terrain.houses?.updateMatrixWorld(true);
     for (const h of terrain.houses?.children ?? []) {
       if (h.userData.isGate) { h.traverse(o => { if (o.isMesh && !/door|floor/.test(o.name)) solids.push(new THREE.Box3().setFromObject(o)); }); }
-      else solids.push(new THREE.Box3().setFromObject(h));
+      // 22.10: по каждой детали, а не одной коробкой на дом — иначе мостки/столб фонаря выбивали квадратную «дыру» в тумане над озером
+      else h.traverse(o => {
+        // мостки/пропсы не «твёрдые»: их коробки (столб фонаря до 1.35 м) срезали туман прямоугольником над озером
+        let p = o, skip = false; while (p && p !== h) { if (p.userData.noFogSolid) skip = true; p = p.parent; }
+        if (!skip && o.isMesh && !o.material?.isShaderMaterial) solids.push(new THREE.Box3().setFromObject(o));
+      });
     }
     const hTex = heightTexture(hAt, groundX0, groundZ0, groundW, groundH, solids);
     const smoke = smokeField({ spots, tex, hTex, box: [groundX0, groundZ0, groundW, groundH] });
