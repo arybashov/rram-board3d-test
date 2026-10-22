@@ -539,16 +539,17 @@ function terraceStones(rock, toWorld, seed) {
 // Ярусы по контуру плана, каждый — одна плита со скруглённой фаской (без деления на камни).
 // Вид сложенных плит даёт рисованная текстура: сверху — «верх скалы», по бокам — «бок скалы»
 // (двухплоскостная проекция в мировых координатах, UV не нужны), смешивание по наклону грани.
-function rockMaterial(topTex, sideTex) {
-  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+function rockMaterial(topTex, sideTex, opt = {}) {
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: !!opt.blocks });
+  const BT = !!opt.blocks;   // монолит блоками: атрибут тона блока aBlockTone + AO у основания/подтёки
   mat.onBeforeCompile = shader => {
     shader.uniforms.rockTop = { value: topTex };
     shader.uniforms.rockSide = { value: sideTex };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 varying vec3 vRockPos;
-varying vec3 vRockNrm;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
+varying vec3 vRockNrm;${BT ? '\nattribute float aBlockTone; varying float vTone;' : ''}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>${BT ? '\nvTone = aBlockTone;' : ''}
 #ifdef USE_INSTANCING
 vRockPos = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;
 vRockNrm = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
@@ -561,7 +562,7 @@ vRockNrm = normalize(mat3(modelMatrix) * normal);
 uniform sampler2D rockTop;
 uniform sampler2D rockSide;
 varying vec3 vRockPos;
-varying vec3 vRockNrm;`)
+varying vec3 vRockNrm;${BT ? '\nvarying float vTone;' : ''}`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 n = normalize(vRockNrm);
@@ -582,13 +583,134 @@ varying vec3 vRockNrm;`)
   }
   // реф v6b: верх и кромки камней — светлый серый камень, мох лишь пятнами (замечание 21.10)
   // 22.10 (разбор скал): сплошная светлая кромка «торта» и пересвет верха убраны
-  diffuseColor.rgb *= mix(side, top, smoothstep(0.50, 0.82, n.y));
+  vec3 rcol = mix(side, top, smoothstep(0.50, 0.82, n.y));
+  ${BT ? `
+  // тон блока (свой у каждой колонны) + AO у подошвы + подтёки вниз по отвесным граням
+  rcol *= vTone * mix(vec3(1.03, 1.0, 0.96), vec3(0.96, 1.0, 1.04), fract(vTone * 9.7));
+  float aoB = 1.0 - 0.32 * (1.0 - smoothstep(-0.45, 0.35, vRockPos.y));
+  float vert = 1.0 - smoothstep(0.25, 0.65, abs(n.y));
+  float hu = abs(n.x) > abs(n.z) ? vRockPos.z : vRockPos.x;
+  float st = smoothstep(0.55, 0.78, fract(sin(floor(hu * 6.0) * 12.9898) * 43758.5) * 0.7 + fract(sin(floor(hu * 17.0) * 78.233) * 43758.5) * 0.3);
+  rcol *= max(0.45, aoB) * (1.0 - 0.25 * st * vert * smoothstep(-0.4, 1.2, vRockPos.y));` : ''}
+  diffuseColor.rgb *= rcol;
 }`);
   };
   return mat;
 }
 
+// ── Скала блоками (22.10, разбор скал п.1–4): ярусы не сплошными плитами, а мозаикой угловатых колонн
+// (Voronoi по смещённой сетке шагом ~1.45, обрезка контуром нижнего яруса), верх каждой — своя наклонная
+// плоскость, высота = отметка самого высокого яруса в её центре + разброс; зазоры между колоннами — расселины,
+// нижнее кольцо чуть внутрь (нависание), узкая фаска сверху. Детерминированно (хеш по координатам).
+function rockHash(a, b, c) {
+  let h = (Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1442695041)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function clipPoly(poly, ax, az, bx, bz) {   // оставить сторону полуплоскости слева от a→b (Sutherland–Hodgman)
+  const out = [], side = ([x, z]) => (bx - ax) * (z - az) - (bz - az) * (x - ax);
+  for (let i = 0; i < poly.length; i += 1) {
+    const p = poly[i], q = poly[(i + 1) % poly.length], sp = side(p), sq = side(q);
+    if (sp >= 0) out.push(p);
+    if ((sp >= 0) !== (sq >= 0)) { const t = sp / (sp - sq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+  }
+  return out;
+}
+function inPoly(x, z, poly) {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c;
+  }
+  return c;
+}
+function rockBlocks(rock, toWorld) {
+  const lv = rock.levels.map(l => ({ top: l.top, pts: l.pts.map(([px, py]) => toWorld(px, py)) }));
+  const outer = lv[0].pts;
+  if (outer.length < 3) return null;
+  // ориентация контура — против часовой (для клиппинга «слева»)
+  let area = 0; for (let i = 0; i < outer.length; i += 1) { const [x1, z1] = outer[i], [x2, z2] = outer[(i + 1) % outer.length]; area += x1 * z2 - x2 * z1; }
+  const P = area < 0 ? outer.slice().reverse() : outer;
+  const xs = P.map(p => p[0]), zs = P.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+  const sx = Math.round(rock.x), sz = Math.round(rock.y);
+  const step = 1.45;
+  const seeds = [];
+  for (let gz = Math.floor(z0 / step) - 1; gz <= Math.ceil(z1 / step) + 1; gz += 1) for (let gx = Math.floor(x0 / step) - 1; gx <= Math.ceil(x1 / step) + 1; gx += 1) {
+    const h1 = rockHash(gx + sx, gz + sz, 1), h2 = rockHash(gx + sx, gz + sz, 2);
+    seeds.push([(gx + 0.5 + (h1 - 0.5) * 0.6) * step, (gz + 0.5 + (h2 - 0.5) * 0.6) * step, gx, gz]);
+  }
+  const levelTop = (x, z) => { let t = null; for (const l of lv) if (inPoly(x, z, l.pts)) t = Math.max(t ?? -9, l.top); return t; };
+  const pos = [], tone = [];
+  let C0 = [0, 0, 0];   // центр текущего блока — нормаль каждого треугольника разворачиваем от него наружу
+  const push = (a, b, c, tn) => {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const mx = (a[0] + b[0] + c[0]) / 3 - C0[0], my = (a[1] + b[1] + c[1]) / 3 - C0[1], mz = (a[2] + b[2] + c[2]) / 3 - C0[2];
+    if (nx * mx + ny * my + nz * mz < 0) pos.push(...a, ...c, ...b); else pos.push(...a, ...b, ...c);
+    tone.push(tn, tn, tn);
+  };
+  const base = -0.6;
+  for (const [cx, cz, gx, gz] of seeds) {
+    if (cx < x0 - step || cx > x1 + step || cz < z0 - step || cz > z1 + step) continue;
+    // ячейка Voronoi: контур скалы, обрезанный полуплоскостями к соседним семенам
+    let cell = P.map(p => [p[0], p[1]]);
+    for (const [ox, oz] of seeds) {
+      if (ox === cx && oz === cz) continue;
+      const dx = ox - cx, dz = oz - cz; if (dx * dx + dz * dz > (step * 2.6) ** 2) continue;
+      const mx = (cx + ox) / 2, mz = (cz + oz) / 2;
+      // граница — перпендикуляр к (dx,dz) через середину; оставляем сторону семени cx,cz
+      cell = clipPoly(cell, mx + dz, mz - dx, mx - dz, mz + dx);   // сторона, где лежит само семя
+      if (cell.length < 3) break;
+    }
+    if (cell.length < 3) continue;
+    let ca = 0, ccx = 0, ccz = 0;
+    for (let i = 0; i < cell.length; i += 1) { const [ax, az] = cell[i], [bx, bz] = cell[(i + 1) % cell.length]; const cr = ax * bz - bx * az; ca += cr; ccx += (ax + bx) * cr; ccz += (az + bz) * cr; }
+    if (Math.abs(ca) < 0.06) continue;                     // огрызок
+    ccx /= 3 * ca; ccz /= 3 * ca;
+    const lt = levelTop(ccx, ccz) ?? lv[0].top;
+    const q = k => rockHash(gx + sx, gz + sz, k);
+    const wide = q(3) < 0.15;                               // широкая расселина
+    const gap = wide ? 0.09 + 0.04 * q(4) : 0.03 + 0.02 * q(4);
+    // сжать к центроиду на зазор (половина с каждой стороны)
+    const shrink = (poly, d) => poly.map(([x, z]) => { const vx = x - ccx, vz = z - ccz, L = Math.hypot(vx, vz) || 1; const k = Math.max(0.2, (L - d) / L); return [ccx + vx * k, ccz + vz * k]; });
+    const topPoly = shrink(cell, gap);
+    const botPoly = shrink(cell, gap + 0.06 + 0.10 * q(5));   // нависание: низ уже верха
+    const T = lt + 0.22 * (2 * q(6) - 1) + 0.10 * (2 * q(7) - 1);
+    const ta = Math.tan(8 * Math.PI / 180) * (2 * q(8) - 1), tb = Math.tan(6 * Math.PI / 180) * (2 * q(9) - 1);
+    const topY = (x, z, i) => T + Math.max(-0.15, Math.min(0.15, ta * (x - ccx) + tb * (z - ccz))) + 0.035 * (2 * rockHash(gx + sx + i, gz + sz, 10) - 1);
+    const tn = 0.86 + 0.26 * q(11);
+    const n = topPoly.length;
+    const ring = (poly, y) => poly.map(([x, z], i) => [x, typeof y === 'function' ? y(x, z, i) : y, z]);
+    C0 = [ccx, (base + T) / 2, ccz];
+    const B = ring(botPoly, base), M = ring(topPoly, (x, z, i) => topY(x, z, i) - 0.07), U = ring(shrink(topPoly, 0.05), topY);
+    for (let i = 0; i < n; i += 1) {
+      const j = (i + 1) % n;
+      push(B[i], B[j], M[j], tn); push(B[i], M[j], M[i], tn);      // бок
+      push(M[i], M[j], U[j], tn); push(M[i], U[j], U[i], tn);      // фаска
+    }
+    const cTop = [ccx, topY(ccx, ccz, 99) + 0.04, ccz];
+    for (let i = 0; i < n; i += 1) push(U[i], U[(i + 1) % n], cTop, tn);   // крышка веером
+  }
+  // обход граней мог оказаться обратным: ориентируем по нормали наружу/вверх при сборке
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aBlockTone', new THREE.Float32BufferAttribute(tone, 1));
+  return g;
+}
 function rockMonolith(rock, toWorld, seed, material) {
+  const bg = rockBlocks(rock, toWorld);
+  if (bg) {
+    bg.computeVertexNormals();   // flat: у каждого треугольника свои вершины
+    const g = new THREE.Group();
+    const mesh = new THREE.Mesh(bg, material);
+    mesh.castShadow = mesh.receiveShadow = true;
+    g.add(mesh);
+    return g;
+  }
+  return rockMonolithSlabs(rock, toWorld, seed, material);
+}
+function rockMonolithSlabs(rock, toWorld, seed, material) {
   const r = rng(seed);
   const g = new THREE.Group();
   let base = -0.6;
@@ -769,7 +891,7 @@ const SPRITE_GRADE = {   // новые породы (sheet6b-*) уже в цве
   birch: [0.0, 1.0, 1.0],      // берёзы v3 уже в тоне рефа   // реф: тёплый красно-оранжевый, не малиновый
   pine: [0.02, 0.9, 0.66], oak_green: [0.0, 0.9, 0.7], autumn_yellow: [-0.02, 1.2, 0.95],
   fern: [0.02, 0.9, 0.7], snag: [0, 0.8, 0.75],
-  shrub: [0.0, 0.78, 0.8], bush: [0.0, 0.75, 0.78],   // разбор «парка» п.5: салатовые кусты приглушить
+  shrub: [0.0, 1.0, 1.25], bush: [0.0, 1.0, 1.25],   // 22.10: новый лист кустов (Codex, с альфой) уже тусклый — не глушить, а чуть высветлить   // разбор «парка» п.5: салатовые кусты приглушить
 }
 function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   // list: [{x, y, z, h, group, tint}]
@@ -781,7 +903,7 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   for (const f of frames) (byGroup[f.group] ??= []).push(f);
   for (const t of list) {
     const grp = t.group === 'bush' && byGroup.shrub ? 'shrub' : t.group;   // круглые садовые кусты -> дикие (21.10)
-    if (grp === 'shrub' && !t.shrubScaled) { t.h = Math.min(t.h * 1.1, 0.95); t.shrubScaled = true; t.tint = [t.tint[0], t.tint[1] * 0.75, t.tint[2] * 0.82, t.tint[3]]; }   // куст не выше молодой ели; приглушён (разбор «парка» п.5)
+    if (grp === 'shrub' && !t.shrubScaled) { t.h = Math.min(t.h * 1.1, 0.95); t.shrubScaled = true; }   // куст не выше молодой ели (22.10: двойное приглушение убрано — новый лист и так тёмный, кусты чернели)
     const opts = byGroup[grp] ?? byGroup.spruce ?? frames;
     t.frame = opts[t.pick % opts.length];
     t.aspect = (t.frame.w * atlasTex.image.width) / (t.frame.h * atlasTex.image.height);
@@ -2123,7 +2245,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=24' : '.png')), (await fetch(treeSpritesUrl + '.json?v=24')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=25' : '.png')), (await fetch(treeSpritesUrl + '.json?v=25')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -2820,8 +2942,9 @@ ${gtex ? `{
     const geos = STONE_KIT.map((kit, i) => kitGeos?.[i] ?? stoneBlockGeometry(kit));
     const lists = STONE_KIT.map(() => []);
     if (rockStyle === 'monolith') {
-      const mat = rockMaterial(rockTopTex, rockSideTex);
-      monolithMat = mat;
+      const mat = rockMaterial(rockTopTex, rockSideTex, { blocks: true });
+      mat.customProgramCacheKey = () => 'rock-blocks';
+      monolithMat = rockMaterial(rockTopTex, rockSideTex);   // для отдельных камней — без атрибута тона блока
       // все скалы — одной сеткой: один вызов отрисовки
       const parts = [];
       rockData.forEach((rk, i) => rockMonolith(rk, toWorldXZ, 900 + i, mat).children.forEach(m => parts.push(m.geometry)));
