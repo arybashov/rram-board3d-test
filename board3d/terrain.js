@@ -1581,7 +1581,8 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=6' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=7' };
+  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=1', [1.05, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
   const houseModels = {};
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => {
@@ -1591,6 +1592,11 @@ ${gtex ? `{
     });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
+  const houseProps = {};
+  await Promise.all(Object.entries(HOUSE_PROPS).map(([k, [u, at]]) => new GLTFLoader().loadAsync(u).then(g => {
+    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    g.scene.position.set(...at); houseProps[k] = g.scene;
+  }).catch(e => console.warn('house props', k, e))));
   const HM = { hw: 1.25, hd: 1.25 };   // v4: низ с пропсами ±1.20, крыша ±1.35 (свес над землёй, не над клетками)
   for (const c of cells) {
     const cls = c.marker?.class;
@@ -1668,6 +1674,7 @@ ${gtex ? `{
     if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
     if (houseModels[c.marker?.asset] && !isGate) h.userData.houseModel = c.marker.asset;
+    if (houseProps[c.marker?.asset] && !isGate) h.add(houseProps[c.marker.asset].clone(true));
     houses.add(h);
     if (isGate && gateModel) gateWalls(h);
     houseSpots.push([best.hx, best.hz]);
