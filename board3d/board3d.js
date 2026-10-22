@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792688196';
-import { buildTerrain } from './terrain.js?v=1792688196';
+import { buildAtmosphere } from './atmosphere.js?v=1792688794';
+import { buildTerrain } from './terrain.js?v=1792688794';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -134,10 +134,10 @@ const terrain = await buildTerrain({
   waterDistUrl: './data/water-dist.png?v=2',   // этап 3: расстояние до берега для шейдера воды
   spireKitUrl: './models/spire-kit.glb?v=1',   // набор шпилей и кристаллов: шпили выключены (20.10), кристаллы сказочной поляны — нужны
   propKitUrl: './models/prop-kit.glb?v=1',   // этап 5: мелочь биома (tools/blender/prop_kit.py)
-  cliffTexUrl: './data/tex-rockside-v6b.webp?v=1',   // концепт v6b: холодный тёмный камень блоками   // нерегулярная скала (Codex) для стен хребта
+  cliffTexUrl: './data/tex-rockside-v12.webp?v=1',   // концепт v6b: холодный тёмный камень блоками   // нерегулярная скала (Codex) для стен хребта
   rockStyle: 'monolith',   // цельная скала + рисованные текстуры Codex (tex-rock-top/side)
-  rockTopUrl: './data/tex-rocktop-v6b.webp?v=1',
-  rockSideUrl: './data/tex-rockside-v6b.webp?v=1',   // пока одна скала — у моста (как в концепте), точка в пикселях арта
+  rockTopUrl: './data/tex-rocktop-v12.webp?v=1',
+  rockSideUrl: './data/tex-rockside-v12.webp?v=1',   // пока одна скала — у моста (как в концепте), точка в пикселях арта
 });
 scene.add(terrain.group);
 const atmo = buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, groundH, fog: !new URLSearchParams(location.search).has('nofog') });   // туман частицами как дым Unreal (?nofog — выключить)
@@ -224,6 +224,14 @@ for (const c of cells) {
   deckCells.set(c.id, true);
 }
 const groundTop = TILE_TOP + 0.02;
+// высота, на которой стоит фигурка (22.10): на мосту — по настилу (горбатый каменный выше земли), иначе плашка клетки
+const deckBoxes = [];
+terrain.bridges?.children.forEach(o => deckBoxes.push(new THREE.Box3().setFromObject(o)));
+const standY = (x, z) => {
+  if (!deckBoxes.some(b => x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z)) return TILE_TOP;
+  const v = deckAt(x, z);
+  return v === null ? TILE_TOP : Math.max(TILE_TOP, v);
+};
 const deckY = (x, z) => { const v = deckAt(x, z); return v === null ? groundTop : Math.max(groundTop, v + 0.03); };
 // контур гекса радиуса R по точкам (плоский верх: вершины на углах kπ/3)
 const hexRing = (c, R) => {
@@ -415,7 +423,7 @@ function addUnit({ kind, side, cellId, gltf, clips }) {
   blob.position.y = 0.012;
   blob.renderOrder = 2;
   root.add(blob, model);
-  root.position.set(cell.x, TILE_TOP, cell.z);
+  root.position.set(cell.x, standY(cell.x, cell.z), cell.z);
   root.rotation.y = Math.atan2(-cell.x, -cell.z);   // лицом к центру поля
   scene.add(root);
 
@@ -610,7 +618,7 @@ function stepAlongPath(unit, dt) {
     unit.root.rotation.y += diff * Math.min(1, dt * 12);
   }
   if (dist <= step) {
-    pos.set(target.x, TILE_TOP, target.z);
+    pos.set(target.x, standY(target.x, target.z), target.z);
     unit.path.shift();
     if (!unit.path.length) {
       unit.path = null;
@@ -620,6 +628,7 @@ function stepAlongPath(unit, dt) {
   } else {
     pos.x += (dx / dist) * step;
     pos.z += (dz / dist) * step;
+    pos.y = standY(pos.x, pos.z);
   }
 }
 
