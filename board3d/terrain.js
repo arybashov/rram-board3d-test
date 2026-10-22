@@ -2134,7 +2134,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=23' : '.png')), (await fetch(treeSpritesUrl + '.json?v=23')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=24' : '.png')), (await fetch(treeSpritesUrl + '.json?v=24')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -3103,12 +3103,13 @@ ${gtex ? `{
     const neigh = t => { let n = 0; for (let i = -1; i <= 1; i += 1) for (let j = -1; j <= 1; j += 1)
       for (const o of grid.get(`${Math.floor(t.x / 2.5) + i},${Math.floor(t.z / 2.5) + j}`) ?? []) if (o !== t && Math.hypot(o.x - t.x, o.z - t.z) < 2.6) n += 1; return n; };
     let dead = 0, brush = 0;
-    const extra = [];
+    const extra = [], deadPts = [];
     for (const t of adults) {
       const n = neigh(t);
       const nearBr = [0, 0.8, 1.6, 2.4, 3.2].some(d => onBridge(t.x, t.z - d) || onBridge(t.x - d * 0.6, t.z) || onBridge(t.x + d * 0.6, t.z));
-      if (DEADSTAND_OK && !nearBr && n >= 3 && rr() < (t.group === 'dark' ? 0.3 : 0.16)) {   // в группе — сухостой; наклонный — не у моста
-        t.group = 'deadstand'; t.h *= 0.9 + rr() * 0.25; t.pick = Math.floor(rr() * 99); t.tint = [0, 0.85 + rr() * 0.2, 0.85 + rr() * 0.25]; dead += 1;
+      const nearDead = deadPts.some(([dx, dz]) => Math.hypot(dx - t.x, dz - t.z) < 3.5);   // сухостой не парами: ≥3.5 м друг от друга
+      if (DEADSTAND_OK && !nearBr && !nearDead && n >= 3 && rr() < (t.group === 'dark' ? 0.22 : 0.10)) {   // в группе — сухостой; наклонный — не у моста
+        t.group = 'deadstand'; t.h *= 0.8 + rr() * 0.15; deadPts.push([t.x, t.z]);   // не выше соседей t.pick = Math.floor(rr() * 99); t.tint = [0, 0.85 + rr() * 0.2, 0.85 + rr() * 0.25]; dead += 1;
       }
       if (n >= 2 && rr() < 0.32) {                                                  // сушняк у основания
         const a = rr() * Math.PI * 2, d = 0.7 + rr() * 1.1, x = t.x + Math.cos(a) * d, z = t.z + Math.sin(a) * d;
