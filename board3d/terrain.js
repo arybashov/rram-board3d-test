@@ -1326,7 +1326,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(k === 'stone' ? './models/bridge-stone2.glb?v=20' : `./models/bridge-${k}.glb?v=10`)   // 22.10: каменный — горбатый v2 (bridge_stone2.py)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(k === 'stone' ? './models/bridge-stone2.glb?v=20' : k === 'log' ? './models/bridge-log2.glb?v=1' : `./models/bridge-${k}.glb?v=10`)   // 22.10: каменный — горбатый v2 (bridge_stone2.py)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
@@ -1478,7 +1478,7 @@ ${gtex ? `{
       (window.__bridgeDbg ??= []).push({ kind, bestOff, n0: onCells(0), bestN, fx, fz, L2, W2 });
       piece.add(m);
       piece.userData.kind = kind;
-      m.position.y = 0.05;   // настил над грунтом — земля не проглядывает (z-fighting)
+      m.position.y = kind === 'log' ? 0.0 : 0.05;   // настил над грунтом — земля не проглядывает; новый бревенчатый (log2) уже на своих уровнях (п.61)
       // огонь — на верхушке столбов модели (extras torch); у бревенчатого огня нет
       m.updateMatrixWorld(true);
       m.traverse(o => {
@@ -1701,6 +1701,8 @@ ${gtex ? `{
     const ld = async u => { const t = await new THREE.TextureLoader().loadAsync(u); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; };
     const [litter, moss] = await Promise.all([ld('./data/tex-forest.webp?v=1'), ld('./data/tex-rocktop-v6b.webp')]).catch(() => [null, null]);
     if (wt && litter) { wt.flipY = false; wt.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'stone') applyWear(pc, wt, { aged: true, litter, moss }); }
+    const wl = await new THREE.TextureLoader().loadAsync('./data/bridge/log2-wear.png?v=1').catch(() => null);
+    if (wl) { wl.flipY = false; wl.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'log') applyWear(pc, wl, { streakTop: 0.12 }); }
   }
   const houseJetty = {};
   // пена там, где столбы входят в воду (22.10): кольцо на поверхности, рваный край, мягко «дышит»; оси свай — как в
@@ -2132,7 +2134,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=21' : '.png')), (await fetch(treeSpritesUrl + '.json?v=21')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=22' : '.png')), (await fetch(treeSpritesUrl + '.json?v=22')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
