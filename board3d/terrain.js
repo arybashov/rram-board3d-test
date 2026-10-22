@@ -1662,6 +1662,8 @@ ${gtex ? `{
     h.position.set(best.hx, 0, best.hz);
     // ворота и гнёзда — к клетке; домики — с шагом 90°, вход к камере (22.10)
     h.rotation.y = isGate || isSmall ? Math.atan2(-best.dx, -best.dz) : 0;
+    const HOUSE_SHIFT = { 'lake-01': [0.15, 1.1] };   // 22.10: к камере (+z), чтобы крыша не закрывала клетки за домом
+    if (houseModels[c.marker?.asset] && !isGate && HOUSE_SHIFT[c.marker.asset]) { best.hx += HOUSE_SHIFT[c.marker.asset][0]; best.hz += HOUSE_SHIFT[c.marker.asset][1]; h.position.set(best.hx, 0, best.hz); }
     if (houseModels[c.marker?.asset] && !isGate) h.rotation.y = THREE.MathUtils.degToRad(-30);   // 22.10: на 30° по часовой (вид сверху)
     if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
