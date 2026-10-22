@@ -271,7 +271,7 @@ function dwarfGate(span) {
 
 // Условные домики-ориентиры (клетки с marker: хижины колод «лес», «озеро», «тёмный лес»…).
 // Куб + двускатная крыша; цвет крыши — по классу колоды. Размер — чтобы фигурка (1.8) входила в дверь.
-const HOUSE_W = 1.7, HOUSE_D = 2.38, HOUSE_H = 1.87;  // −15% (20.10): фасад с дверью 1.7, боковые стены длиннее
+const HOUSE_W = 1.9, HOUSE_D = 1.9, HOUSE_H = 1.87;   // 22.10: домики квадратные, вход к камере (шаг 90°)  // −15% (20.10): фасад с дверью 1.7, боковые стены длиннее
 const HOUSE_ROOF = { forest: 0x6b8f3a, forest_trail: 0x4f7a3a, mixed: 0xa08a4a, lake: 0x3d5a78, dark_forest: 0x5a3d6b };
 function houseMesh(cls) {
   const g = new THREE.Group();
@@ -1221,12 +1221,13 @@ ${gtex ? `{
       rapids: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
       rbox: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) },
       impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1.0 },
+      carveTex: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, cbox: { value: new THREE.Vector4(groundX0, groundZ0, groundW, groundH) },
       bridgeC: { value: (() => { const l = bridgeCells.filter(c => c.x >= 0).map(c => new THREE.Vector2(c.x, c.z)); while (l.length < 3) l.push(new THREE.Vector2(9999, 9999)); return l.slice(0, 3); })() },
       reflTex: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t; })() },
       flowTex: { value: (() => { const t = new THREE.TextureLoader().load('./data/water-flow.png?v=4'); t.colorSpace = THREE.NoColorSpace; return t; })() } },
     vertexShader: `varying vec2 vUv; varying vec3 vPos;
       void main(){ vUv = uv; vPos = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0); }`,
-    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform sampler2D reflTex; uniform vec4 rbox; uniform vec2 bridgeC[3]; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
+    fragmentShader: `uniform float time; uniform sampler2D dist; uniform vec2 lakeC[6]; uniform vec4 lakeR; uniform vec2 poolC; uniform sampler2D rapids; uniform sampler2D flowTex; uniform sampler2D reflTex; uniform vec4 rbox; uniform vec2 bridgeC[3]; uniform sampler2D carveTex; uniform vec4 cbox; uniform vec2 impactC; uniform float impactR; varying vec2 vUv; varying vec3 vPos;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -1250,6 +1251,7 @@ ${gtex ? `{
         dp = pow(dp, vec3(2.2)); md = pow(md, vec3(2.2)); sh = pow(sh, vec3(2.2));
         d = clamp(d * mix(3.2, 1.0, lakeK), 0.0, 1.0);   // узкие русла и чаша — расстояние до берега мало, но вода не мелкая
         for (int i = 0; i < 3; i++) d = max(d, (1.0 - smoothstep(2.0, 3.6, length(vPos.xz - bridgeC[i]))) * 0.55);   // расширенное русло под мостом — не берег
+        d = max(d, texture2D(carveTex, (vPos.xz - cbox.xy) / cbox.zw).r * 0.6);   // раструб русла у моста (22.10)
         vec3 col = mix(sh, md, smoothstep(0.0, 0.18, d));
         col = mix(col, dp, smoothstep(0.18, 0.65, d));
         // ── течение (карта data/water-flow.png, tools/board3d_flowmap.py): рябь и пена сносятся по руслу,
@@ -1497,25 +1499,50 @@ ${gtex ? `{
     bridges.add(piece);
   }
   group.add(bridges);
-  // русло под каменным и бревенчатым мостом шире (21.10): земля под настилом (без концов на берегах) уходит
-  // под воду — по следу модели моста, обе полосы клеток; края плавные
+  let bridgeCarve = () => 0;   // раструб русла у мостов — и для groundY (посадка не должна попадать в воду)
+  // русло под каменным и бревенчатым мостом (22.10: «по нормальному»): вода проходит под всем пролётом — от одного
+  // концевого столба до другого, берега раскрываются к мосту и плавно сходятся к обычной ширине реки
+  // в 4 м вверх и вниз по течению. Ось моста — local z, течение — local x. Та же маска — шейдеру воды (не берег).
   {
     const posA = groundGeo.attributes.position, inv = new THREE.Matrix4(), lp = new THREE.Vector3();
-    let changed = 0;
+    const carvers = [];
     for (const pc of bridges.children) {
       if (pc.userData.kind !== 'stone' && pc.userData.kind !== 'log') continue;
-      pc.updateMatrixWorld(true); inv.copy(pc.matrixWorld).invert();
-      const m = pc.children[0], hw = 1.75 * m.scale.x - 0.15, hl = (pc.userData.kind === 'stone' ? 3.5 : 2.5) * m.scale.z - 0.9;
-      for (let i = 0; i < posA.count; i += 1) {
-        lp.set(posA.getX(i), 0, posA.getZ(i)).applyMatrix4(inv);
-        const ex = Math.abs(lp.x) - hw, ez = Math.abs(lp.z) - hl;
-        if (ex > 0.9 || ez > 0.9) continue;
-        const k = (1 - THREE.MathUtils.smoothstep(Math.max(ex, 0), 0, 0.9)) * (1 - THREE.MathUtils.smoothstep(Math.max(ez, 0), 0, 0.9));
-        const ny = Math.min(posA.getY(i), THREE.MathUtils.lerp(posA.getY(i), WATER_FLOOR * 0.85, k));
-        if (ny < posA.getY(i)) { posA.setY(i, ny); changed += 1; }
+      pc.updateMatrixWorld(true);
+      const m = pc.children[0];
+      carvers.push({ inv: new THREE.Matrix4().copy(pc.matrixWorld).invert(), hw: 1.75 * m.scale.x,
+        S: (pc.userData.kind === 'stone' ? 2.9 : 2.0) * m.scale.z - 0.1 });
+    }
+    const FL = 4.0;
+    const carveAt = (x, z) => {
+      let k = 0;
+      for (const c of carvers) {
+        lp.set(x, 0, z).applyMatrix4(c.inv);
+        const ex = Math.max(Math.abs(lp.x) - c.hw, 0);
+        if (ex > FL) continue;
+        const w = c.S * (1 - THREE.MathUtils.smoothstep(ex, 0, FL)) ** 0.7;        // раструб: у моста полный пролёт
+        k = Math.max(k, 1 - THREE.MathUtils.smoothstep(Math.abs(lp.z) - w, -0.5, 0.35));
       }
+      return k;
+    };
+    bridgeCarve = carveAt;
+    let changed = 0;
+    for (let i = 0; i < posA.count; i += 1) {
+      const k = carveAt(posA.getX(i), posA.getZ(i));
+      if (k <= 0) continue;
+      const ny = Math.min(posA.getY(i), THREE.MathUtils.lerp(posA.getY(i), WATER_FLOOR * 0.85, k));
+      if (ny < posA.getY(i)) { posA.setY(i, ny); changed += 1; }
     }
     if (changed) { posA.needsUpdate = true; groundGeo.computeVertexNormals(); }
+    if (carvers.length && waterMat.uniforms?.carveTex) {
+      const CW = 512, CH = Math.round(512 * groundH / groundW), data = new Uint8Array(CW * CH * 4);
+      for (let y = 0; y < CH; y += 1) for (let x = 0; x < CW; x += 1) {
+        const v = carveAt(groundX0 + (x + 0.5) / CW * groundW, groundZ0 + (y + 0.5) / CH * groundH) * 255;
+        data[(y * CW + x) * 4] = v; data[(y * CW + x) * 4 + 3] = 255;
+      }
+      const ct = new THREE.DataTexture(data, CW, CH); ct.magFilter = ct.minFilter = THREE.LinearFilter; ct.needsUpdate = true;
+      waterMat.uniforms.carveTex.value = ct;
+    }
   }
   // габариты мостов (с запасом) — на мост не ставим ни деревья, ни кусты, ни камыш
   const bridgeBoxes = bridges.children.map(pc => { pc.updateMatrixWorld(true); return new THREE.Box3().setFromObject(pc).expandByScalar(0.6); });
@@ -1580,8 +1607,9 @@ ${gtex ? `{
       const dx = Math.cos(ang), dz = Math.sin(ang);
       // Отодвигаем от грани, пока прямоугольник постройки не перестанет задевать клетки.
       let off = Math.sqrt(3) / 2 + (isGate ? 0.35 : halfD + 0.05);
-      if (!isGate) {
-        while (off < 4.5 && hitsCells(c.x + dx * off, c.z + dz * off, dx, dz, halfW + 0.05, halfD + 0.05)) off += 0.1;
+      if (!isGate) {   // постройка стоит по осям (дверь к камере, +z) — проверяем её прямоугольник без поворота
+        const [ax, az] = isSmall ? [dx, dz] : [0, 1];
+        while (off < 4.5 && hitsCells(c.x + dx * off, c.z + dz * off, ax, az, halfW + 0.05, halfD + 0.05)) off += 0.1;
         if (off >= 4.5) continue;
       }
       const hx = c.x + dx * off, hz = c.z + dz * off;
@@ -1590,6 +1618,7 @@ ${gtex ? `{
       // ворота стоят в проходе обрыва: для них земля может быть и выше (стена рядом)
       const ok = m.water < 0.3 && (isGate || Math.abs(heightAt(hx, hz)) < 0.2);
       let score = (ok ? 10 : 0) - off;                      // ближе к своей клетке — лучше
+      if (!isSmall) score -= dz * 1.5;                      // домик за клеткой (дальше от камеры): дверь смотрит и на клетку, и на нас
       if (isGate) {
         // ворота — конец дорожки и стоят на её продолжении. Линию дороги берём по клеткам
         // в 2–4 шагах от входа (ближайшие соседи — это и боковые клетки второй полосы).
@@ -1631,7 +1660,9 @@ ${gtex ? `{
       h.userData.lanes = lanes.map(o => o.id);
     }
     h.position.set(best.hx, 0, best.hz);
-    h.rotation.y = Math.atan2(-best.dx, -best.dz);         // +z дома (дверь) смотрит на клетку
+    // ворота и гнёзда — к клетке; домики — с шагом 90°, вход к камере (22.10)
+    h.rotation.y = isGate || isSmall ? Math.atan2(-best.dx, -best.dz) : 0;
+    if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
     houses.add(h);
     if (isGate && gateModel) gateWalls(h);
@@ -1736,7 +1767,8 @@ ${gtex ? `{
     pos.needsUpdate = true;
     groundGeo.computeVertexNormals();
   }
-  const groundY = (x, z) => { const y = heightAt(x, z); return y > 0 ? (underRock(x, z) && y < 4 ? 0 : y * flatAt(x, z)) : y; };
+  const groundY0 = (x, z) => { const y = heightAt(x, z); return y > 0 ? (underRock(x, z) && y < 4 ? 0 : y * flatAt(x, z)) : y; };
+  const groundY = (x, z) => { const y = groundY0(x, z), k = bridgeCarve(x, z); return k > 0 ? Math.min(y, THREE.MathUtils.lerp(y, WATER_FLOOR * 0.85, k)) : y; };
 
   // ── Модули обрыва вдоль стен хребта: где карта высот круто обрывается ──
   const cliffs = new THREE.Group();
@@ -2140,6 +2172,7 @@ ${gtex ? `{
         const gg = SPRITE_GRADE[group];
         if (gg) { tone[0] += gg[0]; tone[1] *= gg[1]; tone[2] *= gg[2]; }
         if (bridgeCells.some(c => Math.hypot(c.x - x, c.z - z) < 2.4)) continue;   // не на мост
+        if (groundY(x, z) < -0.2) continue;   // не в русле (раструб у мостов, 22.10)
         list.push({ x, y: groundY(x, z), z, h, group, pick: Math.floor(r() * 99), tint: tone });
       }
     }
@@ -2767,7 +2800,7 @@ ${gtex ? `{
         col = mix(col, vec3(0.42, 0.60, 0.65) + lines * 0.12, lipK * 0.9);
         a = mix(a, 0.85, lipK);
         gl_FragColor = vec4(col, a * smoothstep(0.02, 0.5, m));`);
-        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) }, rapids: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, rbox: waterMat.uniforms.rbox, impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1 }, flowTex: { value: new THREE.DataTexture(new Uint8Array([128, 128, 0, 255]), 1, 1) }, reflTex: waterMat.uniforms.reflTex, bridgeC: waterMat.uniforms.bridgeC,
+        upperMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: { value: 0 }, dist: { value: alpha }, lakeC: waterMat.uniforms.lakeC, lakeR: waterMat.uniforms.lakeR, poolC: { value: new THREE.Vector2(9999, 9999) }, rapids: { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, rbox: waterMat.uniforms.rbox, impactC: { value: new THREE.Vector2(9999, 9999) }, impactR: { value: 1 }, flowTex: { value: new THREE.DataTexture(new Uint8Array([128, 128, 0, 255]), 1, 1) }, reflTex: waterMat.uniforms.reflTex, bridgeC: waterMat.uniforms.bridgeC, carveTex: waterMat.uniforms.carveTex, cbox: waterMat.uniforms.cbox,
             lipC: { value: new THREE.Vector2((lipW0.x + lipW1.x) / 2, (lipW0.z + lipW1.z) / 2) }, lipR: { value: lipW0.distanceTo(lipW1) * 0.75 } },
           vertexShader: waterMat.vertexShader, fragmentShader: fs });
         animated.push(upperMat);
