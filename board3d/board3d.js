@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792685267';
-import { buildTerrain } from './terrain.js?v=1792685267';
+import { buildAtmosphere } from './atmosphere.js?v=1792688196';
+import { buildTerrain } from './terrain.js?v=1792688196';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -118,7 +118,7 @@ const terrain = await buildTerrain({
   gateModelUrl: './models/dwarf-gate-v3.glb?v=6',   // ворота дварфов по инженерке (tools/blender/dwarf_gate_v3.py)
   upperRiverUrl: './data/upper-river.png?v=4',
   rocksUrl: './data/rocks.json?v=4',
-  stoneKitUrl: './models/stone-kit.glb?v=3',   // гексовые камни из Blender (tools/blender/stone_kit.py)
+  stoneKitUrl: './models/stone-kit.glb?v=4',   // гексовые камни из Blender (tools/blender/stone_kit.py)
   modeledRocks: 'all',   // все скалы плана (раньше — одна у моста)
   cliffKitUrl: './models/cliff-kit.glb?v=2',   // модули обрыва хребта (tools/blender/cliff_kit.py)
   grassUrl: './data/tex-grass.webp?v=1',

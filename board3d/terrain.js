@@ -505,8 +505,9 @@ function looseStone(st, toWorld, groundY, r) {
   const kit = d < 0.6 ? 5 : [3, 0, 1, 4][Math.floor(r() * 4)];
   const ks = STONE_KIT[kit].size;
   const h = d * (0.55 + r() * 0.25);
-  const gy = Math.min(0, groundY(x, z));
-  return [x, gy + h * 0.35, z, d / ks[0], h / ks[1], d * (0.85 + r() * 0.2) / ks[2], r() * 6.28, 0.72 + r() * 0.16, kit];
+  // 22.10 разбор п.10: на грунте по его реальной высоте (min(0,…) топил камни на возвышенностях), утоплен на 20–35%
+  const gy = groundY(x, z), bury = 0.20 + 0.15 * rockHash(Math.round(st.x), Math.round(st.y), 31);   // хеш, не общий r(): иначе сдвигается вся посадка дальше
+  return [x, gy + h * (0.5 - bury), z, d / ks[0], h / ks[1], d * (0.85 + r() * 0.2) / ks[2], r() * 6.28, 0.84 + r() * 0.20, kit];
 }
 
 function terraceStones(rock, toWorld, seed) {
@@ -2982,10 +2983,50 @@ ${gtex ? `{
       if (nearest(sx, sz) < 1.25 || nearHouse(sx, sz, 1.6)) continue;     // не на клетках и не у домов
       const one = looseStone(st, toWorldXZ, groundY, r); lists[one[8]].push(one);
     }
+    // 22.10 разбор п.9: осыпь группами у подножия каждой скалы — на каждые ~3.5 единицы наружного периметра одна группа
+    // (1 крупный обломок + 2–4 малых), центры в 0.20–0.75 от стены, утоплены на 20–35%; максимум 5 групп на скалу
+    {
+      const sr = rng(20261025);
+      const placed = [];
+      for (const rk of rockData) {
+        const poly = rk.levels[0].pts.map(([px, py]) => toWorldXZ(px, py));
+        let per = 0; for (let i = 0; i < poly.length; i += 1) per += Math.hypot(poly[(i + 1) % poly.length][0] - poly[i][0], poly[(i + 1) % poly.length][1] - poly[i][1]);
+        const nG = Math.min(5, Math.floor(per / 3.5));
+        let cxm = 0, czm = 0; poly.forEach(([x, z]) => { cxm += x / poly.length; czm += z / poly.length; });
+        for (let g = 0; g < nG; g += 1) {
+          // точка на контуре по доле периметра + нормаль наружу (от центра)
+          let t = (g + sr() * 0.6) / nG * per, i = 0;
+          for (; i < poly.length; i += 1) { const L = Math.hypot(poly[(i + 1) % poly.length][0] - poly[i][0], poly[(i + 1) % poly.length][1] - poly[i][1]); if (t <= L) break; t -= L; }
+          const [ax, az] = poly[i % poly.length], [bx, bz] = poly[(i + 1) % poly.length];
+          const L = Math.hypot(bx - ax, bz - az) || 1, ex = ax + (bx - ax) * t / L, ez = az + (bz - az) * t / L;
+          let nx = -(bz - az) / L, nz = (bx - ax) / L; if ((ex - cxm) * nx + (ez - czm) * nz < 0) { nx = -nx; nz = -nz; }
+          const members = [[0.70 + sr() * 0.45, 0.20 + sr() * 0.25]];
+          for (let k = 0, n = 2 + Math.floor(sr() * 3); k < n; k += 1) members.push([0.20 + sr() * 0.28, 0.35 + sr() * 0.45]);
+          const grp = [];
+          let ok = true;
+          for (const [d, off] of members) {
+            const side = (sr() - 0.5) * 1.2;
+            const x = ex + nx * (off + d * 0.4) - nz * side, z = ez + nz * (off + d * 0.4) + nx * side;
+            const gy = groundY(x, z);
+            if (nearest(x, z) < 1.25 + d * 0.5 || nearHouse(x, z, 1.9) || sample(x, z).water > 0.2 || gy < -0.25 || onBridge(x, z)) { if (d > 0.6) { ok = false; break; } continue; }
+            if (placed.some(([px, pz, pd]) => Math.hypot(px - x, pz - z) < 0.40 * (pd + d))) continue;
+            grp.push([x, z, d, gy]);
+          }
+          if (!ok) continue;
+          for (const [x, z, d, gy] of grp) {
+            const kit = d > 0.6 ? [3, 1, 4][Math.floor(sr() * 3)] : (d < 0.32 ? 5 : 3), ks = STONE_KIT[kit].size;
+            const h = d * (0.55 + sr() * 0.25), bury = 0.20 + sr() * 0.15;
+            lists[kit].push([x, gy + h * (0.5 - bury), z, d / ks[0], h / ks[1], d * (0.85 + sr() * 0.2) / ks[2], sr() * 6.28, 0.84 + sr() * 0.2, kit]);
+            placed.push([x, z, d]);
+          }
+        }
+      }
+      T.scree = placed.length;
+    }
     // россыпь у подножия скал (кромка скальных пятен маски) — камешки и мелкие валуны
     for (const [x, gy, z, d] of rockSpots[0]) {
       const kit = d < 0.7 ? 5 : 3, ks = STONE_KIT[kit].size, h = d * 0.6;
-      lists[kit].push([x, gy + h * 0.3, z, d / ks[0], h / ks[1], d * 0.9 / ks[2], r() * 6.28, 0.75 + r() * 0.15, kit]);
+      lists[kit].push([x, gy + h * (0.5 - 0.25), z, d / ks[0], h / ks[1], d * 0.9 / ks[2], r() * 6.28, 0.84 + r() * 0.15, kit]);   // утоплен на четверть
     }
     // ── Камни в руслах и маска порогов (разбор воды Codex, шаг 2) ──
     // группы частично погружённых валунов в реках (не в озере), мокрые — темнее; у каждого — пятно белой воды,
