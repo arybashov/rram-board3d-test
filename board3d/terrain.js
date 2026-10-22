@@ -208,13 +208,15 @@ async function loadGateModel(url) {
 function dwarfGate(span) {
   if (gateModel) {
     const W = Math.max(3.2, span * 0.9);              // ширина портала по раме (в модели 3.6 м)
-    const k = W / 3.6;                                // рама модели v3 — 3.6 м по наружному контуру
+    const v4 = !!gateModel.getObjectByName('tunnel');   // v4 (22.10): тёсаный фасад 4.8 м, скалу вокруг строит сцена
+    const k = v4 ? W / 4.2 : W / 3.6;                 // рама модели v3 — 3.6 м по наружному контуру
     const g = new THREE.Group();
     const m = gateModel.clone(true);
     m.scale.setScalar(k);
     g.add(m);
     g.userData.span = W;
-    g.userData.depth = 3.4 * k + 0.3;                 // пол за воротами — до Y=3.4 модели
+    g.userData.v4 = v4;
+    g.userData.depth = (v4 ? 3.2 : 3.4) * k + 0.3;    // пол за воротами — до Y=3.4 модели
     return g;
   }
   const gate = new THREE.Group();
@@ -651,7 +653,7 @@ function rockBlocks(rock, toWorld) {
     if (nx * mx + ny * my + nz * mz < 0) pos.push(...a, ...c, ...b); else pos.push(...a, ...b, ...c);
     tone.push(tn, tn, tn);
   };
-  const base = -0.6;
+  const base = rock.base ?? -0.6;   // 22.10: скала над входом ворот висит — у неё свой низ и донная грань
   for (const [cx, cz, gx, gz] of seeds) {
     if (cx < x0 - step || cx > x1 + step || cz < z0 - step || cz > z1 + step) continue;
     // ячейка Voronoi: контур скалы, обрезанный полуплоскостями к соседним семенам
@@ -692,6 +694,7 @@ function rockBlocks(rock, toWorld) {
     }
     const cTop = [ccx, topY(ccx, ccz, 99) + 0.04, ccz];
     for (let i = 0; i < n; i += 1) push(U[i], U[(i + 1) % n], cTop, tn);   // крышка веером
+    if (rock.base !== undefined) { const cB = [ccx, base, ccz]; for (let i = 0; i < n; i += 1) push(B[i], B[(i + 1) % n], cB, tn); }   // низ нависания
   }
   // обход граней мог оказаться обратным: ориентируем по нормали наружу/вверх при сборке
   const g = new THREE.BufferGeometry();
@@ -2057,7 +2060,7 @@ ${gtex ? `{
       jt.userData.noFogSolid = true; houses.add(jt); jettyRoots.push(jt);
     }
     houses.add(h);
-    if (isGate && gateModel) gateWalls(h);
+    if (isGate && gateModel && !h.userData.v4) gateWalls(h);
     houseSpots.push([best.hx, best.hz]);
     if (isGate) { h.userData.isGate = true; houseSpots.push([best.hx + best.dx * 1.2, best.hz + best.dz * 1.2]); }
     // След постройки (прямоугольник) — под ним и вокруг земля ровная, скалы не залезают.
@@ -3032,6 +3035,21 @@ ${gtex ? `{
       // все скалы — одной сеткой: один вызов отрисовки
       const parts = [];
       rockData.forEach((rk, i) => rockMonolith(rk, toWorldXZ, 900 + i, mat).children.forEach(m => parts.push(m.geometry)));
+      // ворота v4 (22.10): скала вокруг — тем же генератором блоков, что и скалы поля: по бокам буквой П, над аркой и
+      // туннелем — нависающая «крышка» (низ выше ромба замка). Контуры — в осях модели (X вправо, Y в гору), м × k.
+      if (gate?.userData.v4) {
+        gate.traverse(o => { if (o.isMesh && o.material.name === 'gate_rock') o.material = monolithMat; });   // заполнение за аркой — тем же камнем
+        const k = gate.children[0].scale.x, ry = gate.rotation.y, gx0 = gate.position.x, gz0 = gate.position.z;
+        const W = ([X, Y]) => { const lx = X * k, lz = -Y * k; return [gx0 + lx * Math.cos(ry) + lz * Math.sin(ry), gz0 - lx * Math.sin(ry) + lz * Math.cos(ry)]; };
+        const side = sg => [[2.45, 1.15], [3.85, 0.85], [4.40, 2.45], [4.05, 4.90], [1.52, 4.90], [1.52, 3.24], [2.45, 3.24]].map(([X, Y]) => [sg * X, Y]);
+        const inner = sg => [[2.45, 1.70], [3.30, 1.60], [3.40, 4.30], [1.52, 4.30], [1.52, 3.24], [2.45, 3.24]].map(([X, Y]) => [sg * X, Y]);
+        const gateRocks = [
+          ...[-1, 1].map(sg => ({ x: gx0 + sg * 7, y: gz0, levels: [{ top: 3.7 * k, pts: side(sg).map(W) }, { top: 4.55 * k, pts: inner(sg).map(W) }] })),
+          { x: gx0, y: gz0 + 7, base: 4.24 * k, levels: [{ top: 4.75 * k, pts: [[-2.5, 2.0], [2.5, 2.0], [2.5, 3.26], [1.54, 3.26], [1.54, 5.7], [-1.54, 5.7], [-1.54, 3.26], [-2.5, 3.26]].map(W) }] },
+        ];
+        const id = (x, z) => [x, z];
+        gateRocks.forEach((rk, i) => rockMonolith(rk, id, 1900 + i, mat).children.forEach(m => parts.push(m.geometry)));
+      }
       if (parts.length) {
         const merged = new THREE.Mesh(mergeGeometries(parts.map(g => (g.index ? g.toNonIndexed() : g))), mat);
         merged.castShadow = merged.receiveShadow = true;
