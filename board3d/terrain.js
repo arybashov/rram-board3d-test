@@ -1326,7 +1326,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(k === 'stone' ? './models/bridge-stone2.glb?v=2' : `./models/bridge-${k}.glb?v=10`)   // 22.10: каменный — горбатый v2 (bridge_stone2.py)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(k === 'stone' ? './models/bridge-stone2.glb?v=3' : `./models/bridge-${k}.glb?v=10`)   // 22.10: каменный — горбатый v2 (bridge_stone2.py)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
@@ -1490,7 +1490,7 @@ ${gtex ? `{
       });
       m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = false; o.material.opacity = 1; o.material.depthWrite = true; } });
       // руны каменного моста — голубым свечением, как на воротах (в glb приходят белыми)
-      m.traverse(o => { if (o.isMesh && o.material.name === 'rune') { o.material.color.set(0x0c2a33); o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 1.2; } });
+      m.traverse(o => { if (o.isMesh && o.material.name === 'rune') { o.material.color.set(0x0c2a33); o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 0.65; } });   // руны на столбах — приглушённо
     }
     piece.position.set(cx + dx * mid, 0, cz + dz * mid);
     if (piece.userData.center) piece.position.set(piece.userData.center[0], 0, piece.userData.center[1]);
@@ -1615,13 +1615,13 @@ ${gtex ? `{
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.0 + vec3(0.08, 0.07, 0.055), clamp(w.g * 1.3, 0.0, 1.0) * 0.9);   // потёртые кромки — светлее
     ${aged ? `
     // модель моста: X поперёк, Z вверх (glTF → three: y вверх, x поперёк, -z вдоль) — vLoc в осях three
+    #define HH(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
+    #define VN(P) (mix(mix(HH(floor(P)), HH(floor(P) + vec2(1, 0)), smoothstep(0.0, 1.0, fract(P).x)), mix(HH(floor(P) + vec2(0, 1)), HH(floor(P) + vec2(1, 1)), smoothstep(0.0, 1.0, fract(P).x)), smoothstep(0.0, 1.0, fract(P).y)))
     float hsh = fract(sin(dot(floor(vLoc.xz * 7.0), vec2(12.99, 78.23))) * 43758.5);
     float n1 = fract(sin(dot(floor(vLoc.xz * 2.3 + vLoc.y), vec2(39.3, 11.7))) * 9137.1);
     float up = smoothstep(0.55, 0.95, vWN.y);
     // мох: в затенённом (щели, низ арки, под бортиками) и пятнами на верхах бортиков/столбов
     // гладкий value-шум трёх масштабов (не клетки, не полосы)
-    #define HH(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
-    #define VN(P) (mix(mix(HH(floor(P)), HH(floor(P) + vec2(1, 0)), smoothstep(0.0, 1.0, fract(P).x)), mix(HH(floor(P) + vec2(0, 1)), HH(floor(P) + vec2(1, 1)), smoothstep(0.0, 1.0, fract(P).x)), smoothstep(0.0, 1.0, fract(P).y)))
     float big = VN(vLoc.xz * 1.1 + 3.7), blot = VN(vLoc.xz * 3.2), fine = VN(vLoc.xz * 9.0);
     bool deck = up > 0.5 && abs(vLoc.x) < 1.76 && vLoc.y - 0.275 * (1.0 + cos(3.14159 * clamp(vLoc.z / 3.5, -1.0, 1.0))) < 0.05;
     // мох: в тени (щели, низ арки, стык бортика) — только НЕ на настиле; на верхах бортиков/столбов — пятнами
@@ -1630,6 +1630,18 @@ ${gtex ? `{
     float topK = up * smoothstep(0.10, 0.20, hd);
     float moss = (deck ? 0.0 : (1.0 - smoothstep(0.25, 0.7, w.r)) * 0.6) + topK * smoothstep(0.35, 0.75, blot * 0.6 + big * 0.6) * 0.9;
     moss *= smoothstep(0.25, 0.6, fine * 0.5 + big * 0.7);
+    // подтёки (22.10): на отвесных гранях — тёмные вертикальные следы воды от верха вниз; колонки по горизонтальной
+    // координате грани, длина своя у каждой, к низу растворяются; у подошвы (вода) — сырая тёмная полоса
+    float vert = 1.0 - smoothstep(0.35, 0.6, abs(vWN.y));
+    float hz = abs(vLoc.x) > 1.9 ? vLoc.z : vLoc.x;                          // горизонталь вдоль грани (фасады |x|≈2.1 — вдоль z)
+    float col = VN(vec2(hz * 7.0, 0.5)), colF = VN(vec2(hz * 23.0, 4.1));
+    float topZ = 0.275 * (1.0 + cos(3.14159 * clamp(vLoc.z / 3.5, -1.0, 1.0)));
+    topZ += abs(vLoc.x) > 1.7 ? 0.42 : 0.0;                                 // на бортике — от верха камней
+    float len = 0.35 + 0.9 * VN(vec2(hz * 3.0, 9.3));
+    float fall = clamp((topZ - vLoc.y) / len, 0.0, 1.0);
+    float streak = vert * smoothstep(0.42, 0.68, col * 0.7 + colF * 0.45) * (1.0 - fall * fall) * step(-0.05, topZ - vLoc.y);
+    float wetBase = vert * (1.0 - smoothstep(-0.35, -0.05, vLoc.y));
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.30, 0.34, 0.24) + vec3(0.01, 0.03, 0.0), clamp(streak * 0.95 + wetBase * 0.55, 0.0, 0.9));
     vec3 mossTex = texture2D(mossMap, vLoc.xz * 0.9 + vLoc.y * 0.3).rgb;
     diffuseColor.rgb = mix(diffuseColor.rgb, mossTex * vec3(0.85, 0.95, 0.7), clamp(moss, 0.0, 0.85));
     if (deck) {
@@ -1669,7 +1681,7 @@ ${gtex ? `{
   }).catch(e => console.warn('house props', k, e))));
   // износ кромок у моделей мостов (запекание по 2-й развёртке, как у домиков)
   {
-    const wt = await new THREE.TextureLoader().loadAsync('./data/bridge/stone2-wear.png?v=2').catch(() => null);
+    const wt = await new THREE.TextureLoader().loadAsync('./data/bridge/stone2-wear.png?v=3').catch(() => null);
     const ld = async u => { const t = await new THREE.TextureLoader().loadAsync(u); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; };
     const [litter, moss] = await Promise.all([ld('./data/tex-forest.webp?v=1'), ld('./data/tex-rocktop-v6b.webp')]).catch(() => [null, null]);
     if (wt && litter) { wt.flipY = false; wt.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'stone') applyWear(pc, wt, { aged: true, litter, moss }); }
