@@ -1460,6 +1460,39 @@ ${gtex ? `{
   const texL = new THREE.TextureLoader();
   const deckTex = texL.load('./data/bridge-deck.webp?v=1'); deckTex.colorSpace = THREE.SRGBColorSpace; deckTex.wrapS = deckTex.wrapT = THREE.RepeatWrapping;
   const railTex = texL.load('./data/bridge-rail.webp?v=1'); railTex.colorSpace = THREE.SRGBColorSpace; railTex.wrapS = THREE.RepeatWrapping;
+  // верёвочный мост (22.10): текстуры Codex (outputs/board3d-concept/bridges3d/rope3) — 6 досок полосами, у каждой реальной
+  // доски своя нарисованная (развёртка тут, по локальным осям модели: x поперёк, y вверх, z вдоль; шаг досок 5/21);
+  // столбы и поперечины — дерево с волокном вдоль длины детали; канаты — витой канат
+  const ropeTex = Object.fromEntries(['boards', 'post', 'rope'].map(n => {
+    const t = texL.load(`./data/bridge/rope3-${n}.webp?v=1`); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return [n, t];
+  }));
+  const ropeRetex = model => model.traverse(o => {
+    if (!o.isMesh) return;
+    const mat = o.material, nm = mat.name, g = o.geometry;
+    const P = g.attributes.position, N = g.attributes.normal, uv = g.attributes.uv;
+    if (!uv) return;
+    if (nm === 'plank') {
+      const p = 5 / 21;
+      for (let k = 0; k < P.count; k += 1) {
+        const x = P.getX(k), z = P.getZ(k);
+        const f = (z + 2.5) / p, i = Math.min(20, Math.max(0, Math.floor(f))), t = Math.min(1, Math.max(0, f - i));   // у досок зазор .004 — граница не попадает ровно на целое
+        const j = ((i % 6) + 6) % 6;
+        uv.setXY(k, j / 6 + 0.01 + t * (1 / 6 - 0.02), (x + 2) / 1.6 + i * 0.37);
+      }
+    } else if (nm === 'wood') {
+      g.computeBoundingBox(); const b = g.boundingBox, s = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
+      const upright = s.y > Math.max(s.x, s.z);
+      for (let k = 0; k < P.count; k += 1) {
+        const x = P.getX(k), y = P.getY(k), z = P.getZ(k);
+        if (upright) uv.setXY(k, Math.atan2(z - c.z, x - c.x) / Math.PI * 0.5, y / 1.6);   // столб: по кругу × по высоте
+        else uv.setXY(k, (Math.abs(N.getY(k)) > 0.5 ? z : y) * 2.0, x / 1.6);              // поперечина: волокно вдоль X
+      }
+    } else if (nm !== 'rope') return;
+    uv.needsUpdate = true;
+    mat.map = ropeTex[nm === 'plank' ? 'boards' : nm === 'wood' ? 'post' : 'rope'];
+    mat.color.set(0xffffff); mat.needsUpdate = true;
+  });
   const deckMat = new THREE.MeshLambertMaterial({ map: deckTex });
   const railMat = new THREE.MeshLambertMaterial({ map: railTex, alphaTest: 0.5, side: THREE.DoubleSide });
   const woodMat = new THREE.MeshLambertMaterial({ color: 0x4a301b });   // тёмное дерево (реф)
@@ -1619,6 +1652,7 @@ ${gtex ? `{
       m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = false; o.material.opacity = 1; o.material.depthWrite = true; } });
       // руны каменного моста — голубым свечением, как на воротах (в glb приходят белыми)
       m.traverse(o => { if (o.isMesh && o.material.name === 'rune') { o.material.color.set(0x0c2a33); o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 0.65; } });   // руны на столбах — приглушённо
+      if (kind === 'rope') ropeRetex(m);
     }
     piece.position.set(cx + dx * mid, 0, cz + dz * mid);
     if (piece.userData.center) piece.position.set(piece.userData.center[0], 0, piece.userData.center[1]);
@@ -1719,14 +1753,40 @@ ${gtex ? `{
     const t = await new THREE.TextureLoader().loadAsync(u).catch(() => null);
     if (t) { t.flipY = false; t.colorSpace = THREE.NoColorSpace; wearTex[k] = t; }
   }));
+  // тропинка по настилу моста (22.10): как у каменного — проход затёрт ногами (светлее, глаже, без цвета), к краям языками
+  // мусор: листья/земля (litterMap) и мох (mossMap). vLoc — оси three внутри модели: x поперёк, y вверх, z вдоль.
+  const pathGLSL = pt => `
+    #define HP(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
+    #define VP(P) (mix(mix(HP(floor(P)), HP(floor(P) + vec2(1, 0)), smoothstep(0.0, 1.0, fract(P).x)), mix(HP(floor(P) + vec2(0, 1)), HP(floor(P) + vec2(1, 1)), smoothstep(0.0, 1.0, fract(P).x)), smoothstep(0.0, 1.0, fract(P).y)))
+    float bigP = VP(vLoc.xz * 1.1 + 3.7), blotP = VP(vLoc.xz * 3.2), fineP = VP(vLoc.xz * 9.0);
+    float dhP = vLoc.y - (${pt.deckH});
+    if (vWN.y > 0.6 && abs(vLoc.x) < ${pt.halfW.toFixed(2)} && dhP < 0.07 && dhP > -0.12) {
+      ${pt.plankP ? `float pk = floor((vLoc.z + 2.5) / ${pt.plankP.toFixed(4)});   // своя яркость/оттенок у каждой доски
+      float ph = fract(sin(pk * 12.989) * 43758.5);
+      diffuseColor.rgb *= mix(0.78, 1.18, ph) * mix(vec3(1.04, 0.98, 0.92), vec3(0.95, 1.0, 1.05), fract(ph * 7.31));
+      float pe = abs(fract((vLoc.z + 2.5) / ${pt.plankP.toFixed(4)}) - 0.5) * 2.0;     // к стыку досок — темнее (грязь в щели)
+      diffuseColor.rgb *= 1.0 - 0.35 * smoothstep(0.75, 1.0, pe);` : ''}
+      float ax = abs(vLoc.x);
+      float edgeD = ax + (bigP - 0.5) * 0.9 + (blotP - 0.5) * 0.35 + (fineP - 0.5) * 0.12;
+      float centre = 1.0 - smoothstep(0.2, 1.0, ax + (bigP - 0.5) * 0.5);
+      float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+      vec3 polished = mix(vec3(lum), diffuseColor.rgb, 0.55) * 1.35 + vec3(0.05, 0.045, 0.03);
+      diffuseColor.rgb = mix(diffuseColor.rgb, polished, centre * 0.7);
+      float debris = smoothstep(1.05, 1.45, edgeD) * smoothstep(0.30, 0.55, fineP * 0.6 + blotP * 0.5);
+      vec3 litter = texture2D(litterMap, vLoc.xz * 0.55).rgb * vec3(0.9, 0.85, 0.75);
+      vec3 mossy = texture2D(mossMap, vLoc.xz * 0.9).rgb * 0.85;
+      vec3 junk = mix(litter, mossy, smoothstep(0.55, 0.8, bigP));
+      diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * fineP), clamp(debris, 0.0, 0.9));
+    }`;
   const applyWear = (root, tex, opt = {}) => {
     if (!tex) return;
     const aged = !!opt.aged;   // каменный мост (22.10): сильнее состарить — мох в щелях и на верхах бортиков, затёртый проход, мусор к краям
     const streakTop = opt.streakTop ?? null;   // высота (локальная Y), откуда идут подтёки — дом/мостки/пропсы
+    const path = opt.path ?? null;   // тропинка по настилу (22.10, бревенчатый/верёвочный): {deckH: GLSL-высота верха настила от vLoc, halfW, plankP?}
     const done = new Set();
     root.traverse(o => {
       if (!o.isMesh) return;
-      if (!o.geometry.attributes.uv1 && !aged) return;
+      if (!o.geometry.attributes.uv1 && !aged && !path) return;
       // glTF разбивает объект по материалам — у части (настил) может не оказаться 2-й развёртки: тогда без запечённого износа (w=1)
       o.geometry.setAttribute('wearUv', o.geometry.attributes.uv1 ?? o.geometry.attributes.uv);
       const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -1734,10 +1794,10 @@ ${gtex ? `{
         if (done.has(m)) continue; done.add(m);
         m.onBeforeCompile = sh => {
           sh.uniforms.wearMap = { value: tex };
-          if (aged) { sh.uniforms.litterMap = { value: opt.litter }; sh.uniforms.mossMap = { value: opt.moss }; }
+          if (aged || path) { sh.uniforms.litterMap = { value: opt.litter }; sh.uniforms.mossMap = { value: opt.moss }; }
           sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 wearUv; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;')
             .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWearUv = wearUv; vLoc = position; vWN = normalize(mat3(modelMatrix) * normal);');
-          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;' + (aged ? '\nuniform sampler2D litterMap; uniform sampler2D mossMap;' : ''))
+          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;' + (aged || path ? '\nuniform sampler2D litterMap; uniform sampler2D mossMap;' : ''))
             .replace('#include <map_fragment>', `#include <map_fragment>
   { vec3 w = texture2D(wearMap, vWearUv).rgb;
     diffuseColor.rgb *= mix(1.0, smoothstep(0.05, 0.85, w.r), 0.7);                       // щели и низ — темнее
@@ -1801,9 +1861,10 @@ ${gtex ? `{
       vec3 mossy = texture2D(mossMap, vLoc.xz * 0.9).rgb * 0.85;
       vec3 junk = mix(litter, mossy, smoothstep(0.55, 0.8, big));                                   // где-то листья/земля, где-то мох
       diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * fine), clamp(debris, 0.0, 0.92));
-    }` : ''} }`);
+    }` : ''}
+    ${path ? pathGLSL(path) : ''} }`);
         };
-        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '');
+        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (path ? 'path' + path.deckH + path.halfW : '');
         m.needsUpdate = true;
       }
     });
@@ -1830,7 +1891,13 @@ ${gtex ? `{
     const [litter, moss] = await Promise.all([ld('./data/tex-forest.webp?v=1'), ld('./data/tex-rocktop-v6b.webp')]).catch(() => [null, null]);
     if (wt && litter) { wt.flipY = false; wt.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'stone') applyWear(pc, wt, { aged: true, litter, moss }); }
     const wl = await new THREE.TextureLoader().loadAsync('./data/bridge/log2-wear.png?v=1').catch(() => null);
-    if (wl) { wl.flipY = false; wl.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'log') applyWear(pc, wl, { streakTop: 0.12 }); }
+    // тропинка (22.10): верх настила бревенчатого — D(y) из tools/blender/bridge_log2.py, верёвочного — D(y) из bridges.py rope_bridge
+    const logPath = { deckH: '0.105 - 0.060 * pow(cos(3.14159 * vLoc.z / 5.0), 2.0)', halfW: 2.1 };
+    const ropePath = { deckH: 'abs(vLoc.z) <= 2.0 ? 0.10 + 0.10 * pow(vLoc.z / 2.0, 2.0) : 0.40 * (2.5 - abs(vLoc.z))', halfW: 1.76, plankP: 5 / 21 };
+    if (wl) { wl.flipY = false; wl.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'log') applyWear(pc, wl, { streakTop: 0.12, litter, moss, path: logPath }); }
+    // верёвочный — без запечённого износа: нейтральная карта (R=1 без затемнения, G=0 без кромок, B=.5 средний тон)
+    const flat = new THREE.DataTexture(new Uint8Array([255, 0, 128, 255]), 1, 1); flat.needsUpdate = true;
+    for (const pc of bridges.children) if (pc.userData.kind === 'rope') applyWear(pc, flat, { litter, moss, path: ropePath });
   }
   const houseJetty = {};
   // пена там, где столбы входят в воду (22.10): кольцо на поверхности, рваный край, мягко «дышит»; оси свай — как в
