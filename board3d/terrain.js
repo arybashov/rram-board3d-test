@@ -3189,7 +3189,9 @@ ${gtex ? `{
     for (const t of treeBillboard.list) {
       if (t.group !== 'lily' && onJetty(t.x, t.z, t.h)) { cut += 1; continue; }
       // перед домиком не заслонять (в т.ч. ивы, которые этот проход доращивает до взрослых ниже)
-      if (t.group !== 'lily' && t.h > 0.9 && houses.children.some(h => h.userData.houseModel && Math.abs(t.x - h.position.x) < 1.9 && t.z - h.position.z > -1.9 && t.z - h.position.z < 2.0 + 1.1 * Math.max(t.h, 3.2))) { cut += 1; continue; }
+      // сухостой (наклонные коряги) — не у домиков вовсе: ложился поперёк фасада (22.10)
+      if (t.group === 'deadstand' && houses.children.some(h => !h.userData.isGate && h.userData.cell && Math.hypot(t.x - h.position.x, t.z - h.position.z) < 4.5)) { cut += 1; continue; }
+      if (t.group !== 'lily' && t.h > 0.9 && houses.children.some(h => !h.userData.isGate && h.userData.cell && Math.abs(t.x - h.position.x) < 1.9 && t.z - h.position.z > -1.9 && t.z - h.position.z < 2.0 + 1.1 * Math.max(t.h, 3.2))) { cut += 1; continue; }
       if (t.h > 1.5 && [0.3, 0.9, 1.5, 2.1].some(d => d < 0.9 * t.h && onBridge(t.x, t.z - d))) { cut += 1; continue; }   // высокое прямо перед мостом (к камере) закрывает арку   // на мостках ничего не растёт (последний проход посадки)
       const fl = FLOOR[t.group];
       if (fl && t.h < fl) {
