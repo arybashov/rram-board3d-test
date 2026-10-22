@@ -1581,7 +1581,7 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=3' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=4' };
   const houseModels = {};
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => {
@@ -1591,7 +1591,7 @@ ${gtex ? `{
     });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
-  const HM = { hw: 1.05, hd: 1.40 };   // габарит модели с пропсами и свесом (инженерка: 2.10 × 2.80)
+  const HM = { hw: 1.25, hd: 1.25 };   // v4: низ с пропсами ±1.20, крыша ±1.35 (свес над землёй, не над клетками)
   for (const c of cells) {
     const cls = c.marker?.class;
     const isGate = c.pointClass === 'dwarf_entry';
@@ -1664,6 +1664,7 @@ ${gtex ? `{
     h.rotation.y = isGate || isSmall ? Math.atan2(-best.dx, -best.dz) : 0;
     if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
+    if (houseModels[c.marker?.asset] && !isGate) h.userData.houseModel = c.marker.asset;
     houses.add(h);
     if (isGate && gateModel) gateWalls(h);
     houseSpots.push([best.hx, best.hz]);
@@ -2270,6 +2271,17 @@ ${gtex ? `{
       }
       list.length = 0; list.push(...placed);
       T.treesSpread = [moved, shrunk, dropped];
+    }
+    // 22.10: домики-модели не прячем в лесу — на пятне дома (с крышей) и перед фасадом к камере (+z) деревьев нет,
+    // по бокам/сзади — только невысокие (не выше карниза)
+    {
+      const hm = houses.children.filter(h => !h.userData.isGate && h.userData.cell && h.userData.houseModel);
+      const keep = list.filter(t => !hm.some(h => {
+        const dx = Math.abs(t.x - h.position.x), dz = t.z - h.position.z;
+        if (dx < 1.9 && dz > -1.9 && dz < 2.0 + 1.1 * t.h) return true;     // пятно и вид спереди: высокое дерево закрывает дальше
+        return dx < 3.0 && Math.abs(dz) < 3.0 && t.h > 1.8;                 // рядом — только низкое
+      }));
+      T.houseClear = list.length - keep.length; list.length = 0; list.push(...keep);
     }
     window.__treeList = list;   // отладка: посадка деревьев-спрайтов (x, z, h, group)
     // дальние — сначала: альфа-срез и так корректен по глубине, но так меньше перерисовки
