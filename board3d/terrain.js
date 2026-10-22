@@ -1662,7 +1662,7 @@ ${gtex ? `{
     h.position.set(best.hx, 0, best.hz);
     // ворота и гнёзда — к клетке; домики — с шагом 90°, вход к камере (22.10)
     h.rotation.y = isGate || isSmall ? Math.atan2(-best.dx, -best.dz) : 0;
-    if (houseModels[c.marker?.asset] && !isGate) h.rotation.y = THREE.MathUtils.degToRad(-15);   // 22.10: на 15° по часовой (вид сверху)
+    if (houseModels[c.marker?.asset] && !isGate) h.rotation.y = THREE.MathUtils.degToRad(-30);   // 22.10: на 30° по часовой (вид сверху)
     if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
     if (houseModels[c.marker?.asset] && !isGate) h.userData.houseModel = c.marker.asset;
