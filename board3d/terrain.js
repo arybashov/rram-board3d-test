@@ -1619,30 +1619,32 @@ ${gtex ? `{
     float n1 = fract(sin(dot(floor(vLoc.xz * 2.3 + vLoc.y), vec2(39.3, 11.7))) * 9137.1);
     float up = smoothstep(0.55, 0.95, vWN.y);
     // мох: в затенённом (щели, низ арки, под бортиками) и пятнами на верхах бортиков/столбов
-    float moss = (1.0 - smoothstep(0.25, 0.7, w.r)) * 0.8 + up * step(1.80, abs(vLoc.x)) * smoothstep(0.35, 0.85, n1) * 0.9;
-    moss *= smoothstep(0.2, 0.6, hsh * 0.6 + n1 * 0.6);
+    // гладкий value-шум трёх масштабов (не клетки, не полосы)
+    #define HH(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
+    #define VN(P) (mix(mix(HH(floor(P)), HH(floor(P) + vec2(1, 0)), smoothstep(0.0, 1.0, fract(P).x)), mix(HH(floor(P) + vec2(0, 1)), HH(floor(P) + vec2(1, 1)), smoothstep(0.0, 1.0, fract(P).x)), smoothstep(0.0, 1.0, fract(P).y)))
+    float big = VN(vLoc.xz * 1.1 + 3.7), blot = VN(vLoc.xz * 3.2), fine = VN(vLoc.xz * 9.0);
+    bool deck = up > 0.5 && abs(vLoc.x) < 1.76 && vLoc.y - 0.275 * (1.0 + cos(3.14159 * clamp(vLoc.z / 3.5, -1.0, 1.0))) < 0.05;
+    // мох: в тени (щели, низ арки, стык бортика) — только НЕ на настиле; на верхах бортиков/столбов — пятнами
+    // верх камней бортика/столбов — это всё, что выше настила (горб D), без привязки к X (порог по X резал каждый камень линией)
+    float hd = vLoc.y - 0.275 * (1.0 + cos(3.14159 * clamp(vLoc.z / 3.5, -1.0, 1.0)));
+    float topK = up * smoothstep(0.10, 0.20, hd);
+    float moss = (deck ? 0.0 : (1.0 - smoothstep(0.25, 0.7, w.r)) * 0.6) + topK * smoothstep(0.35, 0.75, blot * 0.6 + big * 0.6) * 0.9;
+    moss *= smoothstep(0.25, 0.6, fine * 0.5 + big * 0.7);
     vec3 mossTex = texture2D(mossMap, vLoc.xz * 0.9 + vLoc.y * 0.3).rgb;
-    diffuseColor.rgb = mix(diffuseColor.rgb, mossTex * vec3(0.85, 0.95, 0.7), clamp(moss, 0.0, 0.85));   // мох текстурой (мшистый камень скал)
-    // проход: по центру камни затёрты (светлее), к краям — тёмный мусор: земля и сухие листья
-    if (up > 0.5 && abs(vLoc.x) < 1.80) {
+    diffuseColor.rgb = mix(diffuseColor.rgb, mossTex * vec3(0.85, 0.95, 0.7), clamp(moss, 0.0, 0.85));
+    if (deck) {
       float ax = abs(vLoc.x);
-      float edge = smoothstep(0.85, 1.55, ax);
-      float centre = 1.0 - smoothstep(0.15, 1.0, ax);
-      // затёртая тропа: светлее, теплее, без мха; контраст рисунка камня гасится (отполировано ногами)
+      // граница «тропа/обочина» рваная: расстояние до края сдвинуто крупным и средним шумом — мусор заходит языками
+      float edgeD = ax + (big - 0.5) * 0.9 + (blot - 0.5) * 0.35 + (fine - 0.5) * 0.12;
+      float centre = 1.0 - smoothstep(0.2, 1.0, ax + (big - 0.5) * 0.5);
       float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
       vec3 polished = mix(vec3(lum), diffuseColor.rgb, 0.6) * 1.45 + vec3(0.06, 0.05, 0.035);
-      diffuseColor.rgb = mix(diffuseColor.rgb, polished, centre * 0.8);
-      // к краям — мусор: земля, мох и сухие листья крупными пятнами, у самого бортика почти сплошь
-      // гладкий value-шум (не клетки): пятна мусора с мягким рваным краем
-      vec2 q = vLoc.xz * 3.2; vec2 qi = floor(q), qf = fract(q); qf = qf * qf * (3.0 - 2.0 * qf);
-      #define HH(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
-      float blot = mix(mix(HH(qi), HH(qi + vec2(1, 0)), qf.x), mix(HH(qi + vec2(0, 1)), HH(qi + vec2(1, 1)), qf.x), qf.y);
-      vec2 q2 = vLoc.xz * 9.0; vec2 ri = floor(q2), rf = fract(q2); rf = rf * rf * (3.0 - 2.0 * rf);
-      float fine = mix(mix(HH(ri), HH(ri + vec2(1, 0)), rf.x), mix(HH(ri + vec2(0, 1)), HH(ri + vec2(1, 1)), rf.x), rf.y);
-      float debris = edge * smoothstep(0.45, 0.70, blot * 0.75 + fine * 0.35) + smoothstep(1.50, 1.78, ax) * 0.5 * fine;
-      // мусор — текстурой лесной подстилки (хвоя, листья, земля), к бортику переходит в мох
-      vec3 junk = mix(texture2D(litterMap, vLoc.xz * 0.55).rgb * vec3(0.9, 0.85, 0.75), texture2D(mossMap, vLoc.xz * 0.9).rgb * 0.85, smoothstep(0.55, 0.85, blot));
-      diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * n1), clamp(debris, 0.0, 0.9));
+      diffuseColor.rgb = mix(diffuseColor.rgb, polished, centre * 0.75);
+      float debris = smoothstep(1.05, 1.40, edgeD) * smoothstep(0.30, 0.55, fine * 0.6 + blot * 0.5);   // островками, с просветами камня
+      vec3 litter = texture2D(litterMap, vLoc.xz * 0.55).rgb * vec3(0.9, 0.85, 0.75);
+      vec3 mossy = texture2D(mossMap, vLoc.xz * 0.9).rgb * 0.85;
+      vec3 junk = mix(litter, mossy, smoothstep(0.55, 0.8, big));                                   // где-то листья/земля, где-то мох
+      diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * fine), clamp(debris, 0.0, 0.92));
     }` : ''} }`);
         };
         m.customProgramCacheKey = () => aged ? 'wear-aged' : 'wear';
