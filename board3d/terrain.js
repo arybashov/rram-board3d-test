@@ -1326,7 +1326,7 @@ ${gtex ? `{
   // модели мостов из Blender (tools/blender/bridges.py) по инженерке Codex: левый — верёвочный, под водопадом —
   // каменная арка дварфов, у сказочной поляны — бревенчатый (решение 21.10). Нет модели — прежний деревянный.
   const bridgeModels = {};
-  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(k === 'stone' ? './models/bridge-stone2.glb?v=3' : `./models/bridge-${k}.glb?v=10`)   // 22.10: каменный — горбатый v2 (bridge_stone2.py)
+  await Promise.all(['rope', 'stone', 'log'].map(k => new GLTFLoader().loadAsync(k === 'stone' ? './models/bridge-stone2.glb?v=20' : `./models/bridge-${k}.glb?v=10`)   // 22.10: каменный — горбатый v2 (bridge_stone2.py)
     .then(g => { bridgeModels[k] = g.scene; }).catch(() => {})));
   // доски и перила — текстуры Codex по рефу v6b (outputs/board3d-concept/sprites2/sheet-bridge.png)
   const texL = new THREE.TextureLoader();
@@ -1581,11 +1581,11 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=13' };
-  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=4', [1.05, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20' };
+  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
   // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
-  const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=2', 'lake-01-props': './data/house/lake01props-wear.png?v=2', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=2' };
-  const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=3' };   // мостки к дому (в системе дома)
+  const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=20', 'lake-01-props': './data/house/lake01props-wear.png?v=20', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=20' };
+  const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20' };   // мостки к дому (в системе дома)
   const wearTex = {};
   await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
     const t = await new THREE.TextureLoader().loadAsync(u).catch(() => null);
@@ -1594,6 +1594,7 @@ ${gtex ? `{
   const applyWear = (root, tex, opt = {}) => {
     if (!tex) return;
     const aged = !!opt.aged;   // каменный мост (22.10): сильнее состарить — мох в щелях и на верхах бортиков, затёртый проход, мусор к краям
+    const streakTop = opt.streakTop ?? null;   // высота (локальная Y), откуда идут подтёки — дом/мостки/пропсы
     const done = new Set();
     root.traverse(o => {
       if (!o.isMesh) return;
@@ -1613,6 +1614,21 @@ ${gtex ? `{
   { vec3 w = texture2D(wearMap, vWearUv).rgb;
     diffuseColor.rgb *= mix(1.0, smoothstep(0.05, 0.85, w.r), 0.7);                       // щели и низ — темнее
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.0 + vec3(0.08, 0.07, 0.055), clamp(w.g * 1.3, 0.0, 1.0) * 0.9);   // потёртые кромки — светлее
+    // тон детали (B запечён по несвязным частям): каждая плашка/доска/бревно/камень — своя яркость и чуть свой оттенок
+    float pc = w.b;
+    diffuseColor.rgb *= mix(0.74, 1.22, pc) * mix(vec3(1.04, 0.98, 0.92), vec3(0.94, 1.0, 1.06), fract(pc * 7.31));
+    ${streakTop !== null && !aged ? `
+    // подтёки (дом, мостки, пропсы): тёмные вертикальные следы на отвесных гранях от верха (streakTop) вниз
+    #define HH2(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
+    #define VN2(P) (mix(mix(HH2(floor(P)), HH2(floor(P) + vec2(1, 0)), smoothstep(0.0, 1.0, fract(P).x)), mix(HH2(floor(P) + vec2(0, 1)), HH2(floor(P) + vec2(1, 1)), smoothstep(0.0, 1.0, fract(P).x)), smoothstep(0.0, 1.0, fract(P).y)))
+    float vert2 = 1.0 - smoothstep(0.35, 0.6, abs(vWN.y));
+    float hz2 = vLoc.x + vLoc.z * 1.37;
+    float col2 = VN2(vec2(hz2 * 6.0, 0.5)), colF2 = VN2(vec2(hz2 * 21.0, 4.1));
+    float len2 = 0.3 + 0.9 * VN2(vec2(hz2 * 2.5, 9.3));
+    float fall2 = clamp((${streakTop.toFixed(3)} - vLoc.y) / len2, 0.0, 1.0);
+    float streak2 = vert2 * smoothstep(0.45, 0.70, col2 * 0.7 + colF2 * 0.45) * (1.0 - fall2 * fall2);
+    float wet2 = vert2 * (1.0 - smoothstep(-0.35, -0.10, vLoc.y));          // у воды (сваи) — сырая полоса
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.36, 0.38, 0.30) + vec3(0.0, 0.02, 0.0), clamp(streak2 * 0.85 + wet2 * 0.6, 0.0, 0.85));` : ''}
     ${aged ? `
     // модель моста: X поперёк, Z вверх (glTF → three: y вверх, x поперёк, -z вдоль) — vLoc в осях three
     #define HH(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
@@ -1659,7 +1675,7 @@ ${gtex ? `{
       diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * fine), clamp(debris, 0.0, 0.92));
     }` : ''} }`);
         };
-        m.customProgramCacheKey = () => aged ? 'wear-aged' : 'wear';
+        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '');
         m.needsUpdate = true;
       }
     });
@@ -1670,18 +1686,18 @@ ${gtex ? `{
       if (!o.isMesh) return;
       o.castShadow = true; o.receiveShadow = true;
     });
-    applyWear(g.scene, wearTex[k]);
+    applyWear(g.scene, wearTex[k], { streakTop: 1.85 });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const houseProps = {};
   await Promise.all(Object.entries(HOUSE_PROPS).map(([k, [u, at]]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    applyWear(g.scene, wearTex[k + '-props']);
+    applyWear(g.scene, wearTex[k + '-props'], { streakTop: 0.62 });
     g.scene.position.set(...at); houseProps[k] = g.scene;
   }).catch(e => console.warn('house props', k, e))));
   // износ кромок у моделей мостов (запекание по 2-й развёртке, как у домиков)
   {
-    const wt = await new THREE.TextureLoader().loadAsync('./data/bridge/stone2-wear.png?v=3').catch(() => null);
+    const wt = await new THREE.TextureLoader().loadAsync('./data/bridge/stone2-wear.png?v=20').catch(() => null);
     const ld = async u => { const t = await new THREE.TextureLoader().loadAsync(u); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; };
     const [litter, moss] = await Promise.all([ld('./data/tex-forest.webp?v=1'), ld('./data/tex-rocktop-v6b.webp')]).catch(() => [null, null]);
     if (wt && litter) { wt.flipY = false; wt.colorSpace = THREE.NoColorSpace; for (const pc of bridges.children) if (pc.userData.kind === 'stone') applyWear(pc, wt, { aged: true, litter, moss }); }
@@ -1751,11 +1767,11 @@ ${gtex ? `{
   };
   await Promise.all(Object.entries(HOUSE_JETTY).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    applyWear(g.scene, wearTex[k + '-jetty']); addFoam(g.scene); houseJetty[k] = g.scene;
+    applyWear(g.scene, wearTex[k + '-jetty'], { streakTop: 0.05 }); addFoam(g.scene); houseJetty[k] = g.scene;
   }).catch(e => console.warn('house jetty', k, e))));
   await Promise.all(Object.entries(HOUSE_JETTY).map(([k, u]) => new GLTFLoader().loadAsync(u.replace('lake01-jetty', 'lake01-housepiles')).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    applyWear(g.scene, wearTex[k + '-jetty']); addFoam(g.scene, HOUSE_PILES_FOAM); housePiles[k] = g.scene;
+    applyWear(g.scene, wearTex[k + '-jetty'], { streakTop: 0.0 }); addFoam(g.scene, HOUSE_PILES_FOAM); housePiles[k] = g.scene;
   }).catch(e => console.warn('house piles', k, e))));
   const HM = { hw: 1.25, hd: 1.25 };   // v4: низ с пропсами ±1.20, крыша ±1.35 (свес над землёй, не над клетками)
   for (const c of cells) {
@@ -2116,7 +2132,7 @@ ${gtex ? `{
   const billboards = [];
   let treeBillboard = null;   // { list, mesh } — папоротники потом добавляются в этот же список
   const sprites = treeSpritesUrl ? await (async () => {
-    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=20' : '.png')), (await fetch(treeSpritesUrl + '.json?v=20')).json()]);
+    const [tex, meta] = await Promise.all([new THREE.TextureLoader().loadAsync(treeSpritesUrl + (treeSpritesUrl.includes('sprites3') ? '.webp?v=21' : '.png')), (await fetch(treeSpritesUrl + '.json?v=21')).json()]);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     return { tex, frames: meta.frames };
   })().catch(e => { console.warn('tree sprites', e); return null; }) : null;
@@ -3170,6 +3186,8 @@ ${gtex ? `{
     const rr2 = rng(20261022);
     for (const t of treeBillboard.list) {
       if (t.group !== 'lily' && onJetty(t.x, t.z, t.h)) { cut += 1; continue; }
+      // перед домиком не заслонять (в т.ч. ивы, которые этот проход доращивает до взрослых ниже)
+      if (t.group !== 'lily' && t.h > 0.9 && houses.children.some(h => h.userData.houseModel && Math.abs(t.x - h.position.x) < 1.9 && t.z - h.position.z > -1.9 && t.z - h.position.z < 2.0 + 1.1 * Math.max(t.h, 3.2))) { cut += 1; continue; }
       if (t.h > 1.5 && [0.3, 0.9, 1.5, 2.1].some(d => d < 0.9 * t.h && onBridge(t.x, t.z - d))) { cut += 1; continue; }   // высокое прямо перед мостом (к камере) закрывает арку   // на мостках ничего не растёт (последний проход посадки)
       const fl = FLOOR[t.group];
       if (fl && t.h < fl) {
