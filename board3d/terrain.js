@@ -570,7 +570,7 @@ varying vec3 vRockNrm;${BT ? '\nvarying float vTone;' : ''}`)
   float topW = smoothstep(0.45, 0.8, n.y);
   vec3 top = texture2D(rockTop, vRockPos.xz * 0.13).rgb * 1.05;   // 22.10 разбор: без пересвета верха
   // двухплоскостная проекция для боков: ось, ближе всего к нормали по горизонтали
-  vec2 uvX = vec2(vRockPos.z * 0.2, vRockPos.y * 0.2), uvZ = vec2(vRockPos.x * 0.2, vRockPos.y * 0.2);   // 22.10: без растяжения — текстура v12 сама вертикальная
+  vec2 uvX = vec2(vRockPos.z * 0.4, vRockPos.y * 0.4), uvZ = vec2(vRockPos.x * 0.4, vRockPos.y * 0.4);   // 22.10: без растяжения — текстура v12 сама вертикальная
   float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
   vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx)) * 1.2;
   {
@@ -776,7 +776,7 @@ varying float vCLocY; varying float vCTone;`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 n = normalize(vCNrm);
-  vec2 uvX = vec2(vCPos.z * 0.2, vCPos.y * 0.2), uvZ = vec2(vCPos.x * 0.2, vCPos.y * 0.2);
+  vec2 uvX = vec2(vCPos.z * 0.4, vCPos.y * 0.4), uvZ = vec2(vCPos.x * 0.4, vCPos.y * 0.4);
   // трёхплоскостная проекция: веса — по нормали самой грани (сглаженная нормаль вершин у модулей
   // скал расходится с гранью, и камень проецировался вдоль стены — полосы-«лесенка»)
   vec3 fc = cross(dFdx(vCPos), dFdy(vCPos)); float fl = length(fc);
@@ -1309,7 +1309,7 @@ ${gtex ? `{
   float fl = length(fc);
   vec3 fn = fl > 1e-9 ? fc / fl : n;                                // вырожденный случай — без NaN (чёрный пунктир)
   if (vWorldPos.y > -0.6) {
-    vec2 uvX = vec2(vWorldPos.z, vWorldPos.y) * 0.19, uvZ = vec2(vWorldPos.x, vWorldPos.y) * 0.19;
+    vec2 uvX = vec2(vWorldPos.z, vWorldPos.y) * 0.4, uvZ = vec2(vWorldPos.x, vWorldPos.y) * 0.4;   // 22.10: мельче — скала «нарезана» разломами, как было с v6b
     float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
     float ridgeTop = smoothstep(1.0, 1.6, vWorldPos.y);
     if (steep > 0.01 || ridgeTop > 0.01) {
