@@ -570,7 +570,7 @@ varying vec3 vRockNrm;${BT ? '\nvarying float vTone;' : ''}`)
   float topW = smoothstep(0.45, 0.8, n.y);
   vec3 top = texture2D(rockTop, vRockPos.xz * 0.13).rgb * 1.05;   // 22.10 разбор: без пересвета верха
   // двухплоскостная проекция для боков: ось, ближе всего к нормали по горизонтали
-  vec2 uvX = vec2(vRockPos.z * 0.24, vRockPos.y * 0.16), uvZ = vec2(vRockPos.x * 0.24, vRockPos.y * 0.16);   // рисунок боков вытянут вертикально
+  vec2 uvX = vec2(vRockPos.z * 0.2, vRockPos.y * 0.2), uvZ = vec2(vRockPos.x * 0.2, vRockPos.y * 0.2);   // 22.10: без растяжения — текстура v12 сама вертикальная
   float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
   vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx)) * 1.2;
   {
@@ -776,7 +776,7 @@ varying float vCLocY; varying float vCTone;`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 n = normalize(vCNrm);
-  vec2 uvX = vec2(vCPos.z * 0.24, vCPos.y * 0.16), uvZ = vec2(vCPos.x * 0.24, vCPos.y * 0.16);
+  vec2 uvX = vec2(vCPos.z * 0.2, vCPos.y * 0.2), uvZ = vec2(vCPos.x * 0.2, vCPos.y * 0.2);
   // трёхплоскостная проекция: веса — по нормали самой грани (сглаженная нормаль вершин у модулей
   // скал расходится с гранью, и камень проецировался вдоль стены — полосы-«лесенка»)
   vec3 fc = cross(dFdx(vCPos), dFdy(vCPos)); float fl = length(fc);
