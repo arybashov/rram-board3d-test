@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792684810';
-import { buildTerrain } from './terrain.js?v=1792684810';
+import { buildAtmosphere } from './atmosphere.js?v=1792685267';
+import { buildTerrain } from './terrain.js?v=1792685267';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -120,7 +120,7 @@ const terrain = await buildTerrain({
   rocksUrl: './data/rocks.json?v=4',
   stoneKitUrl: './models/stone-kit.glb?v=3',   // гексовые камни из Blender (tools/blender/stone_kit.py)
   modeledRocks: 'all',   // все скалы плана (раньше — одна у моста)
-  cliffKitUrl: './models/cliff-kit.glb?v=1',   // модули обрыва хребта (tools/blender/cliff_kit.py)
+  cliffKitUrl: './models/cliff-kit.glb?v=2',   // модули обрыва хребта (tools/blender/cliff_kit.py)
   grassUrl: './data/tex-grass.webp?v=1',
   treeKitUrl: './models/tree-kit.glb?v=1',
   // ?flat=1 — для сравнения FPS: вместо 3D-деревьев прежние плоские картинки (data/tree-sprites)

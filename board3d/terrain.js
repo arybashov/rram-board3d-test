@@ -749,8 +749,15 @@ function cliffMaterial(sideTex, grassTex) {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 varying vec3 vCPos;
-varying vec3 vCNrm;`)
+varying vec3 vCNrm;
+varying float vCLocY; varying float vCTone;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+vCLocY = position.y;   // модуль нормирован: 0 — низ, 1 — верх
+#ifdef USE_INSTANCING
+vCTone = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);   // свой тон у модуля
+#else
+vCTone = 0.5;
+#endif
 #ifdef USE_INSTANCING
 vCPos = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;
 vCNrm = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
@@ -763,7 +770,8 @@ vCNrm = normalize(mat3(modelMatrix) * normal);
 uniform sampler2D cliffSide;
 uniform sampler2D cliffGrass;
 varying vec3 vCPos;
-varying vec3 vCNrm;`)
+varying vec3 vCNrm;
+varying float vCLocY; varying float vCTone;`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 n = normalize(vCNrm);
@@ -789,7 +797,15 @@ varying vec3 vCNrm;`)
   vec3 mossCol = vec3(0.30, 0.42, 0.16) * (0.85 + 0.3 * mn);
   side = mix(side, mossCol, moss * (1.0 - g) * 0.17);   // реф: мха на вертикалях вдвое меньше
   // реф v6b: верх уступа и его кромка — светлый камень (мох пятнами), не тёмный мшистый ковёр
-  diffuseColor.rgb *= mix(side, grass, g);   // 22.10: без светлой кромки и пересвета верха
+  vec3 cc = mix(side, grass, g);   // 22.10: без светлой кромки и пересвета верха
+  // разбор скал п.7–8: тон модуля, AO у подошвы, подтёки вниз по отвесным граням
+  cc *= mix(0.86, 1.12, vCTone) * mix(vec3(1.03, 1.0, 0.96), vec3(0.96, 1.0, 1.04), fract(vCTone * 9.7));
+  cc *= 1.0 - 0.30 * (1.0 - smoothstep(0.0, 0.35, vCLocY));
+  float vert = 1.0 - smoothstep(0.25, 0.65, abs(fn.y));
+  float hu = abs(fn.x) > abs(fn.z) ? vCPos.z : vCPos.x;
+  float st = smoothstep(0.58, 0.78, fract(sin(floor(hu * 5.0) * 12.9898) * 43758.5) * 0.7 + fract(sin(floor(hu * 13.0) * 78.233) * 43758.5) * 0.3);
+  cc *= 1.0 - 0.24 * st * vert * smoothstep(0.15, 0.85, vCLocY + 0.25 * fract(sin(floor(hu * 3.0)) * 913.7));
+  diffuseColor.rgb *= cc;
 }`);
   };
   return mat;
@@ -2097,7 +2113,7 @@ ${gtex ? `{
     // перемешать и оставить точки не ближе 3.2 единицы (модули 4.5–6 — с перекрытием, хребет одной массой)
     for (let i = cands.length - 1; i > 0; i -= 1) { const j = Math.floor(r() * (i + 1)); [cands[i], cands[j]] = [cands[j], cands[i]]; }
     const kept = [];
-    for (const c of cands) if (!kept.some(k => Math.hypot(k[0] - c[0], k[1] - c[1]) < 3.2)) kept.push(c);
+    for (const c of cands) if (!kept.some(k => Math.hypot(k[0] - c[0], k[1] - c[1]) < 2.6)) kept.push(c);   // 22.10 разбор п.5
     // вода рядом (река на плато, водопад, заводь) — модули не ставим, чтобы не закрыть водопад
     const nearWater = (x, z) => [[0, 0], [2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]]
       .some(([ox, oz]) => sample(x + ox, z + oz).water > 0.3);
@@ -2110,15 +2126,15 @@ ${gtex ? `{
       if (H < 0.8) continue;
       if (nearWater(x, z) || nearHouse(x, z, 4) || nearest(x, z) < 1.4) continue;
       const roll = r();
-      const type = roll < 0.72 ? Math.floor(r() * 3) : roll < 0.82 ? 4 : roll < 0.92 ? 5 : 3;
-      const len = 4.5 + r() * 1.5;
-      lists[type].push([x + dx * 0.25, Math.max(bottom, -0.3) - 0.4, z + dz * 0.25, len, (H + 0.45) * (0.98 + r() * 0.06), Math.atan2(dx, dz) + (r() - 0.5) * 0.35]);
+      const type = roll < 0.60 ? Math.floor(r() * 3) : roll < 0.80 ? 4 : roll < 0.90 ? 5 : 3;
+      const len = 3.6 + r() * 1.2;
+      lists[type].push([x + dx * 0.25, Math.max(bottom, -0.3) - 0.4, z + dz * 0.25, len, (H + 0.45) * (0.98 + r() * 0.06), Math.atan2(dx, dz) + (r() - 0.5) * 0.16]);
     }
     kit.forEach((geo, i) => {
       if (!geo || !lists[i].length) return;
       const mesh = new THREE.InstancedMesh(geo, cmat, lists[i].length);
       lists[i].forEach(([x, y, z, len, h, ry], k) => {
-        q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.08, ry, (r() - 0.5) * 0.08));
+        q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.05, ry, (r() - 0.5) * 0.05));
         m4.compose(p.set(x, y, z), q, s.set(len, h, Math.min(len, 4.2) * (0.9 + r() * 0.2)));
         mesh.setMatrixAt(k, m4);
       });
