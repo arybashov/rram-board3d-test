@@ -1581,7 +1581,7 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=7' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=9' };
   const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=1', [1.05, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
   const houseModels = {};
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
