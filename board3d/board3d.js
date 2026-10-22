@@ -190,7 +190,7 @@ function baseCellColor(c) {
 const hexGeo = new THREE.CylinderGeometry(0.93, 0.93, TILE_TOP, 6);
 hexGeo.rotateY(Math.PI / 2);   // вершина на +X: гекс с плоским верхом, как в SVG
 hexGeo.translate(0, TILE_TOP / 2, 0);
-const tileMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false });
+const tileMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.32, depthWrite: false });   // 22.10: прозрачнее (было 0.5)
 const tiles = new THREE.InstancedMesh(hexGeo, tileMat, cells.length);
 tiles.renderOrder = 1;
 scene.add(tiles);
@@ -214,7 +214,7 @@ scene.add(pickTiles);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  const outline = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xfff6e0, transparent: true, opacity: 0.55 }));
+  const outline = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xfff6e0, transparent: true, opacity: 0.3 }));
   outline.renderOrder = 2;
   scene.add(outline);
 }
@@ -473,7 +473,7 @@ function refreshTiles() {
   tiles.count = tileCells.length;
   tiles.instanceMatrix.needsUpdate = true;
   if (tiles.instanceColor) tiles.instanceColor.needsUpdate = true;
-  tileMat.opacity = selected ? 0.62 : 0.5;
+  tileMat.opacity = selected ? 0.45 : 0.32;
 }
 refreshTiles();
 
