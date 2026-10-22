@@ -566,11 +566,11 @@ varying vec3 vRockNrm;`)
 {
   vec3 n = normalize(vRockNrm);
   float topW = smoothstep(0.45, 0.8, n.y);
-  vec3 top = texture2D(rockTop, vRockPos.xz * 0.13).rgb * 1.3;
+  vec3 top = texture2D(rockTop, vRockPos.xz * 0.13).rgb * 1.05;   // 22.10 разбор: без пересвета верха
   // двухплоскостная проекция для боков: ось, ближе всего к нормали по горизонтали
-  vec2 uvX = vec2(vRockPos.z, vRockPos.y) * 0.19, uvZ = vec2(vRockPos.x, vRockPos.y) * 0.19;
+  vec2 uvX = vec2(vRockPos.z * 0.24, vRockPos.y * 0.16), uvZ = vec2(vRockPos.x * 0.24, vRockPos.y * 0.16);   // рисунок боков вытянут вертикально
   float wx = abs(n.x) / (abs(n.x) + abs(n.z) + 1e-4);
-  vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx)) * 1.6;   // светлее (концепт v6b)
+  vec3 side = mix(texture2D(rockSide, uvZ).rgb, texture2D(rockSide, uvX).rgb, smoothstep(0.35, 0.65, wx)) * 1.2;
   {
   // мох: пятнами на гранях, обращённых вверх и вбок (стиль домиков)
   float mn = 0.5 + 0.5 * sin(vRockPos.x * 1.9 + sin(vRockPos.z * 1.3 + vRockPos.y) * 1.7) * sin(vRockPos.z * 1.7 - sin(vRockPos.x * 1.1) * 1.5 + vRockPos.y * 0.8);   // плавный шум, без клеток
@@ -581,12 +581,8 @@ varying vec3 vRockNrm;`)
     side = mix(side, mossCol, moss * 0.3);
   }
   // реф v6b: верх и кромки камней — светлый серый камень, мох лишь пятнами (замечание 21.10)
-  float tl = dot(top, vec3(0.3, 0.59, 0.11));
-  top = mix(top, vec3(tl) * vec3(1.02, 1.0, 0.95) * 1.45, 0.5);
-  float rim = smoothstep(0.22, 0.5, n.y) * (1.0 - smoothstep(0.72, 0.92, n.y));
-  vec3 lightStone = vec3(dot(side, vec3(0.3, 0.59, 0.11))) * vec3(1.05, 1.03, 0.97) * 1.5 + 0.06;
-  vec3 rc = mix(side, top, topW);
-  diffuseColor.rgb *= mix(rc, lightStone, rim * 0.75);
+  // 22.10 (разбор скал): сплошная светлая кромка «торта» и пересвет верха убраны
+  diffuseColor.rgb *= mix(side, top, smoothstep(0.50, 0.82, n.y));
 }`);
   };
   return mat;
@@ -605,7 +601,7 @@ function rockMonolith(rock, toWorld, seed, material) {
     });
     const top = lv.top + (r() - 0.5) * 0.1;
     const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: Math.max(0.3, top - base), bevelEnabled: true, bevelThickness: 0.28, bevelSize: 0.3, bevelSegments: 3, curveSegments: 1,
+      depth: Math.max(0.3, top - base), bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.06, bevelSegments: 1, curveSegments: 1,   // 22.10: узкая фаска (широкая давала «торт»)
     });
     geo.rotateX(-Math.PI / 2);
     geo.translate(0, base, 0);
@@ -649,13 +645,13 @@ varying vec3 vCNrm;`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 n = normalize(vCNrm);
-  vec2 uvX = vec2(vCPos.z, vCPos.y) * 0.17, uvZ = vec2(vCPos.x, vCPos.y) * 0.17;
+  vec2 uvX = vec2(vCPos.z * 0.24, vCPos.y * 0.16), uvZ = vec2(vCPos.x * 0.24, vCPos.y * 0.16);
   // трёхплоскостная проекция: веса — по нормали самой грани (сглаженная нормаль вершин у модулей
   // скал расходится с гранью, и камень проецировался вдоль стены — полосы-«лесенка»)
   vec3 fc = cross(dFdx(vCPos), dFdy(vCPos)); float fl = length(fc);
   vec3 fn = fl > 1e-9 ? fc / fl : n;
   vec3 tw = pow(abs(fn), vec3(6.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
-  vec3 side = (texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z) * 1.85 * vec3(0.95, 0.98, 1.04);   // светлее и холоднее (реф)
+  vec3 side = (texture2D(cliffSide, uvX).rgb * tw.x + texture2D(cliffSide, vCPos.xz * 0.17).rgb * tw.y + texture2D(cliffSide, uvZ).rgb * tw.z) * 1.30 * vec3(0.95, 0.98, 1.04);
   side = mix(vec3(dot(side, vec3(0.3, 0.59, 0.11))), side, 0.6);   // серее
   side *= mix(0.78, 1.08, clamp(vCPos.y / 6.5, 0.0, 1.0));          // низ темнее, верх светлее
   // верх уступа — камень с мхом и лишайником (tex-rocktop), не газон; редкие пятна травы
@@ -671,11 +667,7 @@ varying vec3 vCNrm;`)
   vec3 mossCol = vec3(0.30, 0.42, 0.16) * (0.85 + 0.3 * mn);
   side = mix(side, mossCol, moss * (1.0 - g) * 0.17);   // реф: мха на вертикалях вдвое меньше
   // реф v6b: верх уступа и его кромка — светлый камень (мох пятнами), не тёмный мшистый ковёр
-  float gl2 = dot(grass, vec3(0.3, 0.59, 0.11));
-  grass = mix(grass, vec3(gl2) * vec3(1.03, 1.0, 0.94) * 1.5, 0.45 * (1.0 - gp));
-  float rim = smoothstep(0.2, 0.48, n.y) * (1.0 - smoothstep(0.7, 0.9, n.y));
-  vec3 lightStone = vec3(dot(side, vec3(0.3, 0.59, 0.11))) * vec3(1.05, 1.03, 0.97) * 1.45 + 0.07;
-  diffuseColor.rgb *= mix(mix(side, grass, g), lightStone, rim * 0.8);
+  diffuseColor.rgb *= mix(side, grass, g);   // 22.10: без светлой кромки и пересвета верха
 }`);
   };
   return mat;
@@ -1186,7 +1178,7 @@ ${gtex ? `{
     // камень проецировался вдоль стены — полосы-«лесенка»)
     vec3 wn = fn;
     vec3 tw = pow(abs(wn), vec3(6.0)); tw /= (tw.x + tw.y + tw.z + 1e-4);
-    vec3 side = steep > 0.01 ? (texture2D(rockSide, uvX).rgb * tw.x + texture2D(rockSide, vWorldPos.xz * 0.19).rgb * tw.y + texture2D(rockSide, uvZ).rgb * tw.z) * 1.6 : vec3(0.0);   // светлее (концепт v6b)
+    vec3 side = steep > 0.01 ? (texture2D(rockSide, uvX).rgb * tw.x + texture2D(rockSide, vWorldPos.xz * 0.19).rgb * tw.y + texture2D(rockSide, uvZ).rgb * tw.z) * 1.2 : vec3(0.0);
     vec3 top = texture2D(rockTop, vWorldPos.xz * 0.13).rgb;
     // верх террас хребта — камень с мхом и лишайником (не газон); вторая выборка под углом против повтора,
     // пятна травы оставляем шумом; ниже 1.2 — обычная земля
@@ -1194,12 +1186,9 @@ ${gtex ? `{
     vec3 rtop = mix(top, top2, 0.35 + 0.3 * sin(vWorldPos.x * 0.21 + sin(vWorldPos.z * 0.17) * 2.0));
     float mossy = smoothstep(0.55, 0.85, sin(vWorldPos.x * 0.43 + 1.3) * sin(vWorldPos.z * 0.37 + 0.7) * 0.5 + 0.5);
     rtop = mix(rtop, diffuseColor.rgb, mossy * 0.55);
-    float rl = dot(rtop, vec3(0.3, 0.59, 0.11));
-    rtop = mix(rtop, vec3(rl) * vec3(1.03, 1.0, 0.94) * 1.4, 0.4);   // верх террас светлее (реф v6b)
     diffuseColor.rgb = mix(diffuseColor.rgb, rtop, ridgeTop);
     diffuseColor.rgb = mix(diffuseColor.rgb, side, steep);
-    float rim = steep * (1.0 - smoothstep(0.25, 0.6, steep)) * smoothstep(0.6, 1.4, vWorldPos.y);   // кромка: переход стена→верх
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(side, vec3(0.3, 0.59, 0.11))) * vec3(1.05, 1.03, 0.97) * 1.45 + 0.07, rim * 0.7);
+    // 22.10 (разбор скал): светлая кромка-полоса по всему уступу убрана
     }
   }
 }`);
@@ -3093,7 +3082,7 @@ ${gtex ? `{
   // посадка остального леса не сдвигается. Сухостой — часть деревьев внутри групп (не одиночки на лугу);
   // сушняк — у оснований деревьев в группах и на опушке, вне клеток, троп, мостов и воды.
   // 22.10: сухостой (sheet6b-snagwood) — битая альфа после кеинга; выключен до перерисовки Codex с прозрачностью
-  const DEADSTAND_OK = true;   // перерисован Codex с настоящей альфой (sprites2/alpha)
+  const DEADSTAND_OK = false;   // 22.10: «такие коряги вообще не нужны» — сухостой убран совсем
   if (treeBillboard && sprites?.frames.some(f => f.group === 'deadstand')) {
     const rr = rng(20261021);
     const list = treeBillboard.list;
