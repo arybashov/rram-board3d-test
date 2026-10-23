@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792798469';
-import { buildTerrain } from './terrain.js?v=1792798469';
+import { buildAtmosphere } from './atmosphere.js?v=1792798724';
+import { buildTerrain } from './terrain.js?v=1792798724';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -196,10 +196,16 @@ const fogPass = atmo.fogMesh ? (() => {
         float near = vz - cN;
         float distant = smoothstep(0.62, 0.96, vUv.y);
         float haze = clamp(1.0 - exp(-max(0.0, vz - 115.0) * 0.012), 0.0, 0.28);
-        haze = max(haze * distant, distant * 0.22) * step(zb, 0.9999);
+        haze = max(haze * distant, distant * 0.10) * step(zb, 0.9999);
         float sunAir = (1.0 - smoothstep(0.12, 0.50, vUv.x)) * smoothstep(0.62, 0.96, vUv.y);
         vec3 air = mix(vec3(0.40, 0.46, 0.51), vec3(0.65, 0.59, 0.46), sunAir);
         c = mix(c, air, haze);
+        { vec2 entryQ = (vUv - vec2(0.08, 1.04)) / vec2(0.24, 0.19);
+          float entry = exp(-0.5 * dot(entryQ, entryQ));
+          float entryY = dot(c, vec3(0.3, 0.59, 0.11));
+          float entryKeep = 1.0 - smoothstep(0.55, 0.85, max(c.r, max(c.g, c.b)));
+          vec3 entryTint = vec3(1.12, 1.03, 0.86); entryTint /= dot(entryTint, vec3(0.3, 0.59, 0.11));
+          c = mix(c, entryTint * max(entryY, 0.34), 0.14 * entry * entryKeep); }
         { // 24.10 лунный свет в тёмном лесу: мировая точка из глубины, вокруг домиков тёмного леса — холодный синий
           vec4 wp = invPV * vec4(vUv * 2.0 - 1.0, zb * 2.0 - 1.0, 1.0); wp /= wp.w;
           float mk = 0.0;

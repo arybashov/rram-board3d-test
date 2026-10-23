@@ -1038,6 +1038,9 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
           vec3 rich = max(mix(vec3(leafY), rgb, 1.12), vec3(0.0));
           rich *= leafY / max(dot(rich, vec3(0.3, 0.59, 0.11)), 1e-4) * 1.08;
           rgb = mix(rgb, min(rich, vec3(1.0)), autumn); }
+        { float goldRatio = rgb.g / max(rgb.r, 1e-4);   // раунд 3: золото рощ ярче
+          float gold = smoothstep(0.025, 0.12, rgb.r - rgb.b) * smoothstep(0.015, 0.08, rgb.g - rgb.b) * smoothstep(0.58, 0.78, goldRatio) * (1.0 - smoothstep(0.98, 1.12, goldRatio)) * smoothstep(0.12, 0.35, rgb.r);
+          rgb = mix(rgb, min(rgb * vec3(1.08, 1.10, 1.02), vec3(1.0)), gold); }
         gl_FragColor = vec4(rgb, c.a);
         #include <colorspace_fragment>
       }`,

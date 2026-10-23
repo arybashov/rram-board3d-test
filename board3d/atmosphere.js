@@ -50,14 +50,14 @@ function godRays({ origin, targets }) {
         float across = 1.0 - abs(vUv.x - 0.5) * 2.0;           // мягкие края полосы
         float along = smoothstep(0.0, 0.45, vUv.y) * (1.0 - smoothstep(0.75, 1.0, vUv.y));
         float flick = 0.85 + 0.15 * sin(time * 0.4 + vUv.y * 3.0);
-        gl_FragColor = vec4(vec3(1.0, 0.93, 0.80), pow(across, 1.2) * along * 0.36 * flick);   // 24.10 ярче — призрачные лучи
+        gl_FragColor = vec4(vec3(1.0, 0.92, 0.76), pow(across, 2.2) * along * 0.22 * flick);   // раунд 3: мягче края, тусклее отдельная полоса
       }`,
   });
   // веер из ОДНОЙ точки: каждый луч — клин от общей вершины (origin) к своей точке на поле (targets)
   for (const tg of targets) {
     const dir = new THREE.Vector3().subVectors(tg, origin);
     const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 0, 1)).normalize();
-    const w0 = 0.4, w1 = 3 + Math.random() * 3.5;
+    const w0 = 0.8, w1 = 5 + Math.random() * 4.5;   // раунд 3: шире — сияние, не клинья
     const a = origin.clone().addScaledVector(side, -w0), b = origin.clone().addScaledVector(side, w0);
     const c = tg.clone().addScaledVector(side, w1), d = tg.clone().addScaledVector(side, -w1);
     const geo = new THREE.BufferGeometry();
@@ -119,7 +119,7 @@ function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0
   geo.instanceCount = n;
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { time: { value: 0 }, tex: { value: tex }, hTex: { value: hTex }, depthTex: { value: null }, camNear: { value: 0.1 }, camFar: { value: 1000 }, res: { value: new THREE.Vector2(1, 1) }, box: { value: new THREE.Vector4(...box) }, sunDir: { value: sunDir.clone().normalize() }, lit: { value: new THREE.Color(0xf2ebdc) }, shade: { value: new THREE.Color(0x7f8f9a) }, col: { value: new THREE.Color(color) }, k: { value: opacity }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
+    uniforms: { time: { value: 0 }, tex: { value: tex }, hTex: { value: hTex }, depthTex: { value: null }, camNear: { value: 0.1 }, camFar: { value: 1000 }, res: { value: new THREE.Vector2(1, 1) }, box: { value: new THREE.Vector4(...box) }, sunDir: { value: sunDir.clone().normalize() }, lit: { value: new THREE.Color(0xf2ebdc) }, shade: { value: new THREE.Color(0x7f8f9a) }, col: { value: new THREE.Color(color) }, k: { value: opacity * 0.62 }, wind: { value: new THREE.Vector2(0.06, 0.025) } },
     vertexShader: `uniform float time; uniform vec2 wind; attribute vec4 aSpawn; attribute vec4 aPar;
       varying vec2 vUv; varying float vA; varying float vWY; varying float vG; varying float vCell; varying float vCam; varying float vT; varying float vSeed; varying vec2 vWXZ; varying vec2 vSun;
       uniform vec3 sunDir;
@@ -131,7 +131,8 @@ function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0
         vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy * size;
         vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
         vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
-        vec3 w = c + right * q.x + up * q.y * 0.38;                        // пелена приплюснута — стелется
+        float puffH = mix(0.68, 0.94, fract(aPar.x * 7.13));             // раунд 3: клубы, не горизонтальные ленты
+        vec3 w = c + right * q.x + up * q.y * puffH;
         vUv = vec2(aPar.x > 0.5 ? 1.0 - uv.x : uv.x, uv.y); vA = sin(3.14159 * t);   // половина клубов зеркально — разнообразие без поворота
         vT = time; vSeed = aPar.x; vWXZ = w.xz;
         // направление на солнце в плоскости клуба (экранные «вправо/вверх» с учётом поворота клуба)
