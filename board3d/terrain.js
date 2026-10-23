@@ -1767,7 +1767,7 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=11', 'forest-02': './models/house-forest-02.glb?v=8', 'forest-trail-01': './models/house-forest-trail-01.glb?v=5', 'forest-trail-02': './models/house-forest-trail-02.glb?v=2', 'forest-trail-03': './models/house-forest-trail-03.glb?v=2', 'mixed-01': './models/house-mixed-01.glb?v=1', 'mixed-02': './models/house-mixed-02.glb?v=3', 'dark-forest-01': './models/house-dark-forest-01.glb?v=2', 'dark-forest-02': './models/house-dark-forest-02.glb?v=2', 'lake-02': './models/house-lake-02.glb?v=3' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=11', 'forest-02': './models/house-forest-02.glb?v=8', 'forest-trail-01': './models/house-forest-trail-01.glb?v=5', 'forest-trail-02': './models/house-forest-trail-02.glb?v=2', 'forest-trail-03': './models/house-forest-trail-03.glb?v=2', 'mixed-01': './models/house-mixed-01.glb?v=1', 'mixed-02': './models/house-mixed-02.glb?v=3', 'dark-forest-01': './models/house-dark-forest-01.glb?v=2', 'dark-forest-02': './models/house-dark-forest-02.glb?v=2', 'lake-02': './models/house-lake-02.glb?v=4' };
   const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]], 'forest-02': ['./models/forest02-props.glb?v=1', [1.15, 0, 0.75]], 'forest-trail-01': ['./models/trail01-props.glb?v=2', [1.35, 0, 0.35]], 'forest-trail-02': ['./models/trail02-props.glb?v=1', [1.35, 0, 0.35]], 'forest-trail-03': ['./models/trail03-props.glb?v=1', [-1.45, 0, 0.20]], 'mixed-01': ['./models/mixed01-props.glb?v=1', [0, 0, 0]], 'mixed-02': ['./models/mixed02-props.glb?v=1', [0, 0, 0]], 'dark-forest-01': ['./models/darkforest01-props.glb?v=1', [1.45, 0, 0.35]], 'dark-forest-02': ['./models/darkforest02-props.glb?v=1', [1.45, 0, 0.35]], 'lake-02': ['./models/lake02-props.glb?v=1', [0.55, 0, 1.30]] };   // бочка+корзина рядом с домом (локально)
   // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
   const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=20', 'lake-01-props': './data/house/lake01props-wear.png?v=20', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=20',
@@ -1777,7 +1777,7 @@ ${gtex ? `{
     'forest-trail-02': './data/house/trail02-wear.png?v=2', 'forest-trail-02-props': './data/house/trail02props-wear.png?v=1', 'forest-trail-03': './data/house/trail03-wear.png?v=2', 'forest-trail-03-props': './data/house/trail03props-wear.png?v=1',
     'mixed-01': './data/house/mixed01-wear.png?v=1', 'mixed-01-props': './data/house/mixed01props-wear.png?v=1', 'mixed-02': './data/house/mixed02-wear.png?v=3', 'mixed-02-props': './data/house/mixed02props-wear.png?v=1',
     'dark-forest-01': './data/house/darkforest01-wear.png?v=2', 'dark-forest-01-props': './data/house/darkforest01props-wear.png?v=1', 'dark-forest-02': './data/house/darkforest02-wear.png?v=3', 'dark-forest-02-props': './data/house/darkforest02props-wear.png?v=1',
-    'lake-02': './data/house/lake02-wear.png?v=3', 'lake-02-props': './data/house/lake02props-wear.png?v=1' };
+    'lake-02': './data/house/lake02-wear.png?v=4', 'lake-02-props': './data/house/lake02props-wear.png?v=1' };
   const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20', 'lake-02': './models/lake01-jetty.glb?v=20' };   // 23.10: lake-02 — те же мостки   // мостки к дому (в системе дома)
   const wearTex = {};
   await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
@@ -1952,6 +1952,32 @@ ${gtex ? `{
     });
   };
   const houseModels = {};
+  // 23.10: затенение окон к раме — свечение стекла гаснет к краям (виньетка по габариту меша в его плоскости)
+  const windowShade = root => root.traverse(o => {
+    if (!o.isMesh || !/glow|glass|stained/i.test(o.material?.name ?? '')) return;
+    o.geometry.computeBoundingBox();
+    const bb = o.geometry.boundingBox, c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+    const ax = [0, 1, 2].sort((a, b) => sz.getComponent(b) - sz.getComponent(a));   // две самые большие оси — плоскость окна
+    const m = o.material.clone(); o.material = m;
+    const prev = m.onBeforeCompile;
+    m.onBeforeCompile = (sh, r) => {
+      prev?.call(m, sh, r);
+      sh.uniforms.wsC = { value: c }; sh.uniforms.wsH = { value: new THREE.Vector2(sz.getComponent(ax[0]) / 2 || 1, sz.getComponent(ax[1]) / 2 || 1) };
+      sh.uniforms.wsA = { value: new THREE.Vector2(ax[0], ax[1]) };
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWsP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWsP = position;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWsP; uniform vec3 wsC; uniform vec2 wsH; uniform vec2 wsA;')
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        { vec3 d = (vWsP - wsC);
+          float a = abs(wsA.x < 0.5 ? d.x : (wsA.x < 1.5 ? d.y : d.z)) / wsH.x;
+          float b = abs(wsA.y < 0.5 ? d.x : (wsA.y < 1.5 ? d.y : d.z)) / wsH.y;
+          float e = max(a, b);
+          float k = 1.0 - smoothstep(0.35, 1.0, e) * 0.85;
+          totalEmissiveRadiance *= k; diffuseColor.rgb *= mix(0.35, 1.0, k); }`);
+    };
+    const pk = m.customProgramCacheKey?.bind(m);
+    m.customProgramCacheKey = () => (pk ? pk() : '') + 'winshade';
+    m.needsUpdate = true;
+  });
   const HOUSE_TOPMOSS = { 'forest-01': 0.75, 'forest-02': 0.9, 'forest-trail-01': 0.0 };   // 23.10: мох на верхах — шейдером, как на скалах/мостах
   const houseDirt = await new THREE.TextureLoader().loadAsync('./data/tex-forest.webp?v=1').then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }).catch(() => null);
   const houseMoss = await new THREE.TextureLoader().loadAsync('./data/tex-grass.webp?v=1')   /* 23.10: трава поля, не камень */.then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }).catch(() => null);
@@ -1962,6 +1988,7 @@ ${gtex ? `{
       if (o.material.name === 'hide' || o.material.name === 'fleece') { o.material.alphaTest = 0.5; o.material.transparent = false; o.material.depthWrite = true; o.material.side = THREE.DoubleSide; }   // шкура с альфой (Codex)
     });
     applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^(hide|fleece)/, mottle: 0.25, cells: { '^tshingle': [4, 7], '^tplanks': [6, 1.5] }, mottleSkip: /^(tglow|tskull)/, dirt: 0.75, litter: houseDirt });
+    windowShade(g.scene);
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const houseProps = {};
