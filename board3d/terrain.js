@@ -2216,7 +2216,7 @@ ${gtex ? `{
       if (!gv) return false;
       const k = gv.children[0].scale.x, c = Math.cos(gv.rotation.y), sn = Math.sin(gv.rotation.y), ddx = x - gv.position.x, ddz = z - gv.position.z;
       const X = (ddx * c - ddz * sn) / k, Y = -(ddx * sn + ddz * c) / k;
-      return Math.abs(X) < 4.6 && Y > -1.0 && Y < 7.5;
+      return X > -5.2 && X < 7.0 && Y > -1.0 && Y < 7.5;
     };
     for (const [x, z, gx, gz] of kept) {
       const dx = -gx, dz = -gz;                                      // наружу, вниз по склону
@@ -3478,7 +3478,7 @@ ${gtex ? `{
       const k = gv4.children[0].scale.x, c = Math.cos(gv4.rotation.y), s = Math.sin(gv4.rotation.y);
       const dx = x - gv4.position.x, dz = z - gv4.position.z;
       const X = (dx * c - dz * s) / k, Y = -(dx * s + dz * c) / k;
-      return Math.abs(X) < 4.3 && Y > -0.5 && Y < 6.0;
+      return X > -5.0 && X < 6.8 && Y > -0.5 && Y < 6.0;
     };
     for (const t of treeBillboard.list) {
       if (t.group !== 'lily' && onJetty(t.x, t.z, t.h)) { cut += 1; continue; }
