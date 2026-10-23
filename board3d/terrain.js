@@ -1767,16 +1767,16 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=11', 'forest-02': './models/house-forest-02.glb?v=7', 'forest-trail-01': './models/house-forest-trail-01.glb?v=4', 'forest-trail-02': './models/house-forest-trail-02.glb?v=1', 'forest-trail-03': './models/house-forest-trail-03.glb?v=1', 'mixed-01': './models/house-mixed-01.glb?v=1', 'mixed-02': './models/house-mixed-02.glb?v=1', 'dark-forest-01': './models/house-dark-forest-01.glb?v=1', 'dark-forest-02': './models/house-dark-forest-02.glb?v=1' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=11', 'forest-02': './models/house-forest-02.glb?v=7', 'forest-trail-01': './models/house-forest-trail-01.glb?v=5', 'forest-trail-02': './models/house-forest-trail-02.glb?v=2', 'forest-trail-03': './models/house-forest-trail-03.glb?v=2', 'mixed-01': './models/house-mixed-01.glb?v=1', 'mixed-02': './models/house-mixed-02.glb?v=2', 'dark-forest-01': './models/house-dark-forest-01.glb?v=2', 'dark-forest-02': './models/house-dark-forest-02.glb?v=2' };
   const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]], 'forest-02': ['./models/forest02-props.glb?v=1', [1.15, 0, 0.75]], 'forest-trail-01': ['./models/trail01-props.glb?v=2', [1.35, 0, 0.35]], 'forest-trail-02': ['./models/trail02-props.glb?v=1', [1.35, 0, 0.35]], 'forest-trail-03': ['./models/trail03-props.glb?v=1', [-1.45, 0, 0.20]], 'mixed-01': ['./models/mixed01-props.glb?v=1', [0, 0, 0]], 'mixed-02': ['./models/mixed02-props.glb?v=1', [0, 0, 0]], 'dark-forest-01': ['./models/darkforest01-props.glb?v=1', [1.45, 0, 0.35]], 'dark-forest-02': ['./models/darkforest02-props.glb?v=1', [1.45, 0, 0.35]] };   // бочка+корзина рядом с домом (локально)
   // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
   const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=20', 'lake-01-props': './data/house/lake01props-wear.png?v=20', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=20',
     'forest-01': './data/house/forest01-wear.png?v=11', 'forest-01-props': './data/house/forest01props-wear.png?v=2',
     'forest-02': './data/house/forest02-wear.png?v=7', 'forest-02-props': './data/house/forest02props-wear.png?v=1',
-    'forest-trail-01': './data/house/trail01-wear.png?v=4', 'forest-trail-01-props': './data/house/trail01props-wear.png?v=2',
-    'forest-trail-02': './data/house/trail02-wear.png?v=1', 'forest-trail-02-props': './data/house/trail02props-wear.png?v=1', 'forest-trail-03': './data/house/trail03-wear.png?v=1', 'forest-trail-03-props': './data/house/trail03props-wear.png?v=1',
-    'mixed-01': './data/house/mixed01-wear.png?v=1', 'mixed-01-props': './data/house/mixed01props-wear.png?v=1', 'mixed-02': './data/house/mixed02-wear.png?v=1', 'mixed-02-props': './data/house/mixed02props-wear.png?v=1',
-    'dark-forest-01': './data/house/darkforest01-wear.png?v=1', 'dark-forest-01-props': './data/house/darkforest01props-wear.png?v=1', 'dark-forest-02': './data/house/darkforest02-wear.png?v=1', 'dark-forest-02-props': './data/house/darkforest02props-wear.png?v=1' };
+    'forest-trail-01': './data/house/trail01-wear.png?v=5', 'forest-trail-01-props': './data/house/trail01props-wear.png?v=2',
+    'forest-trail-02': './data/house/trail02-wear.png?v=2', 'forest-trail-02-props': './data/house/trail02props-wear.png?v=1', 'forest-trail-03': './data/house/trail03-wear.png?v=2', 'forest-trail-03-props': './data/house/trail03props-wear.png?v=1',
+    'mixed-01': './data/house/mixed01-wear.png?v=1', 'mixed-01-props': './data/house/mixed01props-wear.png?v=1', 'mixed-02': './data/house/mixed02-wear.png?v=2', 'mixed-02-props': './data/house/mixed02props-wear.png?v=1',
+    'dark-forest-01': './data/house/darkforest01-wear.png?v=2', 'dark-forest-01-props': './data/house/darkforest01props-wear.png?v=1', 'dark-forest-02': './data/house/darkforest02-wear.png?v=2', 'dark-forest-02-props': './data/house/darkforest02props-wear.png?v=1' };
   const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20' };   // мостки к дому (в системе дома)
   const wearTex = {};
   await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
@@ -1835,10 +1835,10 @@ ${gtex ? `{
         const cells = opt.cells ? Object.entries(opt.cells).find(([re]) => new RegExp(re).test(m.name))?.[1] : null;
         m.onBeforeCompile = sh => {
           sh.uniforms.wearMap = { value: tex };
-          if (aged || path || topMoss) { sh.uniforms.litterMap = { value: opt.litter ?? opt.moss }; sh.uniforms.mossMap = { value: opt.moss }; }
+          if (aged || path || topMoss || opt.dirt) { sh.uniforms.litterMap = { value: opt.litter ?? opt.moss }; sh.uniforms.mossMap = { value: opt.moss ?? opt.litter }; }
           sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 wearUv; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;')
             .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWearUv = wearUv; vLoc = position; vWN = normalize(mat3(modelMatrix) * normal);');
-          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;' + (aged || path || topMoss ? '\nuniform sampler2D litterMap; uniform sampler2D mossMap;' : ''))
+          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;' + (aged || path || topMoss || opt.dirt ? '\nuniform sampler2D litterMap; uniform sampler2D mossMap;' : ''))
             .replace('#include <map_fragment>', `#include <map_fragment>
   { vec3 w = texture2D(wearMap, vWearUv).rgb;
     diffuseColor.rgb *= mix(1.0, smoothstep(0.05, 0.85, w.r), 0.7);                       // щели и низ — темнее
@@ -1856,6 +1856,18 @@ ${gtex ? `{
       float n2 = fract(sin(dot(floor(mp * 4.1), vec2(39.3, 11.7))) * 9137.1);
       float k = (n - 0.5) * ${(+opt.mottle).toFixed(2)} * 2.0 + (n2 - 0.5) * ${(+opt.mottle).toFixed(2)} * 0.6;
       diffuseColor.rgb *= (1.0 + k) * mix(vec3(1.06, 1.0, 0.90), vec3(0.92, 1.0, 1.08), n2);
+    }` : ''}${opt.dirt ? `
+    { // 23.10 «грязью присыпем — везде»: земля/листья на пологих гранях пятнами, в щелях (AO) и брызги у низа стен
+      vec2 dp = vLoc.xz * 1.7 + vLoc.y * 0.9;
+      vec2 fi = floor(dp), ff = fract(dp); ff = ff * ff * (3.0 - 2.0 * ff);
+      #define HD(q) fract(sin(dot(q, vec2(41.3, 17.9))) * 24634.6)
+      float dn = mix(mix(HD(fi), HD(fi + vec2(1, 0)), ff.x), mix(HD(fi + vec2(0, 1)), HD(fi + vec2(1, 1)), ff.x), ff.y);
+      float flat_ = smoothstep(0.25, 0.75, vWN.y);
+      float crev = 1.0 - smoothstep(0.25, 0.75, w.r);
+      float foot = 1.0 - smoothstep(0.0, 0.45, vLoc.y);
+      float d = clamp(flat_ * smoothstep(0.35, 0.75, dn) * 0.85 + crev * 0.55 + foot * (0.4 + 0.5 * dn), 0.0, 1.0) * ${(+opt.dirt).toFixed(2)};
+      vec3 dirt = texture2D(litterMap, vLoc.xz * 0.9).rgb * vec3(0.72, 0.62, 0.50);
+      diffuseColor.rgb = mix(diffuseColor.rgb, dirt, clamp(d, 0.0, 0.85));
     }` : ''}${cells ? `
     #ifdef USE_MAP
     { // каждая плашка/доска — свой тон (ячейки по UV текстуры: rows рядов, cols плашек в ряду, ряды со сдвигом)
@@ -1933,13 +1945,14 @@ ${gtex ? `{
       diffuseColor.rgb = mix(diffuseColor.rgb, mt, clamp(mo, 0.0, 0.9));
     }` : ''} }`);
         };
-        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (opt.mottle ? 'mt' + opt.mottle : '') + (m.name ?? '') + (topMoss ? 'tm' + topMoss : '') + (path ? 'path' + path.deckH + path.halfW + (path.edge0 ?? '') + (path.dust ?? '') : '');
+        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (opt.mottle ? 'mt' + opt.mottle : '') + (opt.dirt ? 'dt' + opt.dirt : '') + (m.name ?? '') + (topMoss ? 'tm' + topMoss : '') + (path ? 'path' + path.deckH + path.halfW + (path.edge0 ?? '') + (path.dust ?? '') : '');
         m.needsUpdate = true;
       }
     });
   };
   const houseModels = {};
   const HOUSE_TOPMOSS = { 'forest-01': 0.75, 'forest-02': 0.9, 'forest-trail-01': 0.0 };   // 23.10: мох на верхах — шейдером, как на скалах/мостах
+  const houseDirt = await new THREE.TextureLoader().loadAsync('./data/tex-forest.webp?v=1').then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }).catch(() => null);
   const houseMoss = await new THREE.TextureLoader().loadAsync('./data/tex-grass.webp?v=1')   /* 23.10: трава поля, не камень */.then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }).catch(() => null);
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => {
@@ -1947,7 +1960,7 @@ ${gtex ? `{
       o.castShadow = true; o.receiveShadow = true;
       if (o.material.name === 'hide' || o.material.name === 'fleece') { o.material.alphaTest = 0.5; o.material.transparent = false; o.material.depthWrite = true; o.material.side = THREE.DoubleSide; }   // шкура с альфой (Codex)
     });
-    applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^(hide|fleece)/, mottle: 0.25, cells: { '^tshingle': [4, 7], '^tplanks': [6, 1.5] }, mottleSkip: /^(tglow|tskull)/ });
+    applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^(hide|fleece)/, mottle: 0.25, cells: { '^tshingle': [4, 7], '^tplanks': [6, 1.5] }, mottleSkip: /^(tglow|tskull)/, dirt: 0.75, litter: houseDirt });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const houseProps = {};
@@ -2126,7 +2139,10 @@ ${gtex ? `{
     h.rotation.y = isGate || isSmall ? Math.atan2(-best.dx, -best.dz) : 0;
     const HOUSE_SHIFT = { 'lake-01': [0.15, 1.1] };   // 22.10: к камере (+z), чтобы крыша не закрывала клетки за домом
     if (houseModels[c.marker?.asset] && !isGate && HOUSE_SHIFT[c.marker.asset]) { best.hx += HOUSE_SHIFT[c.marker.asset][0]; best.hz += HOUSE_SHIFT[c.marker.asset][1]; h.position.set(best.hx, 0, best.hz); }
-    if (houseModels[c.marker?.asset] && !isGate) h.rotation.y = THREE.MathUtils.degToRad(-30);   // 22.10: на 30° по часовой (вид сверху)
+    // 23.10: у каждого дома свой разворот — дверь к камере (+z), но с разбросом ±40° (не все одинаково); lake-01 — как подобрали (−30°)
+    const HOUSE_YAW = { 'lake-01': -30, 'forest-01': 25, 'forest-02': -18, 'forest-trail-01': 35, 'forest-trail-02': -38, 'forest-trail-03': 12,
+      'mixed-01': -8, 'mixed-02': 30, 'dark-forest-01': -25, 'dark-forest-02': 20 };
+    if (houseModels[c.marker?.asset] && !isGate) h.rotation.y = THREE.MathUtils.degToRad(HOUSE_YAW[c.marker.asset] ?? -30);
     if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
     if (houseModels[c.marker?.asset] && !isGate) h.userData.houseModel = c.marker.asset;
