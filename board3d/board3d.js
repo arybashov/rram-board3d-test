@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792767774';
-import { buildTerrain } from './terrain.js?v=1792767774';
+import { buildAtmosphere } from './atmosphere.js?v=1792772973';
+import { buildTerrain } from './terrain.js?v=1792772973';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -742,7 +742,7 @@ let benchFrames = null;   // длительности кадров во врем
 // Овцы (23.10): Quaternius Farm Animals (CC0) + свои Walk/Eat (tools/blender/sheep_anim.py). Бродят вокруг клеток колоды
 // «овцы»: щиплют траву / стоят 2–6 с, потом идут к новой точке в радиусе 2.6 от центра зоны.
 const sheep = []; window.__sheep = sheep;
-loader.loadAsync('./models/sheep.glb?v=1').then(g => {
+loader.loadAsync('./models/sheep.glb?v=2').then(g => {
   for (const sp of terrain.sheepSpots ?? []) {
     const model = SkeletonUtils.clone(g.scene);
     model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); o.material.opacity = 1; o.material.transparent = false; o.material.roughness = 0.9; o.material.metalness = 0; } });   // в FBX opacity 0
