@@ -1976,7 +1976,7 @@ ${gtex ? `{
           float b = abs(wsA.y < 0.5 ? d.x : (wsA.y < 1.5 ? d.y : d.z)) / wsH.y;
           float e = max(a, b);
           float k = 1.0 - smoothstep(0.35, 1.0, e) * 0.85;
-          totalEmissiveRadiance *= k; diffuseColor.rgb *= mix(0.35, 1.0, k); }`);
+          totalEmissiveRadiance *= k * 0.42; diffuseColor.rgb *= mix(0.35, 1.0, k) * 0.7; }`);   // 24.10: окна пригашены
     };
     const pk = m.customProgramCacheKey?.bind(m);
     m.customProgramCacheKey = () => (pk ? pk() : '') + 'winshade';
