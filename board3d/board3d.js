@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792773524';
-import { buildTerrain } from './terrain.js?v=1792773524';
+import { buildAtmosphere } from './atmosphere.js?v=1792781629';
+import { buildTerrain } from './terrain.js?v=1792781629';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -742,10 +742,29 @@ let benchFrames = null;   // длительности кадров во врем
 // Овцы (23.10): Quaternius Farm Animals (CC0) + свои Walk/Eat (tools/blender/sheep_anim.py). Бродят вокруг клеток колоды
 // «овцы»: щиплют траву / стоят 2–6 с, потом идут к новой точке в радиусе 2.6 от центра зоны.
 const sheep = []; window.__sheep = sheep;
+// шерсть овцы (23.10): у модели нет развёртки — текстура Codex трипланарно по координатам модели; белое — руно, чёрное — морда/ноги
+const _sheepTex = {};
+const sheepTex = n => _sheepTex[n] ??= (() => { const t = new THREE.TextureLoader().load(`./data/${n}.webp?v=1`); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; })();
+function sheepSkin(m) {
+  const wool = /white/i.test(m.name), tex = sheepTex(wool ? 'sheep-wool' : 'sheep-face'), sc = wool ? 0.55 : 1.2;
+  m.color.set(0xffffff);
+  m.onBeforeCompile = sh => {
+    sh.uniforms.skinTex = { value: tex };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vSP; varying vec3 vSN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSP = position; vSN = normal;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D skinTex; varying vec3 vSP; varying vec3 vSN;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      { vec3 w = pow(abs(normalize(vSN)), vec3(4.0)); w /= (w.x + w.y + w.z);
+        vec3 c = texture2D(skinTex, vSP.yz * ${sc.toFixed(2)}).rgb * w.x + texture2D(skinTex, vSP.xz * ${sc.toFixed(2)}).rgb * w.y + texture2D(skinTex, vSP.xy * ${sc.toFixed(2)}).rgb * w.z;
+        diffuseColor.rgb *= c * ${wool ? '1.15' : '1.0'}; }`);
+  };
+  m.customProgramCacheKey = () => 'sheep' + (wool ? 'w' : 'f');
+  m.needsUpdate = true;
+}
 loader.loadAsync('./models/sheep.glb?v=2').then(g => {
   for (const sp of terrain.sheepSpots ?? []) {
     const model = SkeletonUtils.clone(g.scene);
-    model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); o.material.opacity = 1; o.material.transparent = false; o.material.roughness = 0.9; o.material.metalness = 0; } });   // в FBX opacity 0
+    model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); o.material.opacity = 1; o.material.transparent = false; o.material.roughness = 0.9; o.material.metalness = 0; sheepSkin(o.material); } });   // в FBX opacity 0
     fitModel(model, { length: 1.15 });
     const root = new THREE.Group(); root.add(model);
     root.position.set(sp.x, terrain.heightAt(sp.x, sp.z), sp.z); root.rotation.y = Math.random() * Math.PI * 2;
