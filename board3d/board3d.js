@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792767373';
-import { buildTerrain } from './terrain.js?v=1792767373';
+import { buildAtmosphere } from './atmosphere.js?v=1792767774';
+import { buildTerrain } from './terrain.js?v=1792767774';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -739,11 +739,54 @@ const trisEl = document.getElementById('tris');
 let frames = 0, fpsTime = 0;
 let benchFrames = null;   // длительности кадров во время автотеста (?bench=1)
 
+// Овцы (23.10): Quaternius Farm Animals (CC0) + свои Walk/Eat (tools/blender/sheep_anim.py). Бродят вокруг клеток колоды
+// «овцы»: щиплют траву / стоят 2–6 с, потом идут к новой точке в радиусе 2.6 от центра зоны.
+const sheep = []; window.__sheep = sheep;
+loader.loadAsync('./models/sheep.glb?v=1').then(g => {
+  for (const sp of terrain.sheepSpots ?? []) {
+    const model = SkeletonUtils.clone(g.scene);
+    model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); o.material.opacity = 1; o.material.transparent = false; o.material.roughness = 0.9; o.material.metalness = 0; } });   // в FBX opacity 0
+    fitModel(model, { length: 1.15 });
+    const root = new THREE.Group(); root.add(model);
+    root.position.set(sp.x, terrain.heightAt(sp.x, sp.z), sp.z); root.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(root);
+    const mixer = new THREE.AnimationMixer(model), act = {};
+    for (const [k, n] of [['walk', 'Walk'], ['eat', 'Eat'], ['idle', 'Armature|Armature|Idle']]) { const c = THREE.AnimationClip.findByName(g.animations, n); if (c) act[k] = mixer.clipAction(c); }
+    const s = { sp, root, mixer, act, cur: null, t: 1 + Math.random() * 4, target: null };
+    const go = k => { const a = act[k]; if (!a || s.cur === a) return; a.reset().fadeIn(0.3).play(); if (s.cur) s.cur.fadeOut(0.3); s.cur = a; };
+    s.go = go; go(Math.random() < 0.5 ? 'eat' : 'idle'); mixer.update(Math.random() * 3);
+    sheep.push(s);
+  }
+}).catch(e => console.warn('sheep', e));
+function updateSheep(dt) {
+  for (const s of sheep) {
+    s.mixer.update(dt);
+    const p = s.root.position;
+    if (s.target) {
+      const dx = s.target[0] - p.x, dz = s.target[1] - p.z, d = Math.hypot(dx, dz);
+      if (d < 0.05) { s.target = null; s.t = 2 + Math.random() * 4; s.go(Math.random() < 0.65 ? 'eat' : 'idle'); continue; }
+      const want = Math.atan2(dx, dz); let df = want - s.root.rotation.y; df = Math.atan2(Math.sin(df), Math.cos(df));
+      s.root.rotation.y += df * Math.min(1, dt * 4);
+      const v = Math.min(d, 0.42 * dt * (Math.abs(df) < 0.8 ? 1 : 0.3));
+      p.x += Math.sin(s.root.rotation.y) * v; p.z += Math.cos(s.root.rotation.y) * v;
+      p.y = terrain.heightAt(p.x, p.z);
+    } else if ((s.t -= dt) <= 0) {
+      for (let k = 0; k < 8; k += 1) {
+        const a = Math.random() * Math.PI * 2, r = 1.2 + Math.random() * 1.4;
+        const x = s.sp.cx + Math.cos(a) * r, z = s.sp.cz + Math.sin(a) * r;
+        if (Math.abs(terrain.heightAt(x, z)) < 0.3) { s.target = [x, z]; break; }
+      }
+      if (s.target) s.go('walk'); else s.t = 1;
+    }
+  }
+}
+
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1);
   controls.update(dt);
   terrain.update?.(dt, camera);
   atmo.update(dt);
+  updateSheep(dt);
   for (const u of units) {
     if (u.path) stepAlongPath(u, dt);
     u.mixer.update(dt);

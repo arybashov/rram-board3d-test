@@ -1073,6 +1073,7 @@ function pickWeighted(list, r) {
 }
 
 export async function buildTerrain({ cells, cellById, groundX0, groundZ0, groundW, groundH, groundTex, maskUrl, cliffUrl, heightUrl, planUrl, upperRiverUrl, rocksUrl, modeledRocks = [], stoneKitUrl, rockStyle = 'stones', rockTopUrl, rockSideUrl, cliffKitUrl, cliffTexUrl, grassUrl, treeKitUrl, groundTextures, waterDistUrl, spireKitUrl, propKitUrl, treeSpritesUrl, treesUrl, leafAtlasUrl, kitTreesUrl, kitLodUrl, gateModelUrl }) {
+  const sheepSpots = [];
   // набор камней из Blender грузим первым: размеры набора нужны при расстановке
   const kitGeos = stoneKitUrl ? await loadStoneKit(stoneKitUrl).catch(() => null) : null;
   // рисованные текстуры камня (Codex): скалы, камни и стены хребта
@@ -2807,6 +2808,7 @@ ${gtex ? `{
   if (propKit) {
     const items = {};                       // имя -> [[x, y, z, scale, rotY]]
     const add = (name, x, y, z, k, ry = r() * Math.PI * 2) => (items[name] ??= []).push([x, y, z, k, ry]);
+
     const STEP = 0.6;
     for (let z = groundZ0; z < groundZ0 + groundH; z += STEP) {
       for (let x = groundX0; x < groundX0 + groundW; x += STEP) {
@@ -2895,6 +2897,7 @@ ${gtex ? `{
         const x = zn.x + Math.cos(a) * d, z = zn.z + Math.sin(a) * d;
         if (nearest(x, z) < 1.1 || nearHouse(x, z, 2) || sample(x, z).water > 0.2 || sample(x, z).forest > 0.6 || Math.abs(groundY(x, z)) > 0.3) continue;
         add('prop_sheep', x, groundY(x, z), z, 0.9 + r() * 0.2); sheepN += 1;
+        sheepSpots.push({ x, z, cx: zn.x, cz: zn.z });   // 23.10: живые овцы (board3d.js) — статичную не ставим
       }
       let fenceN = 0;
       for (let k = 0; k < 40 && fenceN < 2; k += 1) {
@@ -2978,6 +2981,7 @@ ${gtex ? `{
       g.userData.laid = true;
     }
     if (items.prop_log) items.prop_log = items.prop_log.filter(([x, , z]) => nearest(x, z) > 1.3);   // брёвна не на клетках
+    delete items.prop_sheep;
     for (const [name, list] of Object.entries(items)) {
       if (!propKit[name]) continue;
       const mesh = new THREE.InstancedMesh(propKit[name], name === 'prop_mush_glow' ? glowMat : propMat, list.length);
@@ -3593,7 +3597,7 @@ ${gtex ? `{
     if (camera) for (const bb of billboards) bb.userData.resort(camera);
   };
   return {
-    group, trees, fairy, rocks, bridges, bridgeIds, heightAt: groundY, gate, houses, update, terraces, cliffs, props, water, ground,
+    group, trees, fairy, rocks, bridges, bridgeIds, heightAt: groundY, gate, houses, update, terraces, cliffs, props, water, ground, sheepSpots,
     blobShadowTexture,
     stats: { timings: T, props: propCounts, trees: treeSpots.length, species: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, v.length])), rocks: rockSpots.reduce((a, l) => a + l.length, 0), bridges: bridgeIds.size },
   };
