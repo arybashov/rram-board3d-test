@@ -1766,11 +1766,11 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=2' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=7' };
   const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
   // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
   const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=20', 'lake-01-props': './data/house/lake01props-wear.png?v=20', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=20',
-    'forest-01': './data/house/forest01-wear.png?v=2', 'forest-01-props': './data/house/forest01props-wear.png?v=2' };
+    'forest-01': './data/house/forest01-wear.png?v=7', 'forest-01-props': './data/house/forest01props-wear.png?v=2' };
   const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20' };   // мостки к дому (в системе дома)
   const wearTex = {};
   await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
@@ -1811,6 +1811,7 @@ ${gtex ? `{
     }` : ''}`;
   const applyWear = (root, tex, opt = {}) => {
     if (!tex) return;
+    const topMoss0 = opt.topMoss ?? 0;   // 23.10 домики: мох пятнами на верхних гранях (как на скалах/мостах)
     const aged = !!opt.aged;   // каменный мост (22.10): сильнее состарить — мох в щелях и на верхах бортиков, затёртый проход, мусор к краям
     const streakTop = opt.streakTop ?? null;   // высота (локальная Y), откуда идут подтёки — дом/мостки/пропсы
     const path = opt.path ?? null;   // тропинка по настилу (22.10, бревенчатый/верёвочный): {deckH: GLSL-высота верха настила от vLoc, halfW, plankP?}
@@ -1823,12 +1824,14 @@ ${gtex ? `{
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
         if (done.has(m)) continue; done.add(m);
+        if (opt.skip && opt.skip.test(m.name)) continue;   // шкура с альфой — без износа/мха
+        const topMoss = (!opt.mossOn || opt.mossOn.test(m.name)) ? topMoss0 : 0;
         m.onBeforeCompile = sh => {
           sh.uniforms.wearMap = { value: tex };
-          if (aged || path) { sh.uniforms.litterMap = { value: opt.litter }; sh.uniforms.mossMap = { value: opt.moss }; }
+          if (aged || path || topMoss) { sh.uniforms.litterMap = { value: opt.litter ?? opt.moss }; sh.uniforms.mossMap = { value: opt.moss }; }
           sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 wearUv; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;')
             .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWearUv = wearUv; vLoc = position; vWN = normalize(mat3(modelMatrix) * normal);');
-          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;' + (aged || path ? '\nuniform sampler2D litterMap; uniform sampler2D mossMap;' : ''))
+          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D wearMap; varying vec2 vWearUv; varying vec3 vLoc; varying vec3 vWN;' + (aged || path || topMoss ? '\nuniform sampler2D litterMap; uniform sampler2D mossMap;' : ''))
             .replace('#include <map_fragment>', `#include <map_fragment>
   { vec3 w = texture2D(wearMap, vWearUv).rgb;
     diffuseColor.rgb *= mix(1.0, smoothstep(0.05, 0.85, w.r), 0.7);                       // щели и низ — темнее
@@ -1893,20 +1896,32 @@ ${gtex ? `{
       vec3 junk = mix(litter, mossy, smoothstep(0.55, 0.8, big));                                   // где-то листья/земля, где-то мох
       diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * fine), clamp(debris, 0.0, 0.92));
     }` : ''}
-    ${path ? pathGLSL(path) : ''} }`);
+    ${path ? pathGLSL(path) : ''}${topMoss ? `
+    { // мох сверху: по нормали вверх + крупные пятна, в тени (AO) гуще
+      #define HM_(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
+      #define VM_(P) (mix(mix(HM_(floor(P)), HM_(floor(P) + vec2(1, 0)), smoothstep(0.0, 1.0, fract(P).x)), mix(HM_(floor(P) + vec2(0, 1)), HM_(floor(P) + vec2(1, 1)), smoothstep(0.0, 1.0, fract(P).x)), smoothstep(0.0, 1.0, fract(P).y)))
+      float bigM = VM_(vLoc.xz * 1.3 + 2.1), fineM = VM_(vLoc.xz * 5.0 + 7.7);
+      float upM = smoothstep(0.35, 0.8, vWN.y);
+      float mo = upM * smoothstep(0.52, 0.78, bigM * 0.7 + fineM * 0.4) * ${topMoss.toFixed(2)};
+      vec3 mt = texture2D(mossMap, vLoc.xz * 0.6).rgb * 0.9;
+      diffuseColor.rgb = mix(diffuseColor.rgb, mt, clamp(mo, 0.0, 0.9));
+    }` : ''} }`);
         };
-        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (path ? 'path' + path.deckH + path.halfW + (path.edge0 ?? '') + (path.dust ?? '') : '');
+        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (topMoss ? 'tm' + topMoss : '') + (path ? 'path' + path.deckH + path.halfW + (path.edge0 ?? '') + (path.dust ?? '') : '');
         m.needsUpdate = true;
       }
     });
   };
   const houseModels = {};
+  const HOUSE_TOPMOSS = { 'forest-01': 0.75 };   // 23.10: мох на верхах — шейдером, как на скалах/мостах
+  const houseMoss = await new THREE.TextureLoader().loadAsync('./data/tex-grass.webp?v=1')   /* 23.10: трава поля, не камень */.then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }).catch(() => null);
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => {
       if (!o.isMesh) return;
       o.castShadow = true; o.receiveShadow = true;
+      if (o.material.name === 'hide') { o.material.alphaTest = 0.5; o.material.transparent = false; o.material.depthWrite = true; o.material.side = THREE.DoubleSide; }   // шкура с альфой (Codex)
     });
-    applyWear(g.scene, wearTex[k], { streakTop: 1.85 });
+    applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^hide/ });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const houseProps = {};
