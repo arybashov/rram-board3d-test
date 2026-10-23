@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792793887';
-import { buildTerrain } from './terrain.js?v=1792793887';
+import { buildAtmosphere } from './atmosphere.js?v=1792794000';
+import { buildTerrain } from './terrain.js?v=1792794000';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -41,9 +41,9 @@ scene.fog = new THREE.Fog(new THREE.Color('#2b3236'), 55, 140);
 const FOV_K = 40 / 24;   // во сколько раз камера дальше, чем при прежних 40°
 const camera = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, 4, 500);   // ближняя плоскость дальше — точнее глубина
 
-const hemi = new THREE.HemisphereLight(0xb8c6d2, 0x23241f, 1.35);   // небо холодное, земля тёмная
+const hemi = new THREE.HemisphereLight(0xa9bccb, 0x1e2124, 1.2);   // 24.10 призрачнее: холоднее и чуть темнее   // небо холодное, земля тёмная
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffd8a4, 2.1);   // тёплый луч сверху-слева
+const sun = new THREE.DirectionalLight(0xffd29a, 2.25);   // тёплый луч сверху-слева
 // Живые тени дороги для телефонов (замер: 60 → 42–49 FPS), там — только пятна под фигурками.
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
 sun.castShadow = !IS_TOUCH;
@@ -175,10 +175,17 @@ const fogPass = atmo.fogMesh ? (() => {
   const brightScene = quad(brightMat), blurScene = quad(blurMat);
   const bloomOn = !new URLSearchParams(location.search).has('nobloom');
   blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture }, bloom: { value: bA.texture }, bk: { value: bloomOn ? 1.6 : 0.0 } },
+    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture }, bloom: { value: bA.texture }, bk: { value: bloomOn ? 1.6 : 0.0 }, depthTex: { value: rt.depthTexture }, cN: { value: 1 }, cF: { value: 500 } },
     vertexShader: VS,
-    fragmentShader: `uniform sampler2D map, bloom; uniform float bk; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D map, bloom, depthTex; uniform float bk, cN, cF; varying vec2 vUv;
       void main(){ vec3 c = texture2D(map, vUv).rgb;
+        // 24.10 призрачная дымка (реф v6b): по глубине — холодный серо-голубой воздух, вверху кадра гуще (горы в тумане)
+        float zb = texture2D(depthTex, vUv).r;
+        float vz = (cN * cF) / (cF - zb * (cF - cN));
+        float near = vz - cN;
+        float haze = clamp(1.0 - exp(-max(0.0, vz - 115.0) * 0.015), 0.0, 0.40);
+        haze = max(haze, smoothstep(0.68, 1.0, vUv.y) * 0.32 * step(zb, 0.9999));
+        c = mix(c, vec3(0.42, 0.48, 0.52), haze);
         float l = max(c.r, max(c.g, c.b));
         vec3 dim = pow(c, vec3(1.18)) * 0.86;                        // приглушить к рефу (тени глубже)
         c = mix(dim, c, smoothstep(0.80, 0.97, l));                  // светящееся — как есть
@@ -203,6 +210,7 @@ const fogPass = atmo.fogMesh ? (() => {
     renderer.render(scene, camera);
     bloomPass();
     renderer.setRenderTarget(null);
+    blitScene.children[0].material.uniforms.cN.value = camera.near; blitScene.children[0].material.uniforms.cF.value = camera.far;
     renderer.render(blitScene, blitCam);
     renderer.autoClear = false;
     renderer.render(fogScene, camera);

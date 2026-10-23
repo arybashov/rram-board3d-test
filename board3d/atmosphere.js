@@ -50,7 +50,7 @@ function godRays({ origin, targets }) {
         float across = 1.0 - abs(vUv.x - 0.5) * 2.0;           // мягкие края полосы
         float along = smoothstep(0.0, 0.45, vUv.y) * (1.0 - smoothstep(0.75, 1.0, vUv.y));
         float flick = 0.85 + 0.15 * sin(time * 0.4 + vUv.y * 3.0);
-        gl_FragColor = vec4(vec3(1.0, 0.92, 0.75), pow(across, 1.3) * along * 0.24 * flick);
+        gl_FragColor = vec4(vec3(1.0, 0.93, 0.80), pow(across, 1.2) * along * 0.36 * flick);   // 24.10 ярче — призрачные лучи
       }`,
   });
   // веер из ОДНОЙ точки: каждый луч — клин от общей вершины (origin) к своей точке на поле (targets)
@@ -198,7 +198,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
   // 3) лучи сверху-слева над хребтом
   // вершина — над верхним левым углом поля, лучи падают на хребет и верх долины
   const O = new THREE.Vector3(groundX0 + groundW * 0.12, 38, groundZ0 - 10);
-  const T = [[0.22, 0.12], [0.33, 0.18], [0.44, 0.24], [0.55, 0.20], [0.66, 0.28], [0.40, 0.38]]
+  const T = [[0.16, 0.10], [0.22, 0.12], [0.33, 0.18], [0.44, 0.24], [0.55, 0.20], [0.66, 0.28], [0.40, 0.38], [0.28, 0.32], [0.50, 0.42]]
     .map(([u, v]) => new THREE.Vector3(groundX0 + groundW * u, 1.5, groundZ0 + groundH * v));
   const rays = godRays({ origin: O, targets: T });
   group.add(rays);
