@@ -1767,8 +1767,8 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=11', 'forest-02': './models/house-forest-02.glb?v=7', 'forest-trail-01': './models/house-forest-trail-01.glb?v=5', 'forest-trail-02': './models/house-forest-trail-02.glb?v=2', 'forest-trail-03': './models/house-forest-trail-03.glb?v=2', 'mixed-01': './models/house-mixed-01.glb?v=1', 'mixed-02': './models/house-mixed-02.glb?v=3', 'dark-forest-01': './models/house-dark-forest-01.glb?v=2', 'dark-forest-02': './models/house-dark-forest-02.glb?v=2' };
-  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]], 'forest-02': ['./models/forest02-props.glb?v=1', [1.15, 0, 0.75]], 'forest-trail-01': ['./models/trail01-props.glb?v=2', [1.35, 0, 0.35]], 'forest-trail-02': ['./models/trail02-props.glb?v=1', [1.35, 0, 0.35]], 'forest-trail-03': ['./models/trail03-props.glb?v=1', [-1.45, 0, 0.20]], 'mixed-01': ['./models/mixed01-props.glb?v=1', [0, 0, 0]], 'mixed-02': ['./models/mixed02-props.glb?v=1', [0, 0, 0]], 'dark-forest-01': ['./models/darkforest01-props.glb?v=1', [1.45, 0, 0.35]], 'dark-forest-02': ['./models/darkforest02-props.glb?v=1', [1.45, 0, 0.35]] };   // бочка+корзина рядом с домом (локально)
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=11', 'forest-02': './models/house-forest-02.glb?v=7', 'forest-trail-01': './models/house-forest-trail-01.glb?v=5', 'forest-trail-02': './models/house-forest-trail-02.glb?v=2', 'forest-trail-03': './models/house-forest-trail-03.glb?v=2', 'mixed-01': './models/house-mixed-01.glb?v=1', 'mixed-02': './models/house-mixed-02.glb?v=3', 'dark-forest-01': './models/house-dark-forest-01.glb?v=2', 'dark-forest-02': './models/house-dark-forest-02.glb?v=2', 'lake-02': './models/house-lake-02.glb?v=1' };
+  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]], 'forest-02': ['./models/forest02-props.glb?v=1', [1.15, 0, 0.75]], 'forest-trail-01': ['./models/trail01-props.glb?v=2', [1.35, 0, 0.35]], 'forest-trail-02': ['./models/trail02-props.glb?v=1', [1.35, 0, 0.35]], 'forest-trail-03': ['./models/trail03-props.glb?v=1', [-1.45, 0, 0.20]], 'mixed-01': ['./models/mixed01-props.glb?v=1', [0, 0, 0]], 'mixed-02': ['./models/mixed02-props.glb?v=1', [0, 0, 0]], 'dark-forest-01': ['./models/darkforest01-props.glb?v=1', [1.45, 0, 0.35]], 'dark-forest-02': ['./models/darkforest02-props.glb?v=1', [1.45, 0, 0.35]], 'lake-02': ['./models/lake02-props.glb?v=1', [0.55, 0, 1.30]] };   // бочка+корзина рядом с домом (локально)
   // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
   const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=20', 'lake-01-props': './data/house/lake01props-wear.png?v=20', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=20',
     'forest-01': './data/house/forest01-wear.png?v=11', 'forest-01-props': './data/house/forest01props-wear.png?v=2',
@@ -1776,8 +1776,9 @@ ${gtex ? `{
     'forest-trail-01': './data/house/trail01-wear.png?v=5', 'forest-trail-01-props': './data/house/trail01props-wear.png?v=2',
     'forest-trail-02': './data/house/trail02-wear.png?v=2', 'forest-trail-02-props': './data/house/trail02props-wear.png?v=1', 'forest-trail-03': './data/house/trail03-wear.png?v=2', 'forest-trail-03-props': './data/house/trail03props-wear.png?v=1',
     'mixed-01': './data/house/mixed01-wear.png?v=1', 'mixed-01-props': './data/house/mixed01props-wear.png?v=1', 'mixed-02': './data/house/mixed02-wear.png?v=3', 'mixed-02-props': './data/house/mixed02props-wear.png?v=1',
-    'dark-forest-01': './data/house/darkforest01-wear.png?v=2', 'dark-forest-01-props': './data/house/darkforest01props-wear.png?v=1', 'dark-forest-02': './data/house/darkforest02-wear.png?v=2', 'dark-forest-02-props': './data/house/darkforest02props-wear.png?v=1' };
-  const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20' };   // мостки к дому (в системе дома)
+    'dark-forest-01': './data/house/darkforest01-wear.png?v=2', 'dark-forest-01-props': './data/house/darkforest01props-wear.png?v=1', 'dark-forest-02': './data/house/darkforest02-wear.png?v=2', 'dark-forest-02-props': './data/house/darkforest02props-wear.png?v=1',
+    'lake-02': './data/house/lake02-wear.png?v=1', 'lake-02-props': './data/house/lake02props-wear.png?v=1' };
+  const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20', 'lake-02': './models/lake01-jetty.glb?v=20' };   // 23.10: lake-02 — те же мостки   // мостки к дому (в системе дома)
   const wearTex = {};
   await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
     const t = await new THREE.TextureLoader().loadAsync(u).catch(() => null);
@@ -2005,7 +2006,7 @@ ${gtex ? `{
   const HOUSE_PILES_FOAM = [[0.905, -0.905, 0.915, -0.915, 0.002, 0.110], [0.905, 0.905, 0.915, 0.915, 0.002, 0.110], [0.930, 0.000, 0.935, 0.010, 0.002, 0.100]];
   // мостки от берега (22.10, стрелка пользователя): мировая поза — начало настила (локально X=1.15, центр Y=.35) на берегу,
   // ось в озеро; сваи под углами дома — отдельной моделью, стоят с домом
-  const JETTY_POSE = { 'lake-01': { start: [-7.62, -2.02], yaw: 0.50 } };
+  const JETTY_POSE = { 'lake-01': { start: [-7.62, -2.02], yaw: 0.50 }, 'lake-02': { start: [-2.55, -5.75], yaw: 0.95 } };
   const housePiles = {};
   const foamMats = [];
   const foamMat = () => {
@@ -2060,9 +2061,9 @@ ${gtex ? `{
   };
   await Promise.all(Object.entries(HOUSE_JETTY).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    applyWear(g.scene, wearTex[k + '-jetty'], { streakTop: 0.05 }); addFoam(g.scene); houseJetty[k] = g.scene;
+    applyWear(g.scene, wearTex[k + '-jetty'] ?? wearTex['lake-01-jetty'], { streakTop: 0.05 }); addFoam(g.scene); houseJetty[k] = g.scene;
   }).catch(e => console.warn('house jetty', k, e))));
-  await Promise.all(Object.entries(HOUSE_JETTY).map(([k, u]) => new GLTFLoader().loadAsync(u.replace('lake01-jetty', 'lake01-housepiles')).then(g => {
+  await Promise.all(Object.entries(HOUSE_JETTY).filter(([k]) => k === 'lake-01').map(([k, u]) => new GLTFLoader().loadAsync(u.replace('lake01-jetty', 'lake01-housepiles')).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     applyWear(g.scene, wearTex[k + '-jetty'], { streakTop: 0.0 }); addFoam(g.scene, HOUSE_PILES_FOAM); housePiles[k] = g.scene;
   }).catch(e => console.warn('house piles', k, e))));
@@ -2137,11 +2138,11 @@ ${gtex ? `{
     h.position.set(best.hx, 0, best.hz);
     // ворота и гнёзда — к клетке; домики — с шагом 90°, вход к камере (22.10)
     h.rotation.y = isGate || isSmall ? Math.atan2(-best.dx, -best.dz) : 0;
-    const HOUSE_SHIFT = { 'lake-01': [0.15, 1.1] };   // 22.10: к камере (+z), чтобы крыша не закрывала клетки за домом
+    const HOUSE_SHIFT = { 'lake-01': [0.15, 1.1], 'lake-02': [-5.9, 1.7] };   // 23.10 lake-02 — на берег у ивы (по разметке)   // 22.10: к камере (+z), чтобы крыша не закрывала клетки за домом
     if (houseModels[c.marker?.asset] && !isGate && HOUSE_SHIFT[c.marker.asset]) { best.hx += HOUSE_SHIFT[c.marker.asset][0]; best.hz += HOUSE_SHIFT[c.marker.asset][1]; h.position.set(best.hx, 0, best.hz); }
     // 23.10: у каждого дома свой разворот — дверь к камере (+z), но с разбросом ±40° (не все одинаково); lake-01 — как подобрали (−30°)
-    const HOUSE_YAW = { 'lake-01': -30, 'forest-01': 25, 'forest-02': -18, 'forest-trail-01': 35, 'forest-trail-02': -38, 'forest-trail-03': 12,
-      'mixed-01': -8, 'mixed-02': 30, 'dark-forest-01': -25, 'dark-forest-02': 20 };
+    const HOUSE_YAW = { 'lake-01': -30, 'forest-01': -35, 'forest-02': 25, 'forest-trail-01': -40, 'forest-trail-02': -38, 'forest-trail-03': 12,
+      'mixed-01': -8, 'mixed-02': -28, 'dark-forest-01': -25, 'dark-forest-02': -25 };
     if (houseModels[c.marker?.asset] && !isGate) h.rotation.y = THREE.MathUtils.degToRad(HOUSE_YAW[c.marker.asset] ?? -30);
     if (!isGate && !isSmall) { best.dx = 0; best.dz = -1; }   // след постройки — по осям
     h.userData.cell = c.id;
