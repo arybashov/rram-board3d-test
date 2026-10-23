@@ -1017,21 +1017,21 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
       vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
       void main(){ vec4 c = texture2D(atlas, vUv); if (c.a < ALPHA_CUT) discard;
         // 24.10 разбор п.6: контраст деталей листвы ×0.5 — смесь с грубым mip (общая масса кроны, без крапа)
-        c.rgb = mix(texture2D(atlas, vUv, 2.5).rgb, c.rgb, 0.55);
+        c.rgb = mix(texture2D(atlas, vUv, 2.0).rgb, c.rgb, 0.8);   // 24.10: деревья погасли — деталь почти вернул
         vec3 hsv = rgb2hsv(c.rgb);
         // сдвиг оттенка — только у насыщенных пикселей: у тёмной малонасыщенной хвои оттенок неустойчив,
         // и сдвиг уводил её в розовый (новые ели v6b)
-        hsv.x = fract(hsv.x + vTint.x * smoothstep(0.25, 0.5, hsv.y)); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= mix(1.0, vTint.z, 0.6);   // разброс яркости экземпляров ~±6%
+        hsv.x = fract(hsv.x + vTint.x * smoothstep(0.25, 0.5, hsv.y)); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= vTint.z;
         // п.5: зелень и цветочки — насыщенность ×0.75 (осенние красно-жёлтые оттенки не трогаем — это акценты рощ)
         float green = smoothstep(0.14, 0.2, hsv.x) * (1.0 - smoothstep(0.45, 0.55, hsv.x));
         float violet = smoothstep(0.70, 0.78, hsv.x) * (1.0 - smoothstep(0.92, 0.98, hsv.x));
-        hsv.y *= 1.0 - 0.25 * green - 0.35 * violet;
+        hsv.y *= 1.0 - 0.08 * green - 0.30 * violet;
         // затенение: низ кроны и ствол темнее (окклюзия), в густой роще всё дерево темнее (vTint.w)
         hsv.z *= mix(0.62, 1.0, smoothstep(0.0, 0.55, vH)) * vTint.w;
         vec3 rgb = hsv2rgb(hsv);
         // грейд под концепт v6b: темнее, чуть холоднее и приглушённее (картинки не видят освещение сцены)
         float lum = dot(rgb, vec3(0.3, 0.59, 0.11));
-        rgb = rgb * vec3(0.84, 0.83, 0.80);   // нейтрально-тёплый: холодный грейд и обесцвечивание уводили охру берёз в лосось
+        rgb = rgb * vec3(0.95, 0.94, 0.90);   // 24.10: светлее — лес не гаснет   // нейтрально-тёплый: холодный грейд и обесцвечивание уводили охру берёз в лосось
         gl_FragColor = vec4(rgb, c.a);
         #include <colorspace_fragment>
       }`,
