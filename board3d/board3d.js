@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792794000';
-import { buildTerrain } from './terrain.js?v=1792794000';
+import { buildAtmosphere } from './atmosphere.js?v=1792794243';
+import { buildTerrain } from './terrain.js?v=1792794243';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -192,11 +192,34 @@ const fogPass = atmo.fogMesh ? (() => {
         c += texture2D(bloom, vUv).rgb * bk;
         gl_FragColor = vec4(c, 1.0); }`,
   })));
+  // 24.10 канал свечения: блум только от светящихся объектов (слой 1): окна, фонари, огонь, руны, кристаллы.
+  // Остальная сцена пишется в этот буфер только глубиной (перекрывает свет), без цвета — кувшинки и вода не светятся.
+  const BLOOM_LAYER = 1;
+  const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+  let bloomTagged = 0;
+  const tagBloom = () => {
+    let n = 0;
+    scene.traverse(o => {
+      const m = o.material;
+      if (!m || Array.isArray(m)) return;
+      const em = m.emissive && (m.emissiveIntensity ?? 1) > 0.05 && (m.emissive.r + m.emissive.g + m.emissive.b) > 0.05;
+      const add = (o.isSprite || o.isPoints) && m.blending === THREE.AdditiveBlending;
+      if (em || add || o.userData.bloom) { o.layers.enable(BLOOM_LAYER); n += 1; }
+    });
+    return n;
+  };
   const bloomPass = () => {
     if (!bloomOn) return;
     const w = Math.max(1, size.x >> 2), h = Math.max(1, size.y >> 2);
     if (bA.width !== w || bA.height !== h) { bA.setSize(w, h); bB.setSize(w, h); }
-    renderer.setRenderTarget(bA); renderer.render(brightScene, blitCam);
+    if (bloomTagged < 3) bloomTagged += tagBloom() > 0 ? 1 : 0;   // модели догружаются — пометить несколько раз
+    const bg = scene.background, fog = scene.fog;
+    scene.background = null; scene.fog = null;
+    renderer.setRenderTarget(bA); renderer.setClearColor(0x000000, 1); renderer.clear();
+    scene.overrideMaterial = depthOnly; renderer.render(scene, camera); scene.overrideMaterial = null;
+    camera.layers.set(BLOOM_LAYER); renderer.autoClear = false; renderer.render(scene, camera); renderer.autoClear = true;
+    camera.layers.set(0);
+    scene.background = bg; scene.fog = fog;
     for (let i = 0; i < 2; i += 1) {
       blurMat.uniforms.map.value = bA.texture; blurMat.uniforms.dir.value.set(1 / w, 0); renderer.setRenderTarget(bB); renderer.render(blurScene, blitCam);
       blurMat.uniforms.map.value = bB.texture; blurMat.uniforms.dir.value.set(0, 1 / h); renderer.setRenderTarget(bA); renderer.render(blurScene, blitCam);

@@ -281,7 +281,7 @@ export function buildAtmosphere({ terrain, cells, groundX0, groundZ0, groundW, g
     f.renderOrder = 23;
     f.userData.phase = Math.random() * 6.28;
     flames.push(f);
-    group.add(s, f);
+    group.add(f);   // 24.10: искусственное свечение-спрайт убрано — светит только блум
   }
   let tt = 0;
   const update = dt => {
