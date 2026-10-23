@@ -2083,6 +2083,9 @@ ${gtex ? `{
     if (isGate) { h.userData.isGate = true; houseSpots.push([best.hx + best.dx * 1.2, best.hz + best.dz * 1.2]); }
     // След постройки (прямоугольник) — под ним и вокруг земля ровная, скалы не залезают.
     const isNest = cls === 'fairy_glade' || cls === 'blueprints';
+    // ворота v4 (23.10): земля ровная и под туннелем (до Y 5.8 модели), иначе рельеф горы пролезает внутрь туннеля;
+    // снаружи эту полосу закрывает массив «крыши туннеля» (rock_roof, до земли с боков и сзади)
+    if (isGate && h.userData.v4) { const k = h.children[0].scale.x; footprints.push({ x: best.hx, z: best.hz, dx: best.dx, dz: best.dz, hw: 2.4 * k, hdFront: 0.0, hdBack: 5.8 * k }); }
     footprints.push({
       x: best.hx, z: best.hz, dx: best.dx, dz: best.dz,
       hw: isGate ? h.userData.span / 2 + 1.2 : isNest ? 0.9 : isModel ? HM.hw : HOUSE_W / 2,
@@ -2207,6 +2210,14 @@ ${gtex ? `{
     const nearWater = (x, z) => [[0, 0], [2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]]
       .some(([ox, oz]) => sample(x + ox, z + oz).water > 0.3);
     const lists = CLIFF_NAMES.map(() => []);
+    // ворота v4 (23.10): модуль обрыва залезал в туннель — внутри прямоугольника ворот+туннеля их не ставим
+    const gv = houses.children.find(h => h.userData.isGate && h.userData.v4);
+    const inGateV4 = (x, z) => {
+      if (!gv) return false;
+      const k = gv.children[0].scale.x, c = Math.cos(gv.rotation.y), sn = Math.sin(gv.rotation.y), ddx = x - gv.position.x, ddz = z - gv.position.z;
+      const X = (ddx * c - ddz * sn) / k, Y = -(ddx * sn + ddz * c) / k;
+      return Math.abs(X) < 4.6 && Y > -1.0 && Y < 7.5;
+    };
     for (const [x, z, gx, gz] of kept) {
       const dx = -gx, dz = -gz;                                      // наружу, вниз по склону
       const top = Math.max(heightAt(x - dx * 0.8, z - dz * 0.8), heightAt(x - dx * 1.2, z - dz * 1.2));
@@ -2217,14 +2228,15 @@ ${gtex ? `{
       const roll = r();
       const type = roll < 0.60 ? Math.floor(r() * 3) : roll < 0.80 ? 4 : roll < 0.90 ? 5 : 3;
       const len = 3.6 + r() * 1.2;
-      lists[type].push([x + dx * 0.25, Math.max(bottom, -0.3) - 0.4, z + dz * 0.25, len, (H + 0.45) * (0.98 + r() * 0.06), Math.atan2(dx, dz) + (r() - 0.5) * 0.16]);
+      lists[type].push([x + dx * 0.25, Math.max(bottom, -0.3) - 0.4, z + dz * 0.25, len, (H + 0.45) * (0.98 + r() * 0.06), Math.atan2(dx, dz) + (r() - 0.5) * 0.16, inGateV4(x, z)]);
     }
     kit.forEach((geo, i) => {
       if (!geo || !lists[i].length) return;
       const mesh = new THREE.InstancedMesh(geo, cmat, lists[i].length);
-      lists[i].forEach(([x, y, z, len, h, ry], k) => {
+      lists[i].forEach(([x, y, z, len, h, ry, hide], k) => {
         q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.05, ry, (r() - 0.5) * 0.05));
         m4.compose(p.set(x, y, z), q, s.set(len, h, Math.min(len, 4.2) * (0.9 + r() * 0.2)));
+        if (hide) m4.makeScale(0, 0, 0);   // в воротах v4 (туннель) — нулевой масштаб, общий r() не сдвигаем
         mesh.setMatrixAt(k, m4);
       });
       mesh.castShadow = mesh.receiveShadow = true;
