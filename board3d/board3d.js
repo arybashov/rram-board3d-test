@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792794243';
-import { buildTerrain } from './terrain.js?v=1792794243';
+import { buildAtmosphere } from './atmosphere.js?v=1792797075';
+import { buildTerrain } from './terrain.js?v=1792797075';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -162,10 +162,21 @@ const fogPass = atmo.fogMesh ? (() => {
   // Плюс общее приглушение к рефу v6b: всё темнее и контрастнее, а светящееся остаётся (и светит через блум).
   const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
   const qs = () => new THREE.WebGLRenderTarget(Math.max(1, size.x >> 2), Math.max(1, size.y >> 2), { type: THREE.HalfFloatType });
-  const bA = qs(), bB = qs();
+  const bA = qs(), bB = qs(); window.__bloomRT = [bA, bB];
   const quad = mat => { const sc = new THREE.Scene(); sc.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)); return sc; };
-  const brightMat = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture } }, vertexShader: VS,
-    fragmentShader: 'uniform sampler2D map; varying vec2 vUv; void main(){ vec3 c = texture2D(map, vUv).rgb; float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(0.78, 0.98, l), 1.0); }' });
+  // канал свечения: только объекты слоя 1 в свой полноразмерный буфер со своей глубиной; затем маска по глубине
+  // основной сцены (то, что загорожено, не светит) → ¼ разрешения → размытие
+  const eRT = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(size.x, size.y) }); window.__eRT = eRT;
+  const brightMat = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, uniforms: { map: { value: eRT.texture }, eDepth: { value: eRT.depthTexture }, sDepth: { value: rt.depthTexture }, px: { value: new THREE.Vector2(1, 1) } }, vertexShader: VS,
+    fragmentShader: `uniform sampler2D map, eDepth, sDepth; uniform vec2 px; varying vec2 vUv;
+      // ¼ разрешения: блок 4×4 исходных пикселей — среднее + максимум (мелкие огоньки не теряются)
+      void main(){ vec3 sum = vec3(0.0), mx = vec3(0.0);
+        for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) {
+          vec2 uv = vUv + (vec2(float(i), float(j)) - 1.5) * px;
+          vec3 c = texture2D(map, uv).rgb; float de = texture2D(eDepth, uv).r, ds = texture2D(sDepth, uv).r;
+          float vis = (ds <= 0.0 || de >= 0.99999) ? 1.0 : step(de, ds + 0.0004);   // огонь-спрайты глубину не пишут — их не маскируем
+          c = min(c, vec3(4.0)) * vis; sum += c; mx = max(mx, c); }
+        gl_FragColor = vec4(sum / 16.0 * 0.5 + mx * 0.5, 1.0); }` });
   const blurMat = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, uniforms: { map: { value: null }, dir: { value: new THREE.Vector2() } }, vertexShader: VS,
     fragmentShader: `uniform sampler2D map; uniform vec2 dir; varying vec2 vUv;
       void main(){ vec3 c = texture2D(map, vUv).rgb * 0.227;
@@ -175,7 +186,7 @@ const fogPass = atmo.fogMesh ? (() => {
   const brightScene = quad(brightMat), blurScene = quad(blurMat);
   const bloomOn = !new URLSearchParams(location.search).has('nobloom');
   blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture }, bloom: { value: bA.texture }, bk: { value: bloomOn ? 1.6 : 0.0 }, depthTex: { value: rt.depthTexture }, cN: { value: 1 }, cF: { value: 500 } },
+    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture }, bloom: { value: bA.texture }, bk: { value: bloomOn ? 3.5 : 0.0 }, depthTex: { value: rt.depthTexture }, cN: { value: 1 }, cF: { value: 500 } },
     vertexShader: VS,
     fragmentShader: `uniform sampler2D map, bloom, depthTex; uniform float bk, cN, cF; varying vec2 vUv;
       void main(){ vec3 c = texture2D(map, vUv).rgb;
@@ -213,16 +224,18 @@ const fogPass = atmo.fogMesh ? (() => {
     const w = Math.max(1, size.x >> 2), h = Math.max(1, size.y >> 2);
     if (bA.width !== w || bA.height !== h) { bA.setSize(w, h); bB.setSize(w, h); }
     if (bloomTagged < 3) bloomTagged += tagBloom() > 0 ? 1 : 0;   // модели догружаются — пометить несколько раз
+    if (eRT.width !== size.x || eRT.height !== size.y) eRT.setSize(size.x, size.y);
     const bg = scene.background, fog = scene.fog;
     scene.background = null; scene.fog = null;
-    renderer.setRenderTarget(bA); renderer.setClearColor(0x000000, 1); renderer.clear();
-    scene.overrideMaterial = depthOnly; renderer.render(scene, camera); scene.overrideMaterial = null;
-    camera.layers.set(BLOOM_LAYER); renderer.autoClear = false; renderer.render(scene, camera); renderer.autoClear = true;
-    camera.layers.set(0);
+    renderer.setRenderTarget(eRT); renderer.setClearColor(0x000000, 1); renderer.clear();
+    camera.layers.set(BLOOM_LAYER); renderer.render(scene, camera); camera.layers.set(0);
     scene.background = bg; scene.fog = fog;
-    for (let i = 0; i < 2; i += 1) {
-      blurMat.uniforms.map.value = bA.texture; blurMat.uniforms.dir.value.set(1 / w, 0); renderer.setRenderTarget(bB); renderer.render(blurScene, blitCam);
-      blurMat.uniforms.map.value = bB.texture; blurMat.uniforms.dir.value.set(0, 1 / h); renderer.setRenderTarget(bA); renderer.render(blurScene, blitCam);
+    brightMat.uniforms.px.value.set(1 / eRT.width, 1 / eRT.height);
+    renderer.setRenderTarget(bA); renderer.render(brightScene, blitCam);
+    for (let i = 0; i < 3; i += 1) {   // 3 прохода, шаг растёт — ореол
+      const st = 1 + 0.5 * i;
+      blurMat.uniforms.map.value = bA.texture; blurMat.uniforms.dir.value.set(st / w, 0); renderer.setRenderTarget(bB); renderer.render(blurScene, blitCam);
+      blurMat.uniforms.map.value = bB.texture; blurMat.uniforms.dir.value.set(0, st / h); renderer.setRenderTarget(bA); renderer.render(blurScene, blitCam);
     }
   };
   return () => {
