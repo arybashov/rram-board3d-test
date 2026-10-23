@@ -102,7 +102,7 @@ function heightTexture(hAt, x0, z0, w, d, solids = [], res = 384) {
   t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
   return t;
 }
-function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0.77, 0.35), color = 0xb6c4ca, opacity = 1.05 }) {
+function smokeField({ spots, tex, hTex, box, sunDir = new THREE.Vector3(-0.42, 0.77, 0.35), color = 0xb6c4ca, opacity = 0.55 }) {
   const n = spots.length;
   const geo = new THREE.InstancedBufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));

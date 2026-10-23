@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792797199';
-import { buildTerrain } from './terrain.js?v=1792797199';
+import { buildAtmosphere } from './atmosphere.js?v=1792797570';
+import { buildTerrain } from './terrain.js?v=1792797570';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -186,9 +186,9 @@ const fogPass = atmo.fogMesh ? (() => {
   const brightScene = quad(brightMat), blurScene = quad(blurMat);
   const bloomOn = !new URLSearchParams(location.search).has('nobloom');
   blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture }, bloom: { value: bA.texture }, bk: { value: bloomOn ? 3.5 : 0.0 }, depthTex: { value: rt.depthTexture }, cN: { value: 1 }, cF: { value: 500 } },
+    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture }, bloom: { value: bA.texture }, bk: { value: bloomOn ? 3.5 : 0.0 }, depthTex: { value: rt.depthTexture }, cN: { value: 1 }, cF: { value: 500 }, invPV: { value: new THREE.Matrix4() }, moonC: { value: [new THREE.Vector3(9999, 0, 9999), new THREE.Vector3(9999, 0, 9999)] } },
     vertexShader: VS,
-    fragmentShader: `uniform sampler2D map, bloom, depthTex; uniform float bk, cN, cF; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D map, bloom, depthTex; uniform float bk, cN, cF; uniform mat4 invPV; uniform vec3 moonC[2]; varying vec2 vUv;
       void main(){ vec3 c = texture2D(map, vUv).rgb;
         // 24.10 призрачная дымка (реф v6b): по глубине — холодный серо-голубой воздух, вверху кадра гуще (горы в тумане)
         float zb = texture2D(depthTex, vUv).r;
@@ -197,9 +197,23 @@ const fogPass = atmo.fogMesh ? (() => {
         float haze = clamp(1.0 - exp(-max(0.0, vz - 115.0) * 0.015), 0.0, 0.40);
         haze = max(haze, smoothstep(0.68, 1.0, vUv.y) * 0.32 * step(zb, 0.9999));
         c = mix(c, vec3(0.42, 0.48, 0.52), haze);
+        { // 24.10 лунный свет в тёмном лесу: мировая точка из глубины, вокруг домиков тёмного леса — холодный синий
+          vec4 wp = invPV * vec4(vUv * 2.0 - 1.0, zb * 2.0 - 1.0, 1.0); wp /= wp.w;
+          float mk = 0.0;
+          for (int i = 0; i < 2; i++) mk = max(mk, 1.0 - smoothstep(moonC[i].y * 0.35, moonC[i].y, length(wp.xz - moonC[i].xz)));
+          mk *= step(zb, 0.9999);
+          float lm = dot(c, vec3(0.3, 0.59, 0.11));
+          vec3 moon = mix(vec3(lm), c, 0.4) * vec3(0.80, 0.88, 1.02) + vec3(0.02, 0.025, 0.035);   // как на рефе: серо-лунная дымка, не синька
+          c = mix(c, moon, mk * 0.7);
+        }
         float l = max(c.r, max(c.g, c.b));
-        vec3 dim = pow(c, vec3(1.18)) * 0.86;                        // приглушить к рефу (тени глубже)
-        c = mix(dim, c, smoothstep(0.80, 0.97, l));                  // светящееся — как есть
+        // 24.10 разбор Codex п.1/п.10: середина светлее (экспозиция), пятно света на центре поля, мягкая виньетка краёв
+        vec2 cq = (vUv - vec2(0.49, 0.45)) / vec2(0.24, 0.29);
+        float M = exp(-0.5 * dot(cq, cq));
+        vec3 lit = pow(c, vec3(1.08)) * 0.95 * (1.0 + 0.22 * M);
+        float rv = length((vUv - vec2(0.50, 0.48)) / vec2(0.70, 0.65));
+        lit *= 1.0 - 0.15 * smoothstep(0.65, 1.0, rv);
+        c = mix(lit, c, smoothstep(0.80, 0.97, l));                  // светящееся — как есть
         c += texture2D(bloom, vUv).rgb * bk;
         gl_FragColor = vec4(c, 1.0); }`,
   })));
@@ -247,6 +261,8 @@ const fogPass = atmo.fogMesh ? (() => {
     bloomPass();
     renderer.setRenderTarget(null);
     blitScene.children[0].material.uniforms.cN.value = camera.near; blitScene.children[0].material.uniforms.cF.value = camera.far;
+    { const U = blitScene.children[0].material.uniforms; U.invPV.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).invert();
+      if (!U.moonC.ready) { let k = 0; scene.traverse(o => { if (k < 2 && /^dark-forest/.test(o.userData?.houseModel ?? '')) { U.moonC.value[k++].set(o.position.x, 7, o.position.z); } }); if (k) U.moonC.ready = true; } }
     renderer.render(blitScene, blitCam);
     renderer.autoClear = false;
     renderer.render(fogScene, camera);
@@ -373,7 +389,7 @@ scene.add(pickTiles);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  const outline = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xfff6e0, transparent: true, opacity: 0.3 }));
+  const outline = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa69b76, transparent: true, opacity: 0.22 })   /* 24.10 разбор Codex п.2: тёплые тонкие, не белые */);
   outline.renderOrder = 2;
   scene.add(outline);
 }
