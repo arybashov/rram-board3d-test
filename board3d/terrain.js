@@ -207,6 +207,10 @@ async function loadGateModel(url) {
       if (o.material.emissiveMap) o.material.emissiveIntensity = 1.1;
       if (o.material.name === 'gate_stone' || o.material.name === 'gate_floor') { o.material.color.setRGB(0.8, 0.8, 0.82); o.material.roughness = 1; }
       if (o.material.name === 'gate_rune') { o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 0.9; o.material.color.set(0x0c2a33); }   // руны — голубым, без пересвета
+      if (o.name === 'keystone_rune' || o.parent?.name === 'keystone_rune') {   // 23.10: ромб в замке — сплошное свечение (из атласа брал тёмный угол)
+        o.material = o.material.clone(); o.material.map = null; o.material.emissiveMap = null;
+        o.material.color.set(0x0c2a33); o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 1.0; o.material.needsUpdate = true;
+      }
       if (o.material.name === 'gate_ember') { o.material.emissive.set(0xff4a10); o.material.emissiveIntensity = 0.8; o.material.color.set(0x220804); }
       // 23.10: створки были чёрными — металл без окружения отражает пустоту; дерево и железо — матовые, металличность низкая
       if (o.material.name === 'gate_door_front') { o.material.metalness = 0.15; o.material.roughness = 0.7; o.material.color.setRGB(1.75, 1.45, 1.15); }   // тёмный металл с бронзой (реф)
