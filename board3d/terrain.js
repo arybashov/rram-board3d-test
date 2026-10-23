@@ -1767,13 +1767,13 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=10', 'forest-02': './models/house-forest-02.glb?v=6', 'forest-trail-01': './models/house-forest-trail-01.glb?v=3' };
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=11', 'forest-02': './models/house-forest-02.glb?v=7', 'forest-trail-01': './models/house-forest-trail-01.glb?v=4' };
   const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]], 'forest-02': ['./models/forest02-props.glb?v=1', [1.15, 0, 0.75]], 'forest-trail-01': ['./models/trail01-props.glb?v=2', [1.35, 0, 0.35]] };   // бочка+корзина рядом с домом (локально)
   // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
   const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=20', 'lake-01-props': './data/house/lake01props-wear.png?v=20', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=20',
-    'forest-01': './data/house/forest01-wear.png?v=10', 'forest-01-props': './data/house/forest01props-wear.png?v=2',
-    'forest-02': './data/house/forest02-wear.png?v=6', 'forest-02-props': './data/house/forest02props-wear.png?v=1',
-    'forest-trail-01': './data/house/trail01-wear.png?v=3', 'forest-trail-01-props': './data/house/trail01props-wear.png?v=2' };
+    'forest-01': './data/house/forest01-wear.png?v=11', 'forest-01-props': './data/house/forest01props-wear.png?v=2',
+    'forest-02': './data/house/forest02-wear.png?v=7', 'forest-02-props': './data/house/forest02props-wear.png?v=1',
+    'forest-trail-01': './data/house/trail01-wear.png?v=4', 'forest-trail-01-props': './data/house/trail01props-wear.png?v=2' };
   const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20' };   // мостки к дому (в системе дома)
   const wearTex = {};
   await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
@@ -1829,6 +1829,7 @@ ${gtex ? `{
         if (done.has(m)) continue; done.add(m);
         if (opt.skip && opt.skip.test(m.name)) continue;   // шкура с альфой — без износа/мха
         const topMoss = (!opt.mossOn || opt.mossOn.test(m.name)) ? topMoss0 : 0;
+        const cells = opt.cells ? Object.entries(opt.cells).find(([re]) => new RegExp(re).test(m.name))?.[1] : null;
         m.onBeforeCompile = sh => {
           sh.uniforms.wearMap = { value: tex };
           if (aged || path || topMoss) { sh.uniforms.litterMap = { value: opt.litter ?? opt.moss }; sh.uniforms.mossMap = { value: opt.moss }; }
@@ -1841,7 +1842,26 @@ ${gtex ? `{
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.0 + vec3(0.08, 0.07, 0.055), clamp(w.g * 1.3, 0.0, 1.0) * 0.9);   // потёртые кромки — светлее
     // тон детали (B запечён по несвязным частям): каждая плашка/доска/бревно/камень — своя яркость и чуть свой оттенок
     float pc = w.b;
-    diffuseColor.rgb *= mix(0.74, 1.22, pc) * mix(vec3(1.04, 0.98, 0.92), vec3(0.94, 1.0, 1.06), fract(pc * 7.31));
+    diffuseColor.rgb *= mix(0.74, 1.22, pc) * mix(vec3(1.04, 0.98, 0.92), vec3(0.94, 1.0, 1.06), fract(pc * 7.31));${opt.mottle ? `
+    { // 23.10 домики: неравномерность цвета — крупные пятна светлее/темнее и теплее/холоднее (выгорание, сырость)
+      vec2 mp = vLoc.xz + vLoc.y * 0.7;
+      float m1 = fract(sin(dot(floor(mp * 1.3), vec2(12.99, 78.23))) * 43758.5);
+      float a1 = fract(sin(dot(floor(mp * 1.3) + vec2(1, 0), vec2(12.99, 78.23))) * 43758.5);
+      vec2 fp = fract(mp * 1.3); fp = fp * fp * (3.0 - 2.0 * fp);
+      float b1 = fract(sin(dot(floor(mp * 1.3) + vec2(0, 1), vec2(12.99, 78.23))) * 43758.5), c1 = fract(sin(dot(floor(mp * 1.3) + vec2(1, 1), vec2(12.99, 78.23))) * 43758.5);
+      float n = mix(mix(m1, a1, fp.x), mix(b1, c1, fp.x), fp.y);
+      float n2 = fract(sin(dot(floor(mp * 4.1), vec2(39.3, 11.7))) * 9137.1);
+      float k = (n - 0.5) * ${(+opt.mottle).toFixed(2)} * 2.0 + (n2 - 0.5) * ${(+opt.mottle).toFixed(2)} * 0.6;
+      diffuseColor.rgb *= (1.0 + k) * mix(vec3(1.06, 1.0, 0.90), vec3(0.92, 1.0, 1.08), n2);
+    }` : ''}${cells ? `
+    #ifdef USE_MAP
+    { // каждая плашка/доска — свой тон (ячейки по UV текстуры: rows рядов, cols плашек в ряду, ряды со сдвигом)
+      float rw = floor(vMapUv.y * ${cells[0].toFixed(1)});
+      float cl = floor(vMapUv.x * ${cells[1].toFixed(1)} + rw * 0.5);
+      float h = fract(sin(dot(vec2(rw, cl), vec2(12.99, 78.23))) * 43758.5);
+      diffuseColor.rgb *= mix(0.5, 1.5, h) * mix(vec3(1.12, 0.98, 0.80), vec3(0.86, 1.0, 1.12), fract(h * 5.7));
+    }
+    #endif` : ''}
     ${streakTop !== null && !aged ? `
     // подтёки (дом, мостки, пропсы): тёмные вертикальные следы на отвесных гранях от верха (streakTop) вниз
     #define HH2(p) fract(sin(dot(p, vec2(27.1, 61.7))) * 31871.3)
@@ -1910,7 +1930,7 @@ ${gtex ? `{
       diffuseColor.rgb = mix(diffuseColor.rgb, mt, clamp(mo, 0.0, 0.9));
     }` : ''} }`);
         };
-        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (topMoss ? 'tm' + topMoss : '') + (path ? 'path' + path.deckH + path.halfW + (path.edge0 ?? '') + (path.dust ?? '') : '');
+        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (opt.mottle ? 'mt' + opt.mottle : '') + (m.name ?? '') + (topMoss ? 'tm' + topMoss : '') + (path ? 'path' + path.deckH + path.halfW + (path.edge0 ?? '') + (path.dust ?? '') : '');
         m.needsUpdate = true;
       }
     });
@@ -1924,7 +1944,7 @@ ${gtex ? `{
       o.castShadow = true; o.receiveShadow = true;
       if (o.material.name === 'hide' || o.material.name === 'fleece') { o.material.alphaTest = 0.5; o.material.transparent = false; o.material.depthWrite = true; o.material.side = THREE.DoubleSide; }   // шкура с альфой (Codex)
     });
-    applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^(hide|fleece)/ });
+    applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^(hide|fleece)/, mottle: 0.25, cells: { '^tshingle': [4, 7], '^tplanks': [6, 1.5] } });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const houseProps = {};
