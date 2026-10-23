@@ -944,6 +944,9 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
   for (const t of list) {
     const grp = t.group === 'bush' && byGroup.shrub ? 'shrub' : t.group;   // круглые садовые кусты -> дикие (21.10)
     if (grp === 'shrub' && !t.shrubScaled) { t.h = Math.min(t.h * 1.1, 0.95); t.shrubScaled = true; }   // куст не выше молодой ели (22.10: двойное приглушение убрано — новый лист и так тёмный, кусты чернели)
+    // 24.10: единый тон зелени к рефу — ивы, кувшинки, камыш глуше и темнее (для всех посадок, один раз)
+    const PG = { willow: [0.0, 0.62, 0.76], young_willow: [0.0, 0.62, 0.76], lily: [0.0, 0.6, 0.78], reeds: [0.01, 0.55, 0.72] }[grp];
+    if (PG && !t.pg && t.tint) { t.tint = [t.tint[0] + PG[0], t.tint[1] * PG[1], t.tint[2] * PG[2]]; t.pg = true; }
     const opts = byGroup[grp] ?? byGroup.spruce ?? frames;
     t.frame = opts[t.pick % opts.length];
     t.aspect = (t.frame.w * atlasTex.image.width) / (t.frame.h * atlasTex.image.height);
@@ -1309,7 +1312,7 @@ ${gtex ? `{
   // грейд v6b: земля темнее и холоднее, зелень приглушена
   float gl0 = dot(col, vec3(0.3, 0.59, 0.11));
   // земля как на концепте v6b: тёмная мшистая олива с бурым; тропы остаются светлыми песчаными
-  vec3 graded = mix(vec3(gl0), col, 0.55) * vec3(0.66, 0.66, 0.60);   // замер v6b: серо-оливковая, не жёлтая
+  vec3 graded = mix(vec3(gl0), col, 0.60) * vec3(0.84, 0.82, 0.86);   // 24.10 замер v6b луг ~(92,84,57): светлее и менее жёлтый
   float pathW = sa.r;
   // лесное основание: под группами деревьев — тёмная хвойно-лиственная подстилка одним пятном; край рваный
   // (шум), на тропе и клетках нет (маска это уже учитывает, тропа — ещё и здесь)
@@ -1395,11 +1398,12 @@ ${gtex ? `{
         // тёмная холодная вода (концепт v6b): бирюза у берега -> глубокий сине-зелёный
         // палитра v6b по зонам (разбор Codex water-v6b/answer.md): глубина / середина / мелководье (sRGB→linear)
         float lakeK = 0.0;
-        for (int i = 0; i < 6; i++) lakeK = max(lakeK, 1.0 - smoothstep(lakeR.w * 0.55, lakeR.w, length(vPos.xz - lakeC[i])));
+        for (int i = 0; i < 6; i++) lakeK = max(lakeK, 1.0 - smoothstep(lakeR.w * 0.25, lakeR.w * 1.6, length(vPos.xz - lakeC[i])));   // 24.10: граница озеро/река шире — без резкой линии
         float poolK = 1.0 - smoothstep(4.5, 7.0, length(vPos.xz - poolC));
+        // 24.10 замер рефа v6b (озеро ~(46,72,81) sRGB): прежняя палитра была ближе всего — оставлена, мелководье чуть холоднее
         vec3 dp = mix(vec3(0.141,0.275,0.322), vec3(0.090,0.216,0.267), lakeK); dp = mix(dp, vec3(0.137,0.286,0.337), poolK);
         vec3 md = mix(vec3(0.224,0.420,0.475), vec3(0.157,0.325,0.380), lakeK); md = mix(md, vec3(0.259,0.471,0.533), poolK);
-        vec3 sh = mix(vec3(0.443,0.608,0.635), vec3(0.322,0.490,0.514), lakeK); sh = mix(sh, vec3(0.525,0.682,0.710), poolK);
+        vec3 sh = mix(vec3(0.400,0.560,0.600), vec3(0.300,0.450,0.490), lakeK); sh = mix(sh, vec3(0.480,0.630,0.670), poolK);
         dp = pow(dp, vec3(2.2)); md = pow(md, vec3(2.2)); sh = pow(sh, vec3(2.2));
         d = clamp(d * mix(3.2, 1.0, lakeK), 0.0, 1.0);   // узкие русла и чаша — расстояние до берега мало, но вода не мелкая
         for (int i = 0; i < 3; i++) d = max(d, (1.0 - smoothstep(2.0, 3.6, length(vPos.xz - bridgeC[i]))) * 0.55);   // расширенное русло под мостом — не берег

@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792793537';
-import { buildTerrain } from './terrain.js?v=1792793537';
+import { buildAtmosphere } from './atmosphere.js?v=1792793887';
+import { buildTerrain } from './terrain.js?v=1792793887';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -158,17 +158,50 @@ const fogPass = atmo.fogMesh ? (() => {
   const u = atmo.fogMesh.material.uniforms;
   u.depthTex.value = rt.depthTexture;
   const blitScene = new THREE.Scene(), blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  // 24.10 блум (свой, WebGL): яркое (окна, фонари, огонь, руны) → ¼ разрешения → размытие 2×2 прохода → сложение.
+  // Плюс общее приглушение к рефу v6b: всё темнее и контрастнее, а светящееся остаётся (и светит через блум).
+  const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+  const qs = () => new THREE.WebGLRenderTarget(Math.max(1, size.x >> 2), Math.max(1, size.y >> 2), { type: THREE.HalfFloatType });
+  const bA = qs(), bB = qs();
+  const quad = mat => { const sc = new THREE.Scene(); sc.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)); return sc; };
+  const brightMat = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture } }, vertexShader: VS,
+    fragmentShader: 'uniform sampler2D map; varying vec2 vUv; void main(){ vec3 c = texture2D(map, vUv).rgb; float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(0.78, 0.98, l), 1.0); }' });
+  const blurMat = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, uniforms: { map: { value: null }, dir: { value: new THREE.Vector2() } }, vertexShader: VS,
+    fragmentShader: `uniform sampler2D map; uniform vec2 dir; varying vec2 vUv;
+      void main(){ vec3 c = texture2D(map, vUv).rgb * 0.227;
+        c += (texture2D(map, vUv + dir * 1.385).rgb + texture2D(map, vUv - dir * 1.385).rgb) * 0.316;
+        c += (texture2D(map, vUv + dir * 3.231).rgb + texture2D(map, vUv - dir * 3.231).rgb) * 0.070;
+        gl_FragColor = vec4(c, 1.0); }` });
+  const brightScene = quad(brightMat), blurScene = quad(blurMat);
+  const bloomOn = !new URLSearchParams(location.search).has('nobloom');
   blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture } },
-    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-    fragmentShader: 'uniform sampler2D map; varying vec2 vUv; void main(){ gl_FragColor = texture2D(map, vUv); }',   // байты как есть
+    depthTest: false, depthWrite: false, uniforms: { map: { value: rt.texture }, bloom: { value: bA.texture }, bk: { value: bloomOn ? 1.6 : 0.0 } },
+    vertexShader: VS,
+    fragmentShader: `uniform sampler2D map, bloom; uniform float bk; varying vec2 vUv;
+      void main(){ vec3 c = texture2D(map, vUv).rgb;
+        float l = max(c.r, max(c.g, c.b));
+        vec3 dim = pow(c, vec3(1.18)) * 0.86;                        // приглушить к рефу (тени глубже)
+        c = mix(dim, c, smoothstep(0.80, 0.97, l));                  // светящееся — как есть
+        c += texture2D(bloom, vUv).rgb * bk;
+        gl_FragColor = vec4(c, 1.0); }`,
   })));
+  const bloomPass = () => {
+    if (!bloomOn) return;
+    const w = Math.max(1, size.x >> 2), h = Math.max(1, size.y >> 2);
+    if (bA.width !== w || bA.height !== h) { bA.setSize(w, h); bB.setSize(w, h); }
+    renderer.setRenderTarget(bA); renderer.render(brightScene, blitCam);
+    for (let i = 0; i < 2; i += 1) {
+      blurMat.uniforms.map.value = bA.texture; blurMat.uniforms.dir.value.set(1 / w, 0); renderer.setRenderTarget(bB); renderer.render(blurScene, blitCam);
+      blurMat.uniforms.map.value = bB.texture; blurMat.uniforms.dir.value.set(0, 1 / h); renderer.setRenderTarget(bA); renderer.render(blurScene, blitCam);
+    }
+  };
   return () => {
     renderer.getDrawingBufferSize(size);
     if (rt.width !== size.x || rt.height !== size.y) rt.setSize(size.x, size.y);
     u.res.value.copy(size); u.camNear.value = camera.near; u.camFar.value = camera.far;
     renderer.setRenderTarget(rt);
     renderer.render(scene, camera);
+    bloomPass();
     renderer.setRenderTarget(null);
     renderer.render(blitScene, blitCam);
     renderer.autoClear = false;
