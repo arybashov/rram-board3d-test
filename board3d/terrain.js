@@ -1016,10 +1016,16 @@ function billboardTrees(list, atlasTex, frames, { writeDepth = false } = {}) {
         return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x); }
       vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
       void main(){ vec4 c = texture2D(atlas, vUv); if (c.a < ALPHA_CUT) discard;
+        // 24.10 разбор п.6: контраст деталей листвы ×0.5 — смесь с грубым mip (общая масса кроны, без крапа)
+        c.rgb = mix(texture2D(atlas, vUv, 2.5).rgb, c.rgb, 0.55);
         vec3 hsv = rgb2hsv(c.rgb);
         // сдвиг оттенка — только у насыщенных пикселей: у тёмной малонасыщенной хвои оттенок неустойчив,
         // и сдвиг уводил её в розовый (новые ели v6b)
-        hsv.x = fract(hsv.x + vTint.x * smoothstep(0.25, 0.5, hsv.y)); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= vTint.z;
+        hsv.x = fract(hsv.x + vTint.x * smoothstep(0.25, 0.5, hsv.y)); hsv.y = clamp(hsv.y * vTint.y, 0.0, 1.0); hsv.z *= mix(1.0, vTint.z, 0.6);   // разброс яркости экземпляров ~±6%
+        // п.5: зелень и цветочки — насыщенность ×0.75 (осенние красно-жёлтые оттенки не трогаем — это акценты рощ)
+        float green = smoothstep(0.14, 0.2, hsv.x) * (1.0 - smoothstep(0.45, 0.55, hsv.x));
+        float violet = smoothstep(0.70, 0.78, hsv.x) * (1.0 - smoothstep(0.92, 0.98, hsv.x));
+        hsv.y *= 1.0 - 0.25 * green - 0.35 * violet;
         // затенение: низ кроны и ствол темнее (окклюзия), в густой роще всё дерево темнее (vTint.w)
         hsv.z *= mix(0.62, 1.0, smoothstep(0.0, 0.55, vH)) * vTint.w;
         vec3 rgb = hsv2rgb(hsv);
@@ -1255,10 +1261,12 @@ varying vec3 vNrm;`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 ${gtex ? `{
   // тайлы ~4 единицы; лёгкий поворот второй выборки травы против повтора
+  // 24.10 разбор Codex п.3: мелкая фактура грунта на 55% мягче — смесь с грубым mip (bias 3)
+  #define DT(t, u) mix(texture2D(t, u, 3.0).rgb, texture2D(t, u).rgb, 0.45)
   vec2 tuv = vWorldPos.xz * 0.24;
-  vec3 grass = texture2D(g_grass, tuv).rgb;
+  vec3 grass = DT(g_grass, tuv);
 #ifndef LOWQ
-  grass = mix(grass, texture2D(g_grass, tuv * 0.41 + 0.37).rgb, 0.35);
+  grass = mix(grass, DT(g_grass, tuv * 0.41 + 0.37), 0.35);
 #endif
   // рваный край троп: маска троп берётся со сдвигом по шуму (domain warp) — у неё край в 1 px,
   // порог двигать бесполезно; сдвиг ~0.3 ед. даёт выступы, заплаты травы и неровную ширину
@@ -1267,9 +1275,9 @@ ${gtex ? `{
   vec4 sa = texture2D(g_splatA, vMapUv);
   sa.r = texture2D(g_splatA, vMapUv + pw * vec2(0.0031, 0.0041)).r;  vec4 sb = texture2D(g_splatB, vMapUv);
   vec3 col = grass;
-  if (sb.r > 0.01) col = mix(col, texture2D(g_meadow, tuv).rgb, sb.r);
-  if (sa.g > 0.01) col = mix(col, texture2D(g_forest, tuv).rgb * vec3(0.6, 0.62, 0.55), sa.g);   // под кронами темно (не газон)
-  if (sb.g > 0.01) col = mix(col, texture2D(g_dark, tuv).rgb, sb.g);
+  if (sb.r > 0.01) col = mix(col, DT(g_meadow, tuv), sb.r);
+  if (sa.g > 0.01) col = mix(col, DT(g_forest, tuv) * vec3(0.6, 0.62, 0.55), sa.g);   // под кронами темно (не газон)
+  if (sb.g > 0.01) col = mix(col, DT(g_dark, tuv), sb.g);
   // берег (разбор «парка» п.2): не ровная песчаная кайма — ширина рвётся шумом, местами вместо песка мокрая
   // тёмная земля и галька, песок только редкими пляжиками
   float bn = sin(vWorldPos.x * 0.9 + sin(vWorldPos.z * 0.7) * 2.1) * sin(vWorldPos.z * 1.1 - vWorldPos.x * 0.4) * 0.5 + 0.5;
@@ -1277,7 +1285,7 @@ ${gtex ? `{
   float beachK = smoothstep(0.35, 0.75, sa.b + (bn - 0.55) * 0.55 + (bn2 - 0.5) * 0.2);
   if (beachK > 0.01) {
     vec3 sand = texture2D(g_beach, tuv).rgb * vec3(0.95, 0.9, 0.82);
-    vec3 wet = texture2D(g_forest, tuv * 1.4 + 0.3).rgb * vec3(0.45, 0.43, 0.38);          // мокрая тёмная земля
+    vec3 wet = DT(g_forest, tuv * 1.4 + 0.3) * vec3(0.45, 0.43, 0.38);          // мокрая тёмная земля
     vec3 pebble = mix(texture2D(rockTop, vWorldPos.xz * 0.35).rgb * 0.7, wet, 0.4);
     vec3 bank = mix(wet, sand, smoothstep(0.55, 0.8, bn));                                 // песок — только пятнами
     bank = mix(bank, pebble, smoothstep(0.6, 0.85, bn2) * 0.7);
@@ -1313,6 +1321,11 @@ ${gtex ? `{
   float gl0 = dot(col, vec3(0.3, 0.59, 0.11));
   // земля как на концепте v6b: тёмная мшистая олива с бурым; тропы остаются светлыми песчаными
   vec3 graded = mix(vec3(gl0), col, 0.60) * vec3(0.84, 0.82, 0.86);   // 24.10 замер v6b луг ~(92,84,57): светлее и менее жёлтый
+  { // п.4: зелень к одному семейству — цветность тянем к траве/мху рефа #656C45 с сохранением яркости (45%)
+    vec3 P = pow(vec3(0.396, 0.424, 0.271), vec3(2.2));
+    float yA = dot(graded, vec3(0.2126, 0.7152, 0.0722)), yP = dot(P, vec3(0.2126, 0.7152, 0.0722));
+    graded = mix(graded, P * yA / max(yP, 1e-4), 0.45);
+  }
   float pathW = sa.r;
   // лесное основание: под группами деревьев — тёмная хвойно-лиственная подстилка одним пятном; край рваный
   // (шум), на тропе и клетках нет (маска это уже учитывает, тропа — ещё и здесь)
@@ -1402,9 +1415,10 @@ ${gtex ? `{
         float poolK = 1.0 - smoothstep(4.5, 7.0, length(vPos.xz - poolC));
         // 24.10 замер рефа v6b (озеро ~(46,72,81) sRGB): прежняя палитра была ближе всего — оставлена, мелководье чуть холоднее
         // 24.10 «не лазурная»: тёмная холодная сланцево-зелёная, низкая насыщенность (как глубокая вода на рефе)
-        vec3 dp = mix(vec3(0.105,0.150,0.160), vec3(0.085,0.125,0.140), lakeK); dp = mix(dp, vec3(0.110,0.160,0.170), poolK);
-        vec3 md = mix(vec3(0.170,0.220,0.225), vec3(0.135,0.180,0.190), lakeK); md = mix(md, vec3(0.190,0.240,0.245), poolK);
-        vec3 sh = mix(vec3(0.290,0.330,0.315), vec3(0.230,0.270,0.265), lakeK); sh = mix(sh, vec3(0.330,0.370,0.355), poolK);
+        // реки — сланцевые серые; озеро (lakeK) — глубокое сине-бирюзовое, как на рефе (~(30,62,78) в центре)
+        vec3 dp = mix(vec3(0.105,0.150,0.160), vec3(0.075,0.180,0.235), lakeK); dp = mix(dp, vec3(0.110,0.160,0.170), poolK);
+        vec3 md = mix(vec3(0.170,0.220,0.225), vec3(0.120,0.250,0.300), lakeK); md = mix(md, vec3(0.190,0.240,0.245), poolK);
+        vec3 sh = mix(vec3(0.290,0.330,0.315), vec3(0.200,0.320,0.340), lakeK); sh = mix(sh, vec3(0.330,0.370,0.355), poolK);
         dp = pow(dp, vec3(2.2)); md = pow(md, vec3(2.2)); sh = pow(sh, vec3(2.2));
         d = clamp(d * mix(3.2, 1.0, lakeK), 0.0, 1.0);   // узкие русла и чаша — расстояние до берега мало, но вода не мелкая
         for (int i = 0; i < 3; i++) d = max(d, (1.0 - smoothstep(2.0, 3.6, length(vPos.xz - bridgeC[i]))) * 0.55);   // расширенное русло под мостом — не берег
