@@ -1775,12 +1775,19 @@ ${gtex ? `{
       float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
       vec3 polished = mix(vec3(lum), diffuseColor.rgb, 0.55) * 1.35 + vec3(0.05, 0.045, 0.03);
       diffuseColor.rgb = mix(diffuseColor.rgb, polished, centre * 0.7);
-      float debris = smoothstep(1.05, 1.45, edgeD) * smoothstep(0.30, 0.55, fineP * 0.6 + blotP * 0.5);
-      vec3 litter = texture2D(litterMap, vLoc.xz * 0.55).rgb * vec3(0.9, 0.85, 0.75);
+      float debris = smoothstep(${(pt.edge0 ?? 1.05).toFixed(2)}, ${((pt.edge0 ?? 1.05) + 0.4).toFixed(2)}, edgeD) * smoothstep(0.30, 0.55, fineP * 0.6 + blotP * 0.5);
+      vec3 litter = texture2D(litterMap, vLoc.xz * 0.55).rgb * vec3(0.9, 0.85, 0.75);${pt.dust ? `
+      diffuseColor.rgb = mix(diffuseColor.rgb, litter * 0.9, ${pt.dust.toFixed(2)} * smoothstep(0.35, 0.75, fineP * 0.5 + bigP * 0.6) * (1.0 - centre * 0.6));   // пыль/грязь налётом` : ''}
       vec3 mossy = texture2D(mossMap, vLoc.xz * 0.9).rgb * 0.85;
       vec3 junk = mix(litter, mossy, smoothstep(0.55, 0.8, bigP));
       diffuseColor.rgb = mix(diffuseColor.rgb, junk * (0.85 + 0.3 * fineP), clamp(debris, 0.0, 0.9));
-    }`;
+    }${pt.moss ? `
+    else {   // ворота (23.10): мох в щелях/тени (по запечённому AO) и пятнами на верхах камней — не на проходе
+      float mo = (1.0 - smoothstep(0.25, 0.7, w.r)) * 0.55 * smoothstep(0.25, 0.6, fineP * 0.5 + bigP * 0.7);
+      mo += smoothstep(0.6, 0.9, vWN.y) * smoothstep(0.40, 0.78, blotP * 0.6 + bigP * 0.6) * 0.75;
+      vec3 mossT = texture2D(mossMap, vLoc.xz * 0.9 + vLoc.y * 0.3).rgb * vec3(0.85, 0.95, 0.7);
+      diffuseColor.rgb = mix(diffuseColor.rgb, mossT, clamp(mo, 0.0, 0.8));
+    }` : ''}`;
   const applyWear = (root, tex, opt = {}) => {
     if (!tex) return;
     const aged = !!opt.aged;   // каменный мост (22.10): сильнее состарить — мох в щелях и на верхах бортиков, затёртый проход, мусор к краям
@@ -1867,7 +1874,7 @@ ${gtex ? `{
     }` : ''}
     ${path ? pathGLSL(path) : ''} }`);
         };
-        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (path ? 'path' + path.deckH + path.halfW : '');
+        m.customProgramCacheKey = () => (aged ? 'wear-aged' : 'wear') + (streakTop ?? '') + (path ? 'path' + path.deckH + path.halfW + (path.edge0 ?? '') + (path.dust ?? '') : '');
         m.needsUpdate = true;
       }
     });
@@ -1901,6 +1908,17 @@ ${gtex ? `{
     // верёвочный — без запечённого износа: нейтральная карта (R=1 без затемнения, G=0 без кромок, B=.5 средний тон)
     const flat = new THREE.DataTexture(new Uint8Array([255, 0, 128, 255]), 1, 1); flat.needsUpdate = true;
     for (const pc of bridges.children) if (pc.userData.kind === 'rope') applyWear(pc, flat, { litter, moss, path: ropePath });
+    // ворота v4 (23.10, «всё состариваем как мосты»): камень — запечённый износ (gate4-wear по 2-й развёртке), подтёки
+    // от верха арки, проход по ступеням и площадке затёрт, к краям пыль/листья/мох; мох в щелях и на верхах.
+    // Оси модели в three: x = X, y = Z (вверх), z = −Y (Y модели — в гору). Верх ступеней .2/.4/.6, площадка .60.
+    if (gateModel?.getObjectByName('tunnel')) {
+      const ldw = async u => { const t = await new THREE.TextureLoader().loadAsync(u).catch(() => null); if (t) { t.flipY = false; t.colorSpace = THREE.NoColorSpace; } return t; };
+      const [gw, gd] = await Promise.all([ldw('./data/gate/gate4-wear.png?v=1'), ldw('./data/gate/gate4doors-wear.png?v=1')]);
+      const pick = test => ({ traverse: f => gateModel.traverse(o => { if (o.isMesh && test(o)) f(o); }) });
+      const gatePath = { deckH: 'min(0.6, 0.2 * (floor(-vLoc.z / 0.4) + 1.0))', halfW: 1.40, moss: true, edge0: 0.75, dust: 0.45 };
+      if (gw && litter) applyWear(pick(o => /gate_stone|gate_floor/.test(o.material.name) && !/^door_/.test(o.parent?.name ?? o.name)), gw, { litter, moss, streakTop: 4.1, path: gatePath });
+      if (gd) applyWear(pick(o => /gate_door_(front|back)/.test(o.material.name)), gd, {});
+    }
   }
   const houseJetty = {};
   // пена там, где столбы входят в воду (22.10): кольцо на поверхности, рваный край, мягко «дышит»; оси свай — как в
@@ -3048,7 +3066,8 @@ ${gtex ? `{
           { x: gx0, y: gz0 + 7, base: 4.24 * k, levels: [{ top: 4.75 * k, pts: [[-2.5, 2.0], [2.5, 2.0], [2.5, 3.26], [1.54, 3.26], [1.54, 5.7], [-1.54, 5.7], [-1.54, 3.26], [-2.5, 3.26]].map(W) }] },
         ];
         const id = (x, z) => [x, z];
-        gateRocks.forEach((rk, i) => rockMonolith(rk, id, 1900 + i, mat).children.forEach(m => parts.push(m.geometry)));
+        // 23.10: глыбы вокруг ворот теперь в самой модели (по развёртке Codex, без навеса) — генератор сцены здесь выключен
+        if (false) gateRocks.forEach((rk, i) => rockMonolith(rk, id, 1900 + i, mat).children.forEach(m => parts.push(m.geometry)));
       }
       if (parts.length) {
         const merged = new THREE.Mesh(mergeGeometries(parts.map(g => (g.index ? g.toNonIndexed() : g))), mat);
@@ -3441,11 +3460,21 @@ ${gtex ? `{
     let young = 0, cut = 0;
     const kept = [];
     const rr2 = rng(20261022);
+    const gv4 = houses.children.find(h => h.userData.isGate && h.userData.v4);
+    const gateBox = (x, z) => {
+      if (!gv4) return false;
+      const k = gv4.children[0].scale.x, c = Math.cos(gv4.rotation.y), s = Math.sin(gv4.rotation.y);
+      const dx = x - gv4.position.x, dz = z - gv4.position.z;
+      const X = (dx * c - dz * s) / k, Y = -(dx * s + dz * c) / k;
+      return Math.abs(X) < 4.3 && Y > -0.5 && Y < 6.0;
+    };
     for (const t of treeBillboard.list) {
       if (t.group !== 'lily' && onJetty(t.x, t.z, t.h)) { cut += 1; continue; }
       // перед домиком не заслонять (в т.ч. ивы, которые этот проход доращивает до взрослых ниже)
       // сухостой (наклонные коряги) — не у домиков вовсе: ложился поперёк фасада (22.10)
       if (t.group === 'deadstand' && houses.children.some(h => !h.userData.isGate && h.userData.cell && Math.hypot(t.x - h.position.x, t.z - h.position.z) < 4.5)) { cut += 1; continue; }
+      // ворота v4 (23.10): ничего не растёт внутри ворот и их скалы (ёлка торчала в щели за столбом)
+      if (gateBox(t.x, t.z)) { cut += 1; continue; }
       if (t.group !== 'lily' && t.h > 0.9 && houses.children.some(h => !h.userData.isGate && h.userData.cell && Math.abs(t.x - h.position.x) < 1.9 && t.z - h.position.z > -1.9 && t.z - h.position.z < 2.0 + 1.1 * Math.max(t.h, 3.2))) { cut += 1; continue; }
       if (t.h > 1.5 && [0.3, 0.9, 1.5, 2.1].some(d => d < 0.9 * t.h && onBridge(t.x, t.z - d))) { cut += 1; continue; }   // высокое прямо перед мостом (к камере) закрывает арку   // на мостках ничего не растёт (последний проход посадки)
       const fl = FLOOR[t.group];
