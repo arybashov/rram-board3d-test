@@ -186,13 +186,13 @@ function gateMat(name, repeat) {
 }
 // модель ворот v2 из Blender: портал по частям + столбчатая скала вокруг (tools/blender/dwarf_gate_v2.py)
 let gateModel = null;
-let _doorBack = null;
-const doorBackTex = () => {
-  if (_doorBack) return _doorBack;
-  _doorBack = new THREE.TextureLoader().load('./data/bridge/log-top.webp');
-  _doorBack.colorSpace = THREE.SRGBColorSpace; _doorBack.wrapS = _doorBack.wrapT = THREE.RepeatWrapping;
-  _doorBack.rotation = Math.PI / 2; _doorBack.center.set(0.5, 0.5);   // доски вдоль высоты створки
-  return _doorBack;
+let _doorTex = null;
+const doorTex = () => {
+  if (_doorTex) return _doorTex;
+  const l = new THREE.TextureLoader();
+  const m = l.load('./data/gate/doors4-front.webp?v=1'); m.colorSpace = THREE.SRGBColorSpace; m.flipY = false;
+  const g = l.load('./data/gate/doors4-glow.webp?v=1'); g.colorSpace = THREE.SRGBColorSpace; g.flipY = false;
+  return (_doorTex = [m, g]);
 };
 async function loadGateModel(url) {
   const gltf = await new GLTFLoader().loadAsync(url);
@@ -213,10 +213,11 @@ async function loadGateModel(url) {
       }
       if (o.material.name === 'gate_ember') { o.material.emissive.set(0xff4a10); o.material.emissiveIntensity = 0.8; o.material.color.set(0x220804); }
       // 23.10: створки были чёрными — металл без окружения отражает пустоту; дерево и железо — матовые, металличность низкая
-      if (o.material.name === 'gate_door_front') { o.material.metalness = 0.15; o.material.roughness = 0.7; o.material.color.setRGB(1.75, 1.45, 1.15); }   // тёмный металл с бронзой (реф)
-      if (o.material.name === 'gate_door_back') {                                  // тыл створки — старые доски (вдоль высоты)
-        o.material.metalness = 0.0; o.material.roughness = 0.9; o.material.color.setRGB(1.7, 1.5, 1.25);
-        const t = doorBackTex(); o.material.map = t; o.material.needsUpdate = true;
+      // 23.10: створки — текстура Codex по концепту (doors4-front + свечение рун) на ОБЕ стороны, матовый металл
+      if (/gate_door_(front|back)/.test(o.material.name)) {
+        const [dm, dg] = doorTex();
+        o.material.map = dm; o.material.emissiveMap = dg; o.material.emissive.set(0x3fc8f0); o.material.emissiveIntensity = 0.9;
+        o.material.metalness = 0.25; o.material.roughness = 0.65; o.material.color.setRGB(1.15, 1.1, 1.05); o.material.needsUpdate = true;
       }
       if (o.material.name === 'gate_iron') { o.material.metalness = 0.3; o.material.roughness = 0.6; o.material.color.multiplyScalar(1.2); }
       if (o.material.name === 'gate_inner') { o.material.color.setRGB(0.07, 0.07, 0.08); o.material.roughness = 1; }   // тоннель — темнота   // боковины блоков — в тон скал хребта
