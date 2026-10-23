@@ -8,8 +8,8 @@ import { MapControls } from './map-controls.js?v=5';
 import { GLTFLoader } from './vendor/three/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './vendor/three/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { buildAtmosphere } from './atmosphere.js?v=1792798198';
-import { buildTerrain } from './terrain.js?v=1792798198';
+import { buildAtmosphere } from './atmosphere.js?v=1792798469';
+import { buildTerrain } from './terrain.js?v=1792798469';
 
 const t0 = 0;   // считаем от начала навигации: HTML, three.js, карта, модели
 const MOVE_RANGE = 6;          // как сумма кубиков в обычном ходу
@@ -43,7 +43,7 @@ const camera = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, 4, 500)
 
 const hemi = new THREE.HemisphereLight(0xa9bccb, 0x1e2124, 1.2);   // 24.10 призрачнее: холоднее и чуть темнее   // небо холодное, земля тёмная
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffd29a, 2.25);   // тёплый луч сверху-слева
+const sun = new THREE.DirectionalLight(0xffdda9, 2.35);   // тёплый луч сверху-слева
 // Живые тени дороги для телефонов (замер: 60 → 42–49 FPS), там — только пятна под фигурками.
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
 sun.castShadow = !IS_TOUCH;
@@ -194,25 +194,37 @@ const fogPass = atmo.fogMesh ? (() => {
         float zb = texture2D(depthTex, vUv).r;
         float vz = (cN * cF) / (cF - zb * (cF - cN));
         float near = vz - cN;
-        float haze = clamp(1.0 - exp(-max(0.0, vz - 115.0) * 0.015), 0.0, 0.40);
-        haze = max(haze, smoothstep(0.68, 1.0, vUv.y) * 0.32 * step(zb, 0.9999));
-        c = mix(c, vec3(0.42, 0.48, 0.52), haze);
+        float distant = smoothstep(0.62, 0.96, vUv.y);
+        float haze = clamp(1.0 - exp(-max(0.0, vz - 115.0) * 0.012), 0.0, 0.28);
+        haze = max(haze * distant, distant * 0.22) * step(zb, 0.9999);
+        float sunAir = (1.0 - smoothstep(0.12, 0.50, vUv.x)) * smoothstep(0.62, 0.96, vUv.y);
+        vec3 air = mix(vec3(0.40, 0.46, 0.51), vec3(0.65, 0.59, 0.46), sunAir);
+        c = mix(c, air, haze);
         { // 24.10 лунный свет в тёмном лесу: мировая точка из глубины, вокруг домиков тёмного леса — холодный синий
           vec4 wp = invPV * vec4(vUv * 2.0 - 1.0, zb * 2.0 - 1.0, 1.0); wp /= wp.w;
           float mk = 0.0;
           for (int i = 0; i < 2; i++) mk = max(mk, 1.0 - smoothstep(moonC[i].y * 0.35, moonC[i].y, length(wp.xz - moonC[i].xz)));
           mk *= step(zb, 0.9999);
           float lm = dot(c, vec3(0.3, 0.59, 0.11));
-          vec3 moon = mix(vec3(lm), c, 0.4) * vec3(0.80, 0.88, 1.02) + vec3(0.02, 0.025, 0.035);   // как на рефе: серо-лунная дымка, не синька
-          c = mix(c, moon, mk * 0.7);
+          vec3 moon = mix(vec3(lm), c, 0.65) * vec3(0.96, 1.00, 1.04);
+          moon *= lm / max(dot(moon, vec3(0.3, 0.59, 0.11)), 1e-4);
+          float moonShadow = 1.0 - smoothstep(0.16, 0.34, max(c.r, max(c.g, c.b)));
+          c = mix(c, moon, mk * 0.55 * moonShadow);
         }
         float l = max(c.r, max(c.g, c.b));
         // 24.10 разбор Codex п.1/п.10: середина светлее (экспозиция), пятно света на центре поля, мягкая виньетка краёв
         vec2 cq = (vUv - vec2(0.49, 0.45)) / vec2(0.24, 0.29);
         float M = exp(-0.5 * dot(cq, cq));
-        vec3 lit = pow(c, vec3(1.08)) * 0.95 * (1.0 + 0.22 * M);
+        vec2 sq = (vUv - vec2(0.16, 0.83)) / vec2(0.28, 0.32);
+        float S = exp(-0.5 * dot(sq, sq));
+        float mid = smoothstep(0.07, 0.24, l) * (1.0 - smoothstep(0.65, 0.90, l));
+        float cool = smoothstep(0.015, 0.07, c.b - c.r);
+        float hot = smoothstep(0.32, 0.62, c.r) * smoothstep(0.08, 0.22, c.r - c.g);
+        float gain = mid * (1.0 - cool) * (1.0 - hot) * step(zb, 0.9999);
+        vec3 lit = c * (1.0 + gain * (0.12 * M + 0.12 * S));
+        lit *= vec3(1.0) + gain * S * vec3(0.055, 0.025, 0.0);
         float rv = length((vUv - vec2(0.50, 0.48)) / vec2(0.70, 0.65));
-        lit *= 1.0 - 0.15 * smoothstep(0.65, 1.0, rv);
+        lit *= 1.0 - 0.08 * smoothstep(0.65, 1.0, rv) * (1.0 - 0.85 * S);
         c = mix(lit, c, smoothstep(0.80, 0.97, l));                  // светящееся — как есть
         c += texture2D(bloom, vUv).rgb * bk;
         gl_FragColor = vec4(c, 1.0); }`,
