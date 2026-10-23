@@ -1767,11 +1767,12 @@ ${gtex ? `{
   const glades = [];
   if (gateModelUrl) await loadGateModel(gateModelUrl).catch(e => console.warn('gate model', e));
   // домики-модели по 2D-арту колод (концепт → инженерка Codex → Blender, tools/blender/house_*.py); остальные — пока коробки
-  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=7' };
-  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]] };   // бочка+корзина рядом с домом (локально)
+  const HOUSE_MODELS = { 'lake-01': './models/house-lake-01.glb?v=20', 'forest-01': './models/house-forest-01.glb?v=7', 'forest-02': './models/house-forest-02.glb?v=3' };
+  const HOUSE_PROPS = { 'lake-01': ['./models/lake01-props.glb?v=20', [1.05, 0, 1.45]], 'forest-01': ['./models/forest01-props.glb?v=2', [-0.75, 0, 1.45]], 'forest-02': ['./models/forest02-props.glb?v=1', [1.15, 0, 0.75]] };   // бочка+корзина рядом с домом (локально)
   // световой проход (22.10): текстура по второй развёртке — R затенение щелей, G износ кромок (светлее, «старит»)
   const HOUSE_WEAR = { 'lake-01': './data/house/lake01-wear.png?v=20', 'lake-01-props': './data/house/lake01props-wear.png?v=20', 'lake-01-jetty': './data/house/lake01jetty-wear.png?v=20',
-    'forest-01': './data/house/forest01-wear.png?v=7', 'forest-01-props': './data/house/forest01props-wear.png?v=2' };
+    'forest-01': './data/house/forest01-wear.png?v=7', 'forest-01-props': './data/house/forest01props-wear.png?v=2',
+    'forest-02': './data/house/forest02-wear.png?v=3', 'forest-02-props': './data/house/forest02props-wear.png?v=1' };
   const HOUSE_JETTY = { 'lake-01': './models/lake01-jetty.glb?v=20' };   // мостки к дому (в системе дома)
   const wearTex = {};
   await Promise.all(Object.entries(HOUSE_WEAR).map(async ([k, u]) => {
@@ -1914,15 +1915,15 @@ ${gtex ? `{
     });
   };
   const houseModels = {};
-  const HOUSE_TOPMOSS = { 'forest-01': 0.75 };   // 23.10: мох на верхах — шейдером, как на скалах/мостах
+  const HOUSE_TOPMOSS = { 'forest-01': 0.75, 'forest-02': 0.9 };   // 23.10: мох на верхах — шейдером, как на скалах/мостах
   const houseMoss = await new THREE.TextureLoader().loadAsync('./data/tex-grass.webp?v=1')   /* 23.10: трава поля, не камень */.then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }).catch(() => null);
   await Promise.all(Object.entries(HOUSE_MODELS).map(([k, u]) => new GLTFLoader().loadAsync(u).then(g => {
     g.scene.traverse(o => {
       if (!o.isMesh) return;
       o.castShadow = true; o.receiveShadow = true;
-      if (o.material.name === 'hide') { o.material.alphaTest = 0.5; o.material.transparent = false; o.material.depthWrite = true; o.material.side = THREE.DoubleSide; }   // шкура с альфой (Codex)
+      if (o.material.name === 'hide' || o.material.name === 'fleece') { o.material.alphaTest = 0.5; o.material.transparent = false; o.material.depthWrite = true; o.material.side = THREE.DoubleSide; }   // шкура с альфой (Codex)
     });
-    applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^hide/ });
+    applyWear(g.scene, wearTex[k], { streakTop: 1.85, topMoss: houseMoss && HOUSE_TOPMOSS[k] ? HOUSE_TOPMOSS[k] : 0, moss: houseMoss, mossOn: /^bark/, skip: /^(hide|fleece)/ });
     houseModels[k] = g.scene;
   }).catch(e => console.warn('house model', k, e))));
   const houseProps = {};
