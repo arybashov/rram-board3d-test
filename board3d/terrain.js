@@ -1308,7 +1308,7 @@ ${gtex ? `{
   pth = mix(texture2D(g_path, tuv * 0.9).rgb, texture2D(g_path, ruv).rgb, 0.35 + 0.4 * pm);
   pth = mix(vec3(dot(pth, vec3(0.3, 0.59, 0.11))), pth, 0.5) * vec3(0.86, 0.76, 0.62);   // утоптанная земля, не оранжевый песок
   pth *= mix(0.9, 1.2, sb.b);                    // середина тропы светлее (протоптана), к краям темнее
-  col = mix(col, pth, smoothstep(0.35, 0.8, sa.r));   // 24.10: тропы уже (край маски поджат)
+  col = mix(col, pth, sa.r);   // 24.10: тропы возвращены к ранней маске (по просьбе)
   }
   // поляна (splat-b.a = 1 - поляна): не газон — пятнами трава, вытоптанная земля и мшистый камень
   float gld = 1.0 - sb.a;
@@ -1335,7 +1335,7 @@ ${gtex ? `{
     float yA = dot(graded, vec3(0.2126, 0.7152, 0.0722)), yP = dot(P, vec3(0.2126, 0.7152, 0.0722));
     graded = mix(graded, P * yA / max(yP, 1e-4), 0.45);
   }
-  float pathW = smoothstep(0.48, 0.86, sa.r);
+  float pathW = sa.r;
   // лесное основание: под группами деревьев — тёмная хвойно-лиственная подстилка одним пятном; край рваный
   // (шум), на тропе и клетках нет (маска это уже учитывает, тропа — ещё и здесь)
   float cn = texture2D(canopyTex, (vWorldPos.xz - canopyBox.xy) / canopyBox.zw).r;
@@ -1349,7 +1349,7 @@ ${gtex ? `{
     graded = mix(graded, lit, cov * 0.85);
     graded *= mix(vec3(1.0), vec3(0.42, 0.46, 0.51), cov * smoothstep(0.30, 0.85, cn));   // разбор «парка» п.4: ядро группы на ~45% темнее и холоднее, край мягкий
   }
-  diffuseColor.rgb = mix(graded, mix(vec3(gl0), col, 0.52) * vec3(0.98, 0.94, 0.84), pathW);
+  diffuseColor.rgb = mix(graded, mix(vec3(gl0), col, 0.7) * vec3(0.92, 0.86, 0.72), pathW);
 }` : ''}
 {
   vec3 n = normalize(vNrm);
