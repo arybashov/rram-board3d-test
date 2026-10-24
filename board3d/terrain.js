@@ -1282,7 +1282,7 @@ ${gtex ? `{
   vec2 pw = vec2(sin(vWorldPos.z * 1.9 + sin(vWorldPos.x * 1.3) * 1.7) + 0.5 * sin(vWorldPos.x * 4.7 - vWorldPos.z * 3.3),
                  sin(vWorldPos.x * 2.1 - sin(vWorldPos.z * 1.1) * 1.5) + 0.5 * sin(vWorldPos.z * 5.3 + vWorldPos.x * 2.9));
   vec4 sa = texture2D(g_splatA, vMapUv);
-  sa.r = texture2D(g_splatA, vMapUv + pw * vec2(0.0031, 0.0041)).r;  vec4 sb = texture2D(g_splatB, vMapUv);
+  sa.r = texture2D(g_splatA, vMapUv + pw * vec2(0.0008, 0.0010)).r;  vec4 sb = texture2D(g_splatB, vMapUv);   // 24.10: тропы ровные, как на концепте — сдвиг слабый  vec4 sb = texture2D(g_splatB, vMapUv);
   vec3 col = grass;
   if (sb.r > 0.01) col = mix(col, DT(g_meadow, tuv), sb.r);
   if (sa.g > 0.01) col = mix(col, DT(g_forest, tuv) * vec3(0.6, 0.62, 0.55), sa.g);   // под кронами темно (не газон)
