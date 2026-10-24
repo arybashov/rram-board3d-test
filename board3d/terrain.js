@@ -2780,6 +2780,21 @@ ${gtex ? `{
         if (r() < 0.6) { t.group = 'bush'; t.h = 0.7 + r() * 0.3; } else { t.group = 'willow'; t.h = 3.2 + r() * 0.8; }
       }
     }
+    // 24.10 зона D рефа: левая ЗОЛОТАЯ роща одной массой — вокруг клеток колоды «смешанный лес» слева: ели → берёзы,
+    // свободные места дозасаживаются берёзами (плотно, кроны внахлёст), клетки/тропы/дома/вода — нет
+    {
+      const mixC = cells.filter(c => c.deck === 'mixed' && c.x < groundX0 + groundW * 0.45);
+      const nearMix = (x, z) => mixC.some(c => Math.hypot(c.x - x, c.z - z) < 10);
+      for (const t of list) if (['spruce', 'pine', 'oak_green', 'autumn_red', 'autumn_orange'].includes(t.group) && nearMix(t.x, t.z) && r() < 0.75) { t.group = 'birch'; t.tint = [0, 0.88, 0.92]; }
+      const rg = rng(20261024); let add = 0;
+      for (const c of mixC) for (let k = 0; k < 260; k += 1) {
+        const a = rg() * Math.PI * 2, d = 2.0 + rg() * 8.0, x = c.x + Math.cos(a) * d, z = c.z + Math.sin(a) * d;
+        if (nearest(x, z) < 1.25 || nearHouse(x, z, 2.2) || groundY(x, z) < -0.1 || groundY(x, z) > 2.2 || sample(x, z).water > 0.2) continue;
+        if (list.some(t => Math.abs(t.x - x) < 0.75 && Math.abs(t.z - z) < 0.75)) continue;
+        list.push({ x, y: groundY(x, z), z, h: 2.6 + rg() * 1.1, group: 'birch', pick: Math.floor(rg() * 99), tint: [0, 0.82 + rg() * 0.12, 0.86 + rg() * 0.12] }); add += 1;
+      }
+      T.goldGrove = add;
+    }
     // не кучей: между кронами зазор (сказочные — шире); на уступах хребта рощи плотнее
     {
       const cellOf2 = new Map(), k2 = (x, z) => `${Math.floor(x / 3)},${Math.floor(z / 3)}`;
