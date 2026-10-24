@@ -1426,11 +1426,11 @@ ${gtex ? `{
         // 24.10 замер рефа v6b (озеро ~(46,72,81) sRGB): прежняя палитра была ближе всего — оставлена, мелководье чуть холоднее
         // 24.10 «не лазурная»: тёмная холодная сланцево-зелёная, низкая насыщенность (как глубокая вода на рефе)
         // реки — сланцевые серые; озеро (lakeK) — глубокое сине-бирюзовое, как на рефе (~(30,62,78) в центре)
-        vec3 dp = mix(vec3(0.105,0.150,0.160), vec3(0.075,0.180,0.235), lakeK); dp = mix(dp, vec3(0.110,0.160,0.170), poolK);
-        vec3 md = mix(vec3(0.170,0.220,0.225), vec3(0.120,0.250,0.300), lakeK); md = mix(md, vec3(0.190,0.240,0.245), poolK);
-        vec3 sh = mix(vec3(0.290,0.330,0.315), vec3(0.200,0.320,0.340), lakeK); sh = mix(sh, vec3(0.330,0.370,0.355), poolK);
+        vec3 dp = mix(vec3(0.140,0.240,0.300), vec3(0.050,0.170,0.255), lakeK); dp = mix(dp, vec3(0.280,0.390,0.450), poolK);   // 24.10 вода по замерам рефа (Codex water-review/answer.md A)
+        vec3 md = mix(vec3(0.370,0.500,0.560), vec3(0.095,0.225,0.305), lakeK); md = mix(md, vec3(0.360,0.480,0.540), poolK);
+        vec3 sh = mix(vec3(0.300,0.400,0.450), vec3(0.240,0.360,0.420), lakeK); sh = mix(sh, vec3(0.340,0.440,0.500), poolK);
         dp = pow(dp, vec3(2.2)); md = pow(md, vec3(2.2)); sh = pow(sh, vec3(2.2));
-        d = clamp(d * mix(3.2, 1.0, lakeK), 0.0, 1.0);   // узкие русла и чаша — расстояние до берега мало, но вода не мелкая
+        // 24.10: множитель 3.2 для русел снят — реки светлые (реф), не тёмная глубина
         for (int i = 0; i < 3; i++) d = max(d, (1.0 - smoothstep(2.0, 3.6, length(vPos.xz - bridgeC[i]))) * 0.55);   // расширенное русло под мостом — не берег
         d = max(d, texture2D(carveTex, (vPos.xz - cbox.xy) / cbox.zw).r * 0.6);   // раструб русла у моста (22.10)
         vec3 col = mix(sh, md, smoothstep(0.0, 0.18, d));
@@ -1446,22 +1446,25 @@ ${gtex ? `{
         // гребни ряби: Вороной с разорванными гранями (не сетка), в каждой фазе свой сдвиг
         vec2 wb = vPos.xz + vec2(n2(vPos.xz * 0.7 + time * 0.05), n2(vPos.xz * 0.7 + 5.3 - time * 0.04)) * 1.2;
         vec2 wp0 = wb - o0, wp1 = wb - o1 + 3.7;
-        float l0 = (1.0 - smoothstep(0.0, 0.05, vor(wp0 * 1.1, time * 0.5))) * smoothstep(0.55, 0.8, n2(wp0 * 2.3 + 7.1));
-        float l1 = (1.0 - smoothstep(0.0, 0.05, vor(wp1 * 1.1, time * 0.5 + 1.3))) * smoothstep(0.55, 0.8, n2(wp1 * 2.3 + 7.1));
+        float l0 = (1.0 - smoothstep(0.0, 0.05, vor(wp0 * 1.1, time * 0.5))) * smoothstep(0.30, 0.65, n2(wp0 * 2.3 + 7.1));
+        float l1 = (1.0 - smoothstep(0.0, 0.05, vor(wp1 * 1.1, time * 0.5 + 1.3))) * smoothstep(0.30, 0.65, n2(wp1 * 2.3 + 7.1));
         float lines = mix(l0, l1, fw);
-        lines *= smoothstep(0.2, 0.7, n2(vPos.xz * 0.45 + time * 0.03));
-        col = mix(col, pow(vec3(0.459, 0.616, 0.651), vec3(2.2)), clamp(lines * mix(0.26, 0.12, lakeK), 0.0, 1.0));
+        lines *= smoothstep(0.10, 0.50, n2(vPos.xz * 0.45 + time * 0.03));
+        col = mix(col, pow(mix(vec3(0.760, 0.860, 0.910), vec3(0.560, 0.700, 0.780), lakeK), vec3(2.2)), clamp(lines * mix(0.75, 0.40, lakeK), 0.0, 1.0));
+        // 24.10 разброс как на рефе: тёмные просветы и светлые струи крупными пятнами, сносятся течением (реки/море; озеро слабее)
+        float mot = mix(n2(wp0 * 0.55), n2(wp1 * 0.55 + 2.1), fw);
+        col *= mix(1.0, mix(0.62, 1.22, smoothstep(0.2, 0.8, mot)), mix(1.0, 0.5, lakeK));
         // прибой: мягкие волны, бегущие к берегу (на озере едва заметно), тонкая мокрая кромка
         // 24.10 волны от берегов возвращены (как до 21.10): полосы бегут к берегу до d0≈0.28, белые, кружевом
         float wave = sin(d0 * 26.0 - time * 2.2 + n2(vPos.xz * 1.3) * 4.0) * 0.5 + 0.5;
-        float foamBand = (1.0 - smoothstep(0.0, 0.05, d0)) * 0.6
-                       + (1.0 - smoothstep(0.08, 0.28, d0)) * smoothstep(0.72, 0.95, wave) * 0.8;
+        float foamBand = (1.0 - smoothstep(0.0, 0.035, d0)) * 0.6 * smoothstep(0.3, 0.6, n2(vPos.xz * 3.3 + time * 0.2))   // кромка рваная, кружевом
+                       + (1.0 - smoothstep(0.08, 0.28, d0)) * smoothstep(0.84, 0.97, wave) * 0.8;
         foamBand *= (0.6 + 0.6 * n2(vPos.xz * 4.0 + time * 0.3)) * mix(1.0, 0.45, lakeK);
         // белая вода: пороги у камней (шлейф сносится по течению) и ядро под водопадом; приглушённая, клочьями
         float rap = texture2D(rapids, (vPos.xz - rbox.xy) / rbox.zw).r;
         float a0 = n2((vPos.xz - o0 * 1.4) * 3.1), a1 = n2((vPos.xz - o1 * 1.4) * 3.1 + 4.1);
         float wn1 = mix(a0, a1, fw), wn2 = n2(vPos.xz * 9.3 - F * time * 0.9);
-        float white = smoothstep(0.45, 0.7, rap * (0.45 + 0.7 * wn1) + (wn2 - 0.5) * 0.3) * 0.7;
+        float white = smoothstep(0.20, 0.60, rap) * max(l0, l1) * mix(1.0, 0.10, lakeK);   // 24.10 перекаты кружевом по линиям ряби, не клочьями
         float ri = length(vPos.xz - impactC) / impactR;
         float core = (1.0 - smoothstep(0.35, 1.1, ri + (wn1 - 0.5) * 0.45));
         float arcs = smoothstep(0.72, 0.95, sin(ri * 9.0 - time * 2.6 + wn2 * 3.0) * 0.5 + 0.5) * (1.0 - smoothstep(1.0, 2.2, ri)) * smoothstep(0.5, 0.9, wn1 + 0.2);
@@ -1485,7 +1488,7 @@ ${gtex ? `{
         vec3 V = normalize(cameraPosition - vPos);
         float fres = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
         col = mix(col, pow(vec3(0.52, 0.62, 0.68), vec3(2.2)), clamp(fres * 0.8, 0.0, 0.12) * (1.0 - refl.r * 0.7));
-        col = mix(col, pow(vec3(0.86, 0.92, 0.94), vec3(2.2)), clamp(foamBand, 0.0, 1.0));   // 24.10 пена белая с голубым (реф)
+        col = mix(col, pow(vec3(0.880, 0.950, 0.980), vec3(2.2)), clamp(foamBand, 0.0, 1.0));   // 24.10 пена белая с голубым (реф)
         col = pow(col, vec3(1.0 / 2.2));                            // обратно в вывод (шейдер пишет как есть)
         float a = mix(0.55, 0.96, smoothstep(0.0, 0.14, d));
         a = max(a, clamp(foamBand, 0.0, 1.0) * 0.9);
