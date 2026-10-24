@@ -1417,6 +1417,7 @@ ${gtex ? `{
         return d2 - d1; }
       void main(){
         float d = texture2D(dist, vUv).r;                  // 0 у берега -> 1 на глубине
+        float d0 = d;                                       // 24.10: исходное расстояние — для волн от берега (d ниже масштабируется для русел)
         // тёмная холодная вода (концепт v6b): бирюза у берега -> глубокий сине-зелёный
         // палитра v6b по зонам (разбор Codex water-v6b/answer.md): глубина / середина / мелководье (sRGB→linear)
         float lakeK = 0.0;
@@ -1451,10 +1452,11 @@ ${gtex ? `{
         lines *= smoothstep(0.2, 0.7, n2(vPos.xz * 0.45 + time * 0.03));
         col = mix(col, pow(vec3(0.459, 0.616, 0.651), vec3(2.2)), clamp(lines * mix(0.26, 0.12, lakeK), 0.0, 1.0));
         // прибой: мягкие волны, бегущие к берегу (на озере едва заметно), тонкая мокрая кромка
-        float wave = sin(d * 34.0 - time * 1.7 + n2(vPos.xz * 1.1) * 3.0) * 0.5 + 0.5;
-        float foamBand = (1.0 - smoothstep(0.0, 0.035, d)) * 0.45
-                       + (1.0 - smoothstep(0.02, 0.16, d)) * smoothstep(0.82, 0.97, wave) * 0.35;
-        foamBand *= (0.55 + 0.6 * n2(vPos.xz * 4.0 + time * 0.3)) * mix(1.0, 0.35, lakeK);
+        // 24.10 волны от берегов возвращены (как до 21.10): полосы бегут к берегу до d0≈0.28, белые, кружевом
+        float wave = sin(d0 * 26.0 - time * 2.2 + n2(vPos.xz * 1.3) * 4.0) * 0.5 + 0.5;
+        float foamBand = (1.0 - smoothstep(0.0, 0.05, d0)) * 0.6
+                       + (1.0 - smoothstep(0.08, 0.28, d0)) * smoothstep(0.72, 0.95, wave) * 0.8;
+        foamBand *= (0.6 + 0.6 * n2(vPos.xz * 4.0 + time * 0.3)) * mix(1.0, 0.45, lakeK);
         // белая вода: пороги у камней (шлейф сносится по течению) и ядро под водопадом; приглушённая, клочьями
         float rap = texture2D(rapids, (vPos.xz - rbox.xy) / rbox.zw).r;
         float a0 = n2((vPos.xz - o0 * 1.4) * 3.1), a1 = n2((vPos.xz - o1 * 1.4) * 3.1 + 4.1);
@@ -1483,7 +1485,7 @@ ${gtex ? `{
         vec3 V = normalize(cameraPosition - vPos);
         float fres = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
         col = mix(col, pow(vec3(0.52, 0.62, 0.68), vec3(2.2)), clamp(fres * 0.8, 0.0, 0.12) * (1.0 - refl.r * 0.7));
-        col = mix(col, pow(vec3(0.70, 0.80, 0.82), vec3(2.2)), clamp(foamBand, 0.0, 1.0));   // пена серо-голубая, не белая
+        col = mix(col, pow(vec3(0.86, 0.92, 0.94), vec3(2.2)), clamp(foamBand, 0.0, 1.0));   // 24.10 пена белая с голубым (реф)
         col = pow(col, vec3(1.0 / 2.2));                            // обратно в вывод (шейдер пишет как есть)
         float a = mix(0.55, 0.96, smoothstep(0.0, 0.14, d));
         a = max(a, clamp(foamBand, 0.0, 1.0) * 0.9);
